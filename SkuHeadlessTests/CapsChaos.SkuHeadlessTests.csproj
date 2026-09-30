@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The SKU's rung-1 test surface — emitted once by the Setup Wizard's test kit; this file is the SKU's.
+
+    A plain .NET test project OUTSIDE Assets/ and Packages/, so the Unity compiler never sees it.
+    `sh Tools/pf/gate.sh` runs it (Tools/Gate/gate.conf.sh names it as TEST_PROJECT) filtered to
+    TestCategory!=Slow; [Slow] tests also ignore themselves unless PF_RUN_SLOW=1, so a bare
+    `dotnet test` cannot wander into a sweep either (SlowTestAttribute.cs).
+
+    What it compiles of the SKU and the framework — the engine-free anchor globs, the framework
+    package-root probe, and the packages those sources need — lives in SkuEngineFree.props next to
+    this file, so an offline tool that needs the same engine-free SKU can import the same set. To pull
+    ONE engine-free file out of an engine-bound tier, add a named <Compile Include> here — never a
+    glob (a glob over an engine-bound tier drags the engine in).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>CapsChaos.SkuHeadlessTests</RootNamespace>
+    <AssemblyName>CapsChaos.SkuHeadlessTests</AssemblyName>
+    <!-- The linked SKU sources are Unity-profile code; they are not warning-clean under the
+         net10.0 analyzer set and this project is not the place to police that. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="SkuEngineFree.props" />
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,38 @@
+{
+    "name": "Game.Tests.Editor",
+    "rootNamespace": "Game.Tests.Editor",
+    "references": [
+        "Game.Editor",
+        "Game.Domain",
+        "Game.Application",
+        "Game.Gen",
+        "Game.Views",
+        "Game.Presentation",
+        "Game.Infrastructure",
+        "Game.Composition",
+        "ClassicSpins.PrototypeFramework.Domain",
+        "ClassicSpins.PrototypeFramework.Application",
+        "ClassicSpins.PrototypeFramework.Presentation",
+        "ClassicSpins.PrototypeFramework.Composition",
+        "Unity.TextMeshPro",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "UniTask",
+        "VContainer"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,110 @@
+<Project>
+
+  <!--
+    The engine-free half of the SKU, as SOURCE — emitted once by the Setup Wizard's test kit; this
+    file is the SKU's. Imported by the rung-1 test project (and by any offline tool that needs the
+    same set), never copied: two copies of the probe or the globs below would be two opinions about
+    what "the engine-free SKU" is.
+
+    It compiles the SKU's three engine-free tiers (Domain, Application, Gen — the ones whose asmdefs
+    declare noEngineReferences) plus the framework's engine-free Runtime/Domain and
+    Runtime/Application — all by <Compile Include> GLOB, never a <ProjectReference> and never a
+    prebuilt DLL:
+
+      * a ProjectReference would add an assembly edge (an AD-1 spine change);
+      * a prebuilt DLL drifts the moment a source file changes without a Unity reimport.
+
+    Source inclusion adds no edge and cannot drift: a file added under Domain/ or Application/
+    tomorrow is in every importer without anyone editing this file.
+
+    TRAP: `**/Domain/**` matches BOTH the anchor folder (Assets/CapsChaos/Domain/) and every feature
+    subfolder (Assets/CapsChaos/Features/*/Domain/), because MSBuild's `**` matches zero directories
+    too. Adding a SECOND anchor-only glob therefore double-includes every anchor file -> NETSDK1022.
+    One glob per tier. Do not "fix" a perceived gap by adding another.
+
+    TRAP 2: Presentation/Gen is deliberately NOT globbed. The generated file that binds a
+    Unity engine type (AssetKeys.gen.cs) lands there; only Assets/CapsChaos/Gen/ is engine-free by construction.
+
+    The IsExternalInit.cs shims the spine emit writes are compiled in too. They do not collide
+    because each is wrapped in `#if !NET5_0_OR_GREATER` and every importer targets net10.0 — which
+    is exactly why that guard must stay.
+  -->
+
+  <!-- ============================================================================================
+       Framework package-root probe — never a hardcoded absolute path.
+         1. embedded  Packages/com.classicspins.prototype-framework/
+         2. else the `file:` path declared for the package in Packages/manifest.json
+         3. else a Library/PackageCache/com.classicspins.prototype-framework@* copy
+       Failure is LOUD and BY NAME (the PfProbeFrameworkRoot target below) rather than a confusing
+       wall of missing-type errors.
+
+       Caveat on leg 3: MSBuild evaluation cannot sort by mtime, so "newest" degrades to the last
+       entry in glob order. A registry/git consumer has exactly one entry, so this only matters
+       after a version change left an old one behind.
+       ============================================================================================ -->
+  <PropertyGroup>
+    <!-- MSBuildThisFileDirectory is THIS file's folder (SkuHeadlessTests/), whichever project
+         imports it, so the repo root resolves the same for every importer. -->
+    <SkuRepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..'))</SkuRepoRoot>
+
+    <!-- 1. embedded -->
+    <PfEmbeddedRoot>$([MSBuild]::NormalizeDirectory('$(SkuRepoRoot)Packages', 'com.classicspins.prototype-framework'))</PfEmbeddedRoot>
+    <PfPackageRoot Condition="'$(PfPackageRoot)' == '' And Exists('$(PfEmbeddedRoot)package.json')">$(PfEmbeddedRoot)</PfPackageRoot>
+
+    <!-- 2. the `file:` path in Packages/manifest.json -->
+    <PfManifestFile>$([MSBuild]::NormalizePath('$(SkuRepoRoot)Packages', 'manifest.json'))</PfManifestFile>
+    <PfManifestMatch Condition="'$(PfPackageRoot)' == '' And Exists('$(PfManifestFile)')">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(PfManifestFile)')), 'com\.classicspins\.prototype-framework&quot;\s*:\s*&quot;file:[^&quot;]+'))</PfManifestMatch>
+    <PfManifestPath Condition="'$(PfManifestMatch)' != ''">$(PfManifestMatch.Substring($([MSBuild]::Add($(PfManifestMatch.IndexOf('file:')), 5))))</PfManifestPath>
+    <!-- NormalizeDirectory(base, candidate) returns `candidate` untouched when it is absolute, and
+         resolves it against Packages/ when it is relative — both spellings UPM accepts. -->
+    <PfManifestRoot Condition="'$(PfManifestPath)' != ''">$([MSBuild]::NormalizeDirectory('$(SkuRepoRoot)Packages', '$(PfManifestPath)'))</PfManifestRoot>
+    <PfPackageRoot Condition="'$(PfPackageRoot)' == '' And '$(PfManifestRoot)' != '' And Exists('$(PfManifestRoot)package.json')">$(PfManifestRoot)</PfPackageRoot>
+  </PropertyGroup>
+
+  <!-- 3. PackageCache -->
+  <ItemGroup Condition="'$(PfPackageRoot)' == ''">
+    <PfCacheManifest Include="$(SkuRepoRoot)Library/PackageCache/com.classicspins.prototype-framework@*/package.json" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(PfPackageRoot)' == ''">
+    <PfCacheRoots>@(PfCacheManifest->'%(RootDir)%(Directory)')</PfCacheRoots>
+    <!-- LastIndexOf(';') is -1 for a single candidate, so Add(...,1) == 0 and Substring returns the
+         whole string; with several, it returns the last. -->
+    <PfPackageRoot Condition="'$(PfCacheRoots)' != ''">$(PfCacheRoots.Substring($([MSBuild]::Add($(PfCacheRoots.LastIndexOf(';')), 1))))</PfPackageRoot>
+  </PropertyGroup>
+
+  <Target Name="PfProbeFrameworkRoot" BeforeTargets="BeforeBuild">
+    <Error Condition="'$(PfPackageRoot)' == ''"
+           Text="com.classicspins.prototype-framework could not be located. Looked for (1) $(PfEmbeddedRoot), (2) the `file:` path declared in $(PfManifestFile), (3) $(SkuRepoRoot)Library/PackageCache/com.classicspins.prototype-framework@*. A registry/git consumer has no PackageCache entry until the project has been opened in Unity once." />
+    <Error Condition="'$(PfPackageRoot)' != '' And !Exists('$(PfPackageRoot)Runtime/Domain')"
+           Text="Resolved com.classicspins.prototype-framework to '$(PfPackageRoot)' but it has no Runtime/Domain folder — the resolved path is not a framework package root." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- The framework's Runtime/Application (below) declares UniTask-returning members (IUserData and
+         others). They need not be CALLED from this tree, but the assembly must resolve for those
+         signatures to compile at all. Same version the framework's own headless project pins. -->
+    <PackageReference Include="UniTask" Version="2.5.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The framework's engine-free Domain and Application — what the SKU's own engine-free tiers are
+         written against (and the in-memory fakes the framework ships for its ports).
+
+         ONE GLOB PER TIER — see the header's NETSDK1022 trap. These two are the framework's anchor
+         folders (no `**/Application/**` spelling), so they do not double-include.
+
+         Infrastructure stays out: it is engine-bound, and its behaviour is the framework's own
+         suite's business, not this SKU's. -->
+    <Compile Include="$(PfPackageRoot)Runtime/Domain/**/*.cs" Condition="'$(PfPackageRoot)' != ''" />
+    <Compile Include="$(PfPackageRoot)Runtime/Application/**/*.cs" Condition="'$(PfPackageRoot)' != ''" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The engine-free half of the SKU, by glob (see the header for the NETSDK1022 trap). -->
+    <Compile Include="$(SkuRepoRoot)Assets/CapsChaos/**/Domain/**/*.cs" />
+    <Compile Include="$(SkuRepoRoot)Assets/CapsChaos/**/Application/**/*.cs" />
+    <Compile Include="$(SkuRepoRoot)Assets/CapsChaos/Gen/**/*.cs" />
+  </ItemGroup>
+
+</Project>

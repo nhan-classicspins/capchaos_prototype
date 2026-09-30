@@ -1,0 +1,4 @@
+{
+  "$schema": "./framework.config.schema.json",
+  "sku": "CapsChaos"
+}

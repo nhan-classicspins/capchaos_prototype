@@ -1,0 +1,19 @@
+{
+    "name": "Game.Views",
+    "rootNamespace": "Game.Views",
+    "references": [
+        "ClassicSpins.PrototypeFramework.Views",
+        "Unity.TextMeshPro",
+        "LitMotion",
+        "UniTask"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

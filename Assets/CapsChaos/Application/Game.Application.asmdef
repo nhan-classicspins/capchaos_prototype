@@ -1,0 +1,19 @@
+{
+    "name": "Game.Application",
+    "rootNamespace": "Game.Application",
+    "references": [
+        "Game.Domain",
+        "Game.Gen",
+        "ClassicSpins.PrototypeFramework.Application",
+        "ClassicSpins.PrototypeFramework.Domain"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

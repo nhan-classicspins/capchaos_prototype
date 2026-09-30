@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# >>> PrototypeFramework — written by Framework/Setup Wizard; edits inside this block are overwritten.
+# TextMesh Pro font atlases (TMP names them "<Font> SDF.asset"): Unity-generated, 2-9 MB of YAML
+# each, unreadable in review. Kept out of TEXT diffs only — `git diff --stat` still lists them.
+*SDF.asset -diff
+# <<< PrototypeFramework

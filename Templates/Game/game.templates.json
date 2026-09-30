@@ -1,0 +1,34 @@
+{
+  "$comment": [
+    "The game-half template bindings the Setup Wizard seeds (SKU-owned — you may edit this file).",
+    "Declares, per kind, the framework base classes scaffolded controllers/views inherit. These MUST",
+    "be framework bases — never raw interfaces (AD-11); the scaffold validator fails the check",
+    "otherwise. The Templates/Framework/ half + Templates/templates.json stay read-only."
+  ],
+  "templates": [
+    {
+      "id": "Screen",
+      "kind": "Scene",
+      "baseClass": "ScreenBase",
+      "viewBase": null
+    },
+    {
+      "id": "Dialog",
+      "kind": "Dialog",
+      "baseClass": "DialogBase<TResult>",
+      "viewBase": "DialogViewBase"
+    },
+    {
+      "id": "Widget",
+      "kind": "Widget",
+      "baseClass": null,
+      "viewBase": "WidgetViewBase"
+    },
+    {
+      "id": "Toast",
+      "kind": "Toast",
+      "baseClass": null,
+      "viewBase": "ToastViewBase"
+    }
+  ]
+}

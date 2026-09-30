@@ -1,0 +1,16 @@
+{
+    "name": "Game.Domain",
+    "rootNamespace": "Game.Domain",
+    "references": [
+        "ClassicSpins.PrototypeFramework.Domain"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -88,3 +88,14 @@ ServerData/
 Assets/AddressableAssetsData/ProfileDataSourceSettings.asset
 Assets/AddressableAssetsData/ProfileDataSourceSettings.asset.meta
 ProjectSettings/ScriptableBuildPipeline.json
+
+# >>> PrototypeFramework agent-doc sync (PrototypeFramework 0.4.0) — edits inside this block are overwritten by Framework/Agent Docs/Sync (editor) or Tools/Build/pf-build.sh agentdocs.
+# Output the framework's Tools/pf/ gates write inside the repo — regenerated on every run, never source.
+# UiGate captures differ by GPU and are rewritten by the capture harness; Tools/UiGate/probes/ IS source.
+Tools/UiGate/captures/
+# `dotnet test` TRX and --blame-hang sequence XML: one machine's run of the engine-free suite.
+SkuHeadlessTests/TestResults/
+# CPython bytecode from importing a Tools/pf/ or Tools/bmad/ script to unit-test it.
+__pycache__/
+*.pyc
+# <<< PrototypeFramework agent-doc sync

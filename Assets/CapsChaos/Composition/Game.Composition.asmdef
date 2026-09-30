@@ -1,0 +1,29 @@
+{
+    "name": "Game.Composition",
+    "rootNamespace": "Game.Composition",
+    "references": [
+        "Game.Infrastructure",
+        "Game.Presentation",
+        "Game.Application",
+        "Game.Domain",
+        "Game.Gen",
+        "Game.Views",
+        "ClassicSpins.PrototypeFramework.Composition",
+        "ClassicSpins.PrototypeFramework.Infrastructure",
+        "ClassicSpins.PrototypeFramework.Presentation",
+        "ClassicSpins.PrototypeFramework.Views",
+        "ClassicSpins.PrototypeFramework.Application",
+        "ClassicSpins.PrototypeFramework.Domain",
+        "UniTask",
+        "VContainer"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
