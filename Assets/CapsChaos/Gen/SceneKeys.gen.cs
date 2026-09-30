@@ -9,6 +9,7 @@ namespace Game.Gen
     /// <summary>Typed SceneKey VALUES for the SKU, emitted from game.scenes.json. The SceneKey TYPE lives in the framework Domain; these are the addressable-screen keys the scene service loads. The four-legs fields (screenClass/address/paramType) opt an entry into Scaffold.Sync management. Codegen-owned; never hand-edit the generated file.</summary>
     public static class SceneKeys
     {
-        public static readonly SceneKey Main = new("Main");
+        public static readonly SceneKey Main     = new("Main");
+        public static readonly SceneKey Gameplay = new("Gameplay");
     }
 }

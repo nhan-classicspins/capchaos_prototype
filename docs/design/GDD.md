@@ -133,14 +133,25 @@ Mã hex ở Art §3.
   - Chai ẩn **không bao giờ** được khay nào kéo, vì nó luôn nằm ở tầng ≥ 1.
 
 ### 5.2 Tap và băng chuyền
-- **R5** [QS] Chỉ tap được **khay đầu** mỗi làn.
+- **R5** [QS][CHỐT] **Tap vào khay, không tap vào băng chuyền.** Mỗi khay trên băng chuyền có vùng chạm riêng;
+  phần băng chuyền trống không phản hồi gì.
+  - Chạm **khay đầu** làn: khay bay lên slot, băng chuyền chạy.
+  - Chạm **khay phía sau**: khay **rung ngang theo mặt sàn** (tween LitMotion, 0,35 s, 3 chu kỳ, biên độ
+    0,07, tắt dần), luật chơi không đổi.
+  - Việc quyết định thuộc về controller (`GameplayScreen.OnTrayTapped`); View chỉ báo `(lane, index)`.
 - **R6** [QS] Khay được tap bay vào **slot trống ngoài cùng bên trái**.
 - **R7 — Băng chuyền** [QS][CHỐT] Khi khay đầu rời làn, **băng chuyền chạy** và đưa **mọi khay còn lại
   lên một ô**. Mặt băng cuộn theo (sọc chạy), và khay mới trượt vào từ ngoài mép dưới màn hình. Người chơi
   chỉ thấy khoảng 4–5 khay đầu mỗi làn; phần còn lại của hàng đợi nằm ngoài màn hình.
-- **R8** [GĐ] Tap khi không còn slot trống thì khay rung và phát SFX "denied". Không có gì thay đổi.
-- **R9** [GĐ] Có thể tap tiếp trong lúc animation còn chạy. Input được xếp hàng, không khoá màn hình.
-  Luật (Domain) chạy tức thì; animation chỉ phát lại kết quả.
+- **R8** [GĐ] Tap khay đầu làn khi không còn slot trống: khay rung như R5 (SFX "denied" sẽ thêm sau). Không có gì thay đổi.
+- **R9** [GĐ] Có thể tap tiếp trong lúc animation còn chạy; màn hình không bị khoá. Luật (Domain) chạy tức
+  thì; animation chỉ phát lại kết quả.
+  - **Phản hồi tap là tức thì** (sửa 2026-09-30): khay được tap bay vào slot và băng chuyền dồn lên *ngay
+    khung hình đó*. Chỉ các fact còn lại (chai bay, rơi, lộ màu, đóng thùng) mới phát lại theo thứ tự.
+  - Khi vừa đầy khay, luật trả slot ngay, nên có thể dùng lại chính slot đó cho khay tiếp theo, trong khi
+    thùng cũ còn đang bay trên màn hình. Vì vậy View đặt khay mới vào slot **trống trên màn hình** (ưu tiên
+    slot luật chọn, không thì slot trống ngoài cùng bên trái). Mọi animation bám theo **id khay**, không
+    bám theo chỉ số slot.
 
 ### 5.3 Nạp chai
 - **R10** [QS] Mỗi khay trong slot **tự động** kéo các chai lấy được **cùng màu** cho tới khi đủ
@@ -183,8 +194,8 @@ Unity**. Đây là machine zone: diff được, review được, test headless �
 
 | File | Vai trò |
 |---|---|
-| `Assets/CapsChaos/Content/Levels/level_0001.json` … | Một file cho mỗi level, là addressable TextAsset `Levels/level_0001` |
-| `Assets/CapsChaos/Content/Levels/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
+| `Assets/CapsChaos/Content/Resources/Levels/level_0001.json` … | Một file cho mỗi level (TextAsset, đọc bằng `Resources.Load("Levels/<id>")`) |
+| `Assets/CapsChaos/Content/Resources/Levels/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
 | [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12), là nguồn chân lý của định dạng |
 
 ### 6.2 Định dạng
@@ -265,7 +276,7 @@ V6 là cửa CI: level không giải được thì không ship.
 | Tỷ lệ chai ẩn | 0 % | 60 %+ tầng trên [QS video 2: gần như toàn bộ tầng trên ẩn] |
 | Độ trộn trong cột | Cột cùng màu | Xen kẽ từng chai |
 | Thứ tự khay | Khớp với tầng đất | Lệch pha, người chơi phải nhìn trước 2–3 nước |
-| Số slot | 4–5 (level tutorial) | 3 |
+| Số slot (`"slots"`, 1–5, cấu hình theo từng level) | 4–5 (level tutorial) | 3 |
 
 **Đường cong đề xuất** [GĐ]:
 - L1–3: 1 tầng, 2–3 màu, dạy tap, băng chuyền và đóng thùng.
@@ -274,6 +285,14 @@ V6 là cửa CI: level không giải được thì không ship.
 - L13+: chai ẩn (giống video 2).
 
 **Seed levels của MVP:** 15 level, trong đó `level_0012` và `level_0013` tái dựng gần đúng từ hai video.
+
+**Số slot là config của level** (`"slots"`, mặc định 3, cho phép 1–5):
+- Domain: `CapChaosGame.SlotCount`, dùng cho R6 (chọn slot) và R15 (xử thua).
+- LevelTool: spec có thể khai `"slots"`.
+- View: `BoardView` co giãn cả hàng slot. Tối đa 4 slot giữ nguyên cỡ (`SlotRowMaxWidth` 4.48); với 5 slot,
+  khoảng cách, ô slot, khay và thùng cùng co theo một tỉ lệ (0.8). Ảnh:
+  [`refs/14_slots5_S6.jpg`](refs/14_slots5_S6.jpg), [`14_slots5_S7.jpg`](refs/14_slots5_S7.jpg).
+- Seed levels: L1–L2 có 5 slot, L3–L5 và L10 có 4 slot, còn lại 3 slot.
 
 ### 6.6 Công cụ: `Tools/LevelTool` (CLI .NET, không cần Unity)
 
@@ -294,7 +313,7 @@ dotnet run --project Tools/LevelTool -- stats             # độ khó: tỉ l�
 | Level | 1–4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Nhãn | tutorial/easy | easy | easy | medium | medium | medium | breather | hard | hard | hard | medium | hard |
-| Thắng ngẫu nhiên | 100 % | 77 % | 80 % | 37 % | 62 % | 18 % | 100 % | 3 % | 2 % | 3 % | 17 % | 0.6 % |
+| Thắng ngẫu nhiên | 100 % | 100 % | 80 % | 37 % | 62 % | 18 % | 100 % | 3 % | 2 % | 3 % | 17 % | 0.6 % |
 
 ---
 
@@ -386,6 +405,49 @@ perspective cho khối chai, slot và băng chuyền **cần cấu hình camera 
 | **Views** | `BottleView`, `CapTrayView`, `SlotView`, `ConveyorView`, `BoxView`, `HudView`, `ResultPopupView` (theme Win/Lose) |
 | **Screens / Dialogs** (manifest + `Scaffold.Sync`) | Screens `Title`, `Gameplay` · Dialogs `Win`, `Lose` |
 
+**Trạng thái màn Gameplay (2026-09-30):**
+
+| Phần | File | Ghi chú |
+|---|---|---|
+| Screen (manifest + `Scaffold.Sync`) | `Scenes/Gameplay.unity`, `SceneKeys.Gameplay`, Addressables `Scenes/Gameplay` | **Scene riêng, load ADDITIVE** chồng lên Master qua `ISceneService`; `Replace` gỡ scene cũ (đã thử cả `Gameplay → Gameplay`) |
+| Boot | `Composition/CapsChaosFrameworkSettings.cs` | `FirstSceneConfig` → `Gameplay(LevelIndex 0)`. `Main` giữ lại cho màn Title |
+| Param / catalog / port | `Features/Gameplay/Application/{GameplayParam, LevelCatalog}.cs` | `ILevelSource` (engine-free). Load thì chạy V1–V5; V6 thuộc CI |
+| Adapter | `Infrastructure/ResourcesLevelSource.cs` | Level nằm ở `Content/Resources/Levels/`. Không dùng Addressables vì `Game.Editor` bị ghim, không có API editor của Addressables |
+| Controller | `Features/Gameplay/Presentation/GameplayScreen.cs` | Tap → `CapChaosGame.Tap` → phát lại fact theo thứ tự trên `BoardView` |
+| Scope | `Features/Gameplay/Composition/GameplayScreenScope.cs` | Source, catalog, WorldRoot, entry screen |
+| Views | `Views/Board/{BoardView, BoardInputView}.cs`, `Views/DesignTokens.cs` (`Board`, `Motion`) | Animation dùng LitMotion lõi + UniTask. Input = hit-catcher uGUI → raycast 3D → chỉ số làn |
+
+**Visual check** (play mode, 1080×1920, 2 phiên; ảnh `refs/13_gameplay_S*.jpg`):
+- **S1** `level_0001` lúc bắt đầu;
+- **S2** đang đóng thùng;
+- **S3** tự sang `level_0002` sau khi thắng;
+- **S4** `level_0013` có tầng cầu vồng;
+- **S5** chồng chai rơi và lộ màu, khay chờ trong slot.
+
+Không có Error/Exception nào.
+
+**Checklist luật 17:**
+
+| # | Mục | Kết quả |
+|---|---|---|
+| 1 | Ground | ✔ Sàn do board vẽ |
+| 2 | Containment | ✔ Slot trống luôn hiện |
+| 3 | Rhythm | ✔ Mọi số nằm trong `DesignTokens.Board` |
+| 5 | Empty state | ✔ Có trạng thái trống |
+| 7 | Edge | ⚠ Đỉnh khối chai cao sát mép trên. **HUD chưa có** — cần chừa chỗ cho HUD |
+| 8 | Affordance | ⚠ Khay đầu làn chưa có viền sáng "tap được" (art §4.6) |
+| 4, 6 | Hierarchy, Contrast | Chưa áp dụng: màn chưa có text |
+
+⇒ **Màn chưa hoàn thiện theo luật 17** cho tới khi có HUD và popup Win/Lose.
+
+**Chưa làm:**
+- HUD: Restart, Level pill, Home.
+- Dialog Win/Lose. Hiện tạm thời: thắng thì tự sang level sau, thua thì tự chơi lại, sau 1 s.
+- Viền sáng cho khay đầu làn.
+- Cuộn UV cho cầu vồng; dissolve khi lộ màu (hiện chỉ đổi màu và nảy scale).
+- VFX, SFX.
+- Test EditMode cho View.
+
 **Trạng thái Domain (2026-09-30), đã xong và nằm trong gate headless (88 test):**
 
 | File (`Assets/CapsChaos/Domain/CapChaos/`, namespace `Game.Domain`) | Nội dung |
@@ -397,7 +459,7 @@ perspective cho khối chai, slot và băng chuyền **cần cấu hình camera 
 | `LevelGenerator.cs` | Sinh level giải được theo cách dựng, nhận `IRandom` (luật #14) |
 
 Test ở `SkuHeadlessTests/CapChaos/`: mỗi luật R1–R16 và V1–V6 có ít nhất một test; `ContentLevelsTests`
-chạy với mọi level trong `Content/Levels/`.
+chạy với mọi level trong `Content/Resources/Levels/`.
 
 > **Lệch so với kế hoạch ban đầu:** không tái dựng được *chính xác* chuỗi tap trong video, vì video không
 > cho biết đủ trạng thái. Thay vào đó, R15 được test bằng một tình huống kẹt dựng theo frame 76,5 s

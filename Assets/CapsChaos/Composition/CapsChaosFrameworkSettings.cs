@@ -25,11 +25,13 @@ namespace Game.Composition
         protected override void InstallGameConfig(IContainerBuilder builder)
         {
             // The real FirstSceneConfig (the framework registered FirstSceneConfig.None; this wins by
-            // later registration): boot lands on the scaffolded Main screen with its typed MainParam.
+            // later registration): boot lands straight on Gameplay, level 0 — loaded additively over Master
+            // like every screen. Main stays scaffolded for the Title screen (GDD §7), which will take this
+            // spot and navigate to Gameplay on PLAY.
             builder.RegisterInstance(new FirstSceneConfig(
-                SceneKeys.Main,
+                SceneKeys.Gameplay,
                 (sceneService, ct) => sceneService.LoadAsync(
-                    SceneKeys.Main, new MainParam(ColdBoot: true), SceneTransition.Replace, null, ct)));
+                    SceneKeys.Gameplay, new GameplayParam(LevelIndex: 0), SceneTransition.Replace, null, ct)));
 
             // The SKU owns the single ConfigDefaults registration (the framework registers none —
             // zero registrants means every Get falls back to 0; two is a VContainer duplicate conflict).

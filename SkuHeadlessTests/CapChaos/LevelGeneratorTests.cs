@@ -41,6 +41,17 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(reparsed.Errors, Is.Empty, "the writer emits schema-valid JSON");
         }
 
+        [TestCase(1)]
+        [TestCase(5)]
+        public void The_spec_slot_count_reaches_the_level_and_its_solution_still_wins(int slots)
+        {
+            var spec = Spec();
+            spec.Slots = slots;
+            var gen = new LevelGenerator(new Pcg32(11)).Generate(spec);
+            Assert.That(gen.Level.Slots, Is.EqualTo(slots));
+            Assert.That(LevelSolver.Prove(gen.Level).Status, Is.EqualTo(SolveStatus.Solvable));
+        }
+
         [Test]
         public void Hidden_cells_in_the_shape_become_lowercase_bottles()
         {

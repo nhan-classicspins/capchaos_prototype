@@ -96,6 +96,13 @@ nhánh perspective, `localScale ≈ 0.28` (chiều cao frustum 535.9 / 1920). Bo
      (luật #10), và không có input polling (luật #9).
 4. **Ánh sáng:** directional light của board nằm trong scene Gameplay, tức là trong scope của scene,
    không đặt trong Master.
+5. **Không `Stamp` nội dung 3D** (phát hiện khi làm màn Gameplay). `IRenderLayerRegistry.Stamp` đưa
+   **`localPosition.z` về 0 cho cả cây object** (hợp đồng của rig 2D; xem
+   `Runtime/Infrastructure/Rendering/RenderLayerRegistry.cs` `StampRecursive`), nên sẽ ép phẳng board.
+   - Board 3D chỉ gán **culling layer của host GamePlay** (`GetHost(GamePlay).gameObject.layer` = `PFGamePlay`)
+     cho cả cây object, không đụng vị trí. Không cần SortingLayer vì mesh 3D đã sắp theo depth.
+   - Riêng hit-catcher (uGUI trên `GamePlayHost`) vẫn `Stamp` bình thường.
+   - Khi chuyển sang phương án A, layer `Board3D` nên có quy ước riêng cho việc này.
 
 **Chưa kiểm được ở máy local:** `RenderRigBuildCheck` (chạy lúc build) và suite PlayMode chỉ chạy trên
 CI. Đã đọc code: build check không kiểm projection, nhưng **CI mới là bằng chứng**.

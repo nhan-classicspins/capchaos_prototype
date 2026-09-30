@@ -60,6 +60,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bcd912b57bc2b4844b13ed04274509d5
+    m_Address: Scenes/Gameplay
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ce95cd7e6097041eca084f7c70a2492b
     m_Address: Floor
     m_ReadOnly: 0

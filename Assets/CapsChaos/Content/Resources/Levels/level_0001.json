@@ -1,8 +1,8 @@
 {
-  "$schema": "../../../../docs/design/level.schema.json",
+  "$schema": "../../../../../docs/design/level.schema.json",
   "formatVersion": 1,
   "id": "level_0001",
-  "slots": 3,
+  "slots": 1,
   "trayCapacity": 4,
   "colors": ["R", "O"],
   "stack": {

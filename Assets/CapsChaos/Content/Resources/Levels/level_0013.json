@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../docs/design/level.schema.json",
+  "$schema": "../../../../../docs/design/level.schema.json",
   "formatVersion": 1,
   "id": "level_0013",
   "slots": 3,

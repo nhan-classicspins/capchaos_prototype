@@ -60,11 +60,53 @@ namespace Game.Views
         // ── Hidden bottle rainbow (art §4.2) — consumed by the rainbow material at runtime ────
         public const float RainbowScrollPerSecond = 0.15f;
 
+        // ── 3D board layout (ADR-001 §5, art §2) — board-local units, 1 = one bottle's height ───
+        // Mirrors Editor/ArtGen/ArtShapes + ArtPreview (Game.Editor may not reference Game.Views, so the
+        // generator keeps its own copy of the prop dimensions; the LAYOUT lives only here).
+        public static class Board
+        {
+            /// <summary>Camera → board pose: the board tilts instead of the camera (GamePlay camera stays level).</summary>
+            public const float ViewDistance = 19.5f, TiltDegrees = -60f, FocusZ = 1.2f;
+            public const float CellPitch = 0.42f;          // bottle spacing on the stack grid
+            public const float LayerHeight = 0.92f;        // a stacked bottle stands on the one below's shoulders
+            public const float StackFrontZ = 3.45f;        // front row of the stack
+            public const float StackMaxWidth = 3.8f, StackMaxDepth = 2.9f;   // auto-fit bounds before level stackScale
+            public const float ColumnSpacing = 1.12f;      // slot / lane spacing along X
+            public const float SlotZ = 1.55f, SlotTop = 0.05f;
+            public const float SlotBandDepth = 1.35f;
+            /// <summary>The slot row never grows wider than this (4 slots at full size); 5 slots shrink to fit.</summary>
+            public const float SlotRowMaxWidth = 4.48f;
+            /// <summary>Band = slot row + this margin (3 slots → 3 × 1.12 + 0.84 = 4.2, the art-preview band).</summary>
+            public const float SlotBandMargin = 0.84f;
+            public const float LaneFrontZ = 0.62f, LanePitch = 0.95f, TrayOnBeltOffset = 0.5f;
+            public const int VisibleTraysPerLane = 6;
+            /// <summary>A tapped-but-not-front tray shakes side to side on the ground plane by this much.</summary>
+            public const float TrayShakeAmplitude = 0.07f;
+            /// <summary>Tray hit box (tray-local): the slab plus the cell-filling caps on top.</summary>
+            public static readonly Vector3 TrayHitSize = new Vector3(0.9f, 0.25f, 0.86f);
+            public const float TrayHitCenterY = 0.12f;
+            public const float TrayCellHalf = 0.21f, TrayCupY = 0.052f, CapOnNeckY = 0.925f, CapOnTrayScale = 2f;
+            public const float BoxExitX = 3.5f, BoxExitY = 4.5f;
+        }
+
+        // ── Motion (GDD §2 timings measured off the reference video) ────────────────────────────
+        public static class Motion
+        {
+            public const float TrayToSlot = 0.20f, LaneAdvance = 0.20f;
+            public const float BottleFlight = 0.30f, BottleStagger = 0.12f, BottleArcHeight = 1.2f;
+            public const float StackDrop = 0.18f, Reveal = 0.25f;
+            public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
+            public const float BoxHold = 0.35f, BoxDrop = 0.25f, BoxFlaps = 0.25f, BoxExit = 0.40f;
+            public const float RoundEndPause = 1.0f;
+        }
+
         // ── UI (art §3.3) ─────────────────────────────────────────────────────────────────────
         public static readonly Color HudPill    = Hex("2EBCFB");
         public static readonly Color HudPillLip = Hex("1E8FD0");
         public static readonly Color HudButton  = Hex("0C345B");
         public static readonly Color TextOnFill = Hex("FFFFFF");
+        /// <summary>A raycast-only surface (the board hit-catcher): receives pointer events, draws nothing.</summary>
+        public static readonly Color Invisible  = new Color(0f, 0f, 0f, 0f);
 
         public readonly struct ResultTheme
         {

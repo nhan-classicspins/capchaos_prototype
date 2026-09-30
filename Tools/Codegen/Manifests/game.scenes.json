@@ -8,6 +8,7 @@
   "summary": "Typed SceneKey VALUES for the SKU, emitted from game.scenes.json. The SceneKey TYPE lives in the framework Domain; these are the addressable-screen keys the scene service loads. The four-legs fields (screenClass/address/paramType) opt an entry into Scaffold.Sync management. Codegen-owned; never hand-edit the generated file.",
   "outputPath": "Assets/CapsChaos/Gen/SceneKeys.gen.cs",
   "entries": [
-    { "id": "Main", "order": 0, "screenClass": "MainScreen", "address": "Scenes/Main", "paramType": "MainParam" }
+    { "id": "Main", "order": 0, "screenClass": "MainScreen", "address": "Scenes/Main", "paramType": "MainParam" },
+    { "id": "Gameplay", "order": 1, "screenClass": "GameplayScreen", "address": "Scenes/Gameplay", "paramType": "GameplayParam" }
   ]
 }

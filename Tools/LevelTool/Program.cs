@@ -18,7 +18,7 @@ namespace CapsChaos.LevelTool
     {
         private const int Ok = 0, Drift = 1, Error = 2;
         private const string DefaultSpecs = "Tools/LevelTool/seed-levels.json";
-        private const string DefaultDir = "Assets/CapsChaos/Content/Levels";
+        private const string DefaultDir = "Assets/CapsChaos/Content/Resources/Levels";
         private const string IndexFile = "levels.index.json";
 
         public static int Main(string[] args)

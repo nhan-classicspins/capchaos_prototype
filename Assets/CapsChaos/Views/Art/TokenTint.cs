@@ -45,6 +45,13 @@ namespace Game.Views
             Apply();
         }
 
+        /// <summary>Repaint with another token (e.g. a Slot prefab reused as the slot band).</summary>
+        public void SetToken(TintToken token)
+        {
+            _token = token;
+            Apply();
+        }
+
         public void Apply()
         {
             var renderer = GetComponent<Renderer>();

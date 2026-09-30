@@ -83,6 +83,32 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(g.Tap(2).Outcome, Is.EqualTo(TapOutcome.RejectedGameOver));
         }
 
+        [TestCase(1)]
+        [TestCase(3)]
+        [TestCase(5)]
+        public void R15_the_level_config_decides_how_many_waiting_trays_fit_before_a_jam(int slots)
+        {
+            // the front row is all blue; every tray is a colour that is never exposed, so each one waits
+            var l = Level(new[] { new[] { "ROGYP", "BBBBB" } }, new[] { "ROGYP" }, slots: slots, capacity: 1);
+            var g = new CapChaosGame(l);
+            Assert.That(g.SlotCount, Is.EqualTo(slots));
+            for (int tap = 1; tap < slots; tap++)
+            {
+                g.Tap(0);
+                Assert.That(g.Status, Is.EqualTo(GameStatus.Playing), $"tap {tap} of {slots} slots still fits");
+            }
+            Assert.That(Trace(g.Tap(0).Facts), Does.EndWith("FAIL(SlotsJammed)"), $"tap {slots} fills the last slot");
+        }
+
+        [Test]
+        public void Slots_are_read_from_the_level_json()
+        {
+            var json = LevelJson.Write(Level(new[] { new[] { "RRRR" } }, new[] { "R" }, slots: 5));
+            Assert.That(json, Does.Contain("\"slots\": 5"));
+            var game = new CapChaosGame(LevelJson.Parse(json).Level!);
+            Assert.That(game.SlotCount, Is.EqualTo(5));
+        }
+
         [Test]
         public void R5_invalid_taps_are_rejected_without_facts()
         {

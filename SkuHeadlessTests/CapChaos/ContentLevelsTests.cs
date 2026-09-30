@@ -7,12 +7,12 @@ using NUnit.Framework;
 namespace CapsChaos.SkuHeadlessTests.CapChaos
 {
     /// <summary>
-    /// The shipped level content (Assets/CapsChaos/Content/Levels) passes V1–V6 and the play order is
+    /// The shipped level content (Assets/CapsChaos/Content/Resources/Levels) passes V1–V6 and the play order is
     /// consistent. Derived from the folder, so a level added tomorrow is covered without editing this file.
     /// </summary>
     public sealed class ContentLevelsTests
     {
-        private static string Dir => RepoLayout.Path("Assets", "CapsChaos", "Content", "Levels");
+        private static string Dir => RepoLayout.Path("Assets", "CapsChaos", "Content", "Resources", "Levels");
 
         private static IEnumerable<string> LevelFiles() =>
             Directory.Exists(Dir)

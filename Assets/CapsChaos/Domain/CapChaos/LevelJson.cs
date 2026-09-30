@@ -177,7 +177,8 @@ namespace Game.Domain
         {
             var sb = new StringBuilder();
             sb.Append("{\n");
-            sb.Append("  \"$schema\": \"../../../../docs/design/level.schema.json\",\n");
+            // levels live in Assets/CapsChaos/Content/Resources/Levels/ — five levels below the repo root
+            sb.Append("  \"$schema\": \"../../../../../docs/design/level.schema.json\",\n");
             sb.Append($"  \"formatVersion\": {level.FormatVersion},\n");
             sb.Append($"  \"id\": {Q(level.Id)},\n");
             sb.Append($"  \"slots\": {level.Slots},\n");
