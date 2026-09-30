@@ -87,7 +87,7 @@ HUD và popup là uGUI trên các layer có sẵn của rig, không bị ảnh h
 | `HudButton` | `#0C345B` | Nút tròn Restart / Home |
 | `TextOnFill` | `#FFFFFF` + viền `#000000` | Chữ display |
 | **Theme Win** | dim `#57935B` @85 % · header `#4B9B8B` · body `#5DB987` · band `#89D851` · nút `#86D64F`→`#75C34C`, gờ `#428C66` | [`refs/09_win_popup.png`](design/refs/09_win_popup.png) |
-| **Theme Lose** | dim `#5733A2` @85 % · header `#984BF5` · body `#B34DFF` · band `#D972FE` · nút `#B34FE6`→`#8434AB` | [`refs/10_lose_popup.png`](design/refs/10_lose_popup.png) |
+| **Theme Lose** | dim `#5733A2` @85 % · header `#984BF5` · body `#B34DFF` · band `#D972FE` · nút `#B34FE6`→`#8434AB`, gờ `#5E2A86` (gờ là nội suy) | [`refs/10_lose_popup.png`](design/refs/10_lose_popup.png) |
 | `TitleGlow` / `TitleEdge` | `#FBC3DE` / `#422B66` | Spotlight và vignette màn Title |
 | `LogoFill` / `LogoOutline` | `#46A5FC`→`#66DEFD` / `#1F2A55` | Logo "CAP CHAOS" |
 
@@ -253,6 +253,27 @@ Chạy bằng **LitMotion**. Mọi thời lượng đọc từ config key (GDD �
 | **VFX** | Particle System dựng bằng Editor script, màu từ token | Unity | `Content/Art/VFX/` |
 | **SFX / music** | Sinh bằng AI (Coplay MCP `generate_sfx` / `generate_music`), hoặc thư viện CC0 | Coplay MCP | `Content/Audio/` |
 | **Font** | **Không sinh được.** Dùng font OFL (Lilita One, Nunito) tải từ Google Fonts, cần user đồng ý tải | TMP Font Asset Creator | `Content/Fonts/` |
+
+### 9.1 Trạng thái triển khai (2026-09-30): asset 3D P0 đã sinh
+
+| Thành phần | File |
+|---|---|
+| Generator (menu **CapsChaos → Art → Generate 3D Assets**; headless: `Game.Editor.ArtGen.ArtGenerator.GenerateAll()`) | `Assets/CapsChaos/Editor/ArtGen/{ArtGenerator, ArtShapes, MeshBuilder, ProceduralTextures}.cs` |
+| Preview (menu **CapsChaos → Art → Render Preview**, render trong preview scene, không đụng scene đang mở) | `Assets/CapsChaos/Editor/ArtGen/ArtPreview.cs` · ảnh [`design/refs/11_art_mvp_layout.png`](design/refs/11_art_mvp_layout.png), [`12_art_mvp_closeup.png`](design/refs/12_art_mvp_closeup.png) |
+| Token + tint | `Assets/CapsChaos/Views/DesignTokens.cs`, `Assets/CapsChaos/Views/Art/TokenTint.cs` |
+| Output | `Content/Art/Meshes` (11), `Textures` (3), `Materials` (7), `Prefabs` (8: Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor) |
+
+**Quy ước kỹ thuật đã chốt khi làm:**
+- **Đơn vị:** 1 unit = chiều cao một chai. Mọi kích thước là hằng số trong `ArtShapes`, gồm `CellPitch 0.42`, `LanePitch 0.95` và `CapOnTrayScale 2`. Nắp nằm trên khay được phóng to 2 lần để trông đầy hốc như trong video; khi bay lên chai thì thu về kích thước 1.
+- **Màu:** material luôn **trắng**. Màu do `TokenTint` (MaterialPropertyBlock, lấy từ `DesignTokens`) tô lên. Cạnh tham chiếu `Game.Editor → Game.Views` đang bị **ghim rỗng** (`SkuHeadlessTests/Gate/AssemblyReferenceTests.cs`), nên generator gắn `TokenTint` bằng **tên type**, và không chép lại mã màu nào.
+- **Thùng:** trục local +Z của pivot nắp hướng vào trong thùng. Tư thế mở = `yaw · Euler(FlapOpenLean = −35°)`, tư thế đóng = `yaw · Euler(90°)`. Child `Tape` mặc định tắt.
+- **GUID ổn định:** chạy lại generator sẽ ghi đè asset tại chỗ, nên mọi tham chiếu vẫn giữ nguyên.
+- Prefab có entry Addressables. Registrar của framework tự thêm khi import prefab; `AssetKeys.gen.cs` do `Framework/Codegen/Generate` sinh ra.
+
+**Chưa làm (việc của View, khi làm màn Gameplay):**
+- Cuộn UV cho cầu vồng và băng chuyền.
+- Dissolve khi reveal.
+- VFX, logo, nền Title, SFX.
 
 **Phương án dự phòng:** nếu mesh thủ tục của chai trông quá thô, dùng Coplay `generate_3d_model_from_text`
 để lấy mesh tham khảo, rồi **retopo và đặt lại pivot** trước khi dùng. Cách này chỉ dành cho prop trang trí.
