@@ -81,6 +81,9 @@ SkuHeadlessTests/obj/
 # Codegen tool build output
 Tools/Codegen/**/bin/
 Tools/Codegen/**/obj/
+# LevelTool build output
+Tools/LevelTool/bin/
+Tools/LevelTool/obj/
 # Remote-catalog bundle output + IL2CPP scratch — CI-only, never git (AR-14)
 ServerData/
 .utmp/

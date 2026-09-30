@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Game.Editor.ArtGen
+namespace Game.Editor
 {
     /// <summary>
     /// The geometry of every procedural MVP prop (art-direction §4). World unit: 1 = one bottle's

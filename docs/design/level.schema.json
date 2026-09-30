@@ -73,7 +73,12 @@
       "properties": {
         "name": { "type": "string" },
         "difficulty": { "type": "string", "enum": ["tutorial", "easy", "medium", "hard", "breather"] },
-        "notes": { "type": "string" }
+        "notes": { "type": "string" },
+        "solution": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "description": "One winning tap sequence (lane indices). Written by Tools/LevelTool; V6 replays it as the solvability proof."
+        }
       }
     }
   },

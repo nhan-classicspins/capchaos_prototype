@@ -258,7 +258,7 @@ Chạy bằng **LitMotion**. Mọi thời lượng đọc từ config key (GDD �
 
 | Thành phần | File |
 |---|---|
-| Generator (menu **CapsChaos → Art → Generate 3D Assets**; headless: `Game.Editor.ArtGen.ArtGenerator.GenerateAll()`) | `Assets/CapsChaos/Editor/ArtGen/{ArtGenerator, ArtShapes, MeshBuilder, ProceduralTextures}.cs` |
+| Generator (menu **CapsChaos → Art → Generate 3D Assets**; headless: `Game.Editor.ArtGenerator.GenerateAll()`) | `Assets/CapsChaos/Editor/ArtGen/{ArtGenerator, ArtShapes, MeshBuilder, ProceduralTextures}.cs` |
 | Preview (menu **CapsChaos → Art → Render Preview**, render trong preview scene, không đụng scene đang mở) | `Assets/CapsChaos/Editor/ArtGen/ArtPreview.cs` · ảnh [`design/refs/11_art_mvp_layout.png`](design/refs/11_art_mvp_layout.png), [`12_art_mvp_closeup.png`](design/refs/12_art_mvp_closeup.png) |
 | Token + tint | `Assets/CapsChaos/Views/DesignTokens.cs`, `Assets/CapsChaos/Views/Art/TokenTint.cs` |
 | Output | `Content/Art/Meshes` (11), `Textures` (3), `Materials` (7), `Prefabs` (8: Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor) |

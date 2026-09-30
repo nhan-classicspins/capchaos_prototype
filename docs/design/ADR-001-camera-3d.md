@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Trạng thái** | **Đề xuất — chờ chọn phương án** (2026-09-30) |
+| **Trạng thái** | **Đã chốt: phương án B** (2026-09-30, product owner) · rig đã áp dụng, boot smoke đạt |
 | **Bối cảnh** | GDD D1: camera 3D perspective [CHỐT] · GDD §10.1 |
 | **Loại** | Spine change (luật #7, `architecture-map.md` §5) |
 
@@ -65,7 +65,42 @@ cấm sửa framework từ repo SKU.
 Chọn **A**. Trong lúc framework đang làm A, SKU vẫn tiến độ được ở những phần **không phụ thuộc camera**:
 Domain (luật chơi, lưới 3D, trọng lực, reveal), parser và validator JSON, solver, và các test headless.
 
-## 5. Việc cần làm sau khi chốt
+## 5. Quyết định: B, và cách triển khai
+
+Product owner chọn B vì ưu tiên tốc độ; nợ chuyển sang A được chấp nhận (§3). Những gì đã làm:
+
+**Rig (Master scene, sửa qua editor sống; diff 2 dòng):** `GamePlayCamera`
+`orthographic 1 → 0`, `field of view 60 → 30`. Vị trí và hướng camera **giữ nguyên**: tại `z = −1000`,
+nhìn về `+z`, giống 5 camera còn lại. `GamePlayHost` vẫn cách camera `planeDistance = 1000`; scaler đi
+nhánh perspective, `localScale ≈ 0.28` (chiều cao frustum 535.9 / 1920). Boot smoke tới
+`[MainScreen] entered.` đạt.
+
+**Quy ước bắt buộc cho các View của board** (đọc trước khi code màn Gameplay):
+
+1. **Board tự đặt mình trước camera.** Camera không nghiêng; board nghiêng.
+   - Root `BoardRig` nằm dưới `WorldRoot` của GamePlay và được `Stamp` vào layer GamePlay (luật #16).
+   - Pose tương đối với camera: xoay **`Euler(−60, 0, 0)`**; điểm focus `(0, 0, 1.2)` của board
+     (toạ độ local) nằm trên trục nhìn, cách camera **19.5 unit**. Tức là
+     `root.position = cam.position + cam.forward·19.5 − root.rotation·(0, 0, 1.2)`.
+   - Kết quả là góc nhìn giống hệt ảnh preview (FOV 30 / pitch 60 / khoảng cách 19.5 / focus z 1.2,
+     trong `ArtPreview.cs`).
+   - Đơn vị giữ nguyên: 1 unit = chiều cao một chai.
+2. **Luật 1 px = 1 unit không còn đúng trên layer GamePlay**, ngoại trừ tại mặt phẳng canvas. Mọi nội
+   dung 2D (điểm số nổi, coin bay…) đặt ở `OverlayGamePlay` hoặc `Ui`, **không** đặt ở GamePlay.
+3. **Tap đi đường vòng.** GamePlay khai `physicsRaycast: "2d"`, nên framework gắn
+   `Physics2DRaycaster`. Log boot đã xác nhận: *"attached Physics2DRaycaster to camera
+   'GamePlayCamera'"*. Collider 3D **không** nhận được event. Cách làm:
+   - một `Image` trong suốt full-screen (raycast target) trên `GamePlayHost` làm hit-catcher;
+   - View nhận `IPointerClickHandler`, tự `Physics.Raycast(cam.ScreenPointToRay(pos))` vào collider của
+     khay đầu làn, rồi báo **chỉ số làn** cho controller. Controller không bao giờ thấy toạ độ màn hình
+     (luật #10), và không có input polling (luật #9).
+4. **Ánh sáng:** directional light của board nằm trong scene Gameplay, tức là trong scope của scene,
+   không đặt trong Master.
+
+**Chưa kiểm được ở máy local:** `RenderRigBuildCheck` (chạy lúc build) và suite PlayMode chỉ chạy trên
+CI. Đã đọc code: build check không kiểm projection, nhưng **CI mới là bằng chứng**.
+
+## 6. Việc cần làm sau khi chốt (tham khảo)
 
 - A: mở story trong repo framework ("SKU game-layer rig bindings") → `bmad-architecture` → dev → gate →
   bump → cập nhật `packages-lock` bên SKU → thêm `game.layers.json` + rig Board3D.

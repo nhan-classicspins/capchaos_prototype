@@ -4,7 +4,7 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace Game.Editor.ArtGen
+namespace Game.Editor
 {
     /// <summary>
     /// Generates the MVP 3D art (art-direction §9): meshes, greyscale textures, white materials and

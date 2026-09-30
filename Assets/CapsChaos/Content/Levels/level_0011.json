@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0011",
+  "slots": 3,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B", "G", "P"],
+  "stack": {
+    "cols": 8,
+    "rows": 6,
+    "layers": [
+      [
+        "GRRGOPOB",
+        "PRBROPRB",
+        "ORGGOPBB",
+        "OOGBOPRO",
+        "POOGGBRB",
+        "POBPPPRB"
+      ],
+      [
+        "........",
+        ".PGBGRR.",
+        ".RGOGOG.",
+        ".GGBGOP.",
+        ".GPBPOB.",
+        "........"
+      ],
+      [
+        "........",
+        "........",
+        "..BPPR..",
+        "..RRRB..",
+        "........",
+        "........"
+      ]
+    ]
+  },
+  "lanes": [
+    ["R", "O", "R", "G", "G", "P", "R"],
+    ["P", "B", "B", "P", "O", "G"],
+    ["G", "O", "P", "O", "B", "R", "B"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Grape Arrives", "difficulty": "hard", "solution": [1, 0, 2, 0, 2, 1, 2, 0, 2, 1, 1, 2, 1, 0, 2, 0, 0, 0, 2, 1] }
+}

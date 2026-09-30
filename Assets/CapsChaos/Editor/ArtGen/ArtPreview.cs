@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace Game.Editor.ArtGen
+namespace Game.Editor
 {
     /// <summary>
     /// Renders the generated props in a gameplay-like layout to a PNG, inside an isolated PREVIEW

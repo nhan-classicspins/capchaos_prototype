@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace Game.Editor.ArtGen
+namespace Game.Editor
 {
     /// <summary>
     /// Minimal deterministic mesh builder for the procedural MVP art (art-direction §9).

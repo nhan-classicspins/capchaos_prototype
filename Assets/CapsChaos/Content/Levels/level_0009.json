@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0009",
+  "slots": 3,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B", "G"],
+  "stack": {
+    "cols": 8,
+    "rows": 5,
+    "layers": [
+      [
+        "OBGBBRRR",
+        "RRGBGROO",
+        "ORGRGBBB",
+        "OBOOBBOG",
+        "GORROBBG"
+      ],
+      [
+        "........",
+        ".RBROGR.",
+        ".RRROOO.",
+        "........",
+        "........"
+      ],
+      [
+        "........",
+        "..GBBG..",
+        "..BGOO..",
+        "........",
+        "........"
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "G", "O", "R", "R"],
+    ["O", "O", "R", "R", "B", "B"],
+    ["G", "B", "G", "O"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Tight Slots", "difficulty": "medium", "notes": "First level where a careless order jams the slots.", "solution": [2, 0, 1, 2, 0, 2, 0, 1, 1, 0, 1, 2, 1, 0, 1] }
+}

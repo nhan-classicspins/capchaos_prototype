@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Game.Editor.ArtGen
+namespace Game.Editor
 {
     /// <summary>
     /// Procedural textures (art-direction §9). Everything except the rainbow is GREYSCALE: the colour

@@ -15,7 +15,7 @@
 
 | # | Quyết định | Hệ quả |
 |---|---|---|
-| D1 | **Camera 3D perspective** [CHỐT] | Là **spine change** (cần RenderLayer mới có camera riêng), xem §10.1 |
+| D1 | **Camera 3D perspective** [CHỐT] | Theo **ADR-001 phương án B**: camera `GamePlay` chuyển sang perspective, không thêm layer. Xem §10.1 |
 | D2 | **Không dùng nhãn hiệu**. Chai, nắp, khay chỉ phân biệt bằng **màu** [CHỐT] | Không có logo hay chữ trên vật thể gameplay |
 | D3 | Chai ẩn hiển thị bằng **texture cầu vồng**, không dùng màu tối như video [CHỐT] | Art §4.2 |
 | D4 | **Toàn bộ art của MVP do team dev/agent tự tạo** [CHỐT] | Pipeline ở Art §9 |
@@ -235,6 +235,7 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm, và 
 | `lanes[j]` | Hàng đợi của băng chuyền `j` (trái → phải). Phần tử `[0]` là khay đầu làn |
 | `view` | (tuỳ chọn) preset camera và scale khối chai, dùng khi khối chai quá to |
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
+| `meta.solution` | (tuỳ chọn) một chuỗi tap thắng (chỉ số làn), do LevelTool ghi; V6 chạy lại nó để chứng minh level giải được. Có thể dùng làm gợi ý (hint) sau này |
 
 ### 6.3 Tham số chung (không nằm trong level)
 Timing animation, easing, màu hex và SFX là **config key / design token**, dùng chung cho mọi level (§9,
@@ -251,7 +252,7 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V3 | Không có chai ẩn ở tầng 0 | `hidden bottle on ground at (0,3)` |
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
-| V6 | **Có lời giải**: solver (DFS có memo trên Domain) tìm được ít nhất một chuỗi tap thắng; báo cáo số lời giải và độ sâu nhỏ nhất | `unsolvable` |
+| V6 | **Có lời giải**. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
 
 V6 là cửa CI: level không giải được thì không ship.
 
@@ -273,6 +274,27 @@ V6 là cửa CI: level không giải được thì không ship.
 - L13+: chai ẩn (giống video 2).
 
 **Seed levels của MVP:** 15 level, trong đó `level_0012` và `level_0013` tái dựng gần đúng từ hai video.
+
+### 6.6 Công cụ: `Tools/LevelTool` (CLI .NET, không cần Unity)
+
+```sh
+dotnet run --project Tools/LevelTool -- generate          # spec → level JSON + index (giải được theo cách dựng)
+dotnet run --project Tools/LevelTool -- generate --check  # exit 1 nếu output khác file đã commit
+dotnet run --project Tools/LevelTool -- validate          # V1–V6 + index cho mọi level
+dotnet run --project Tools/LevelTool -- stats             # độ khó: tỉ lệ thắng khi tap ngẫu nhiên + effort của solver
+```
+
+- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: hình dạng khối chai (`#` chai lộ màu, `?` chai ẩn),
+  bộ màu, `greed` (1 = dễ), `clustering`, và `seed`. Tool là nơi giữ seed (luật #14).
+- **⚠ `generate` ghi đè** các level có trong spec. Level nào designer đã sửa tay thì **xoá khỏi spec**
+  (hoặc đổi id) trước khi chạy lại. Level viết tay không cần `meta.solution`; V6 sẽ dùng solver.
+
+**Độ khó của seed levels** (`stats`, 500 ván tap ngẫu nhiên, seed 20260930). Đây là proxy, **cần playtest**:
+
+| Level | 1–4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Nhãn | tutorial/easy | easy | easy | medium | medium | medium | breather | hard | hard | hard | medium | hard |
+| Thắng ngẫu nhiên | 100 % | 77 % | 80 % | 37 % | 62 % | 18 % | 100 % | 3 % | 2 % | 3 % | 17 % | 0.6 % |
 
 ---
 
@@ -331,7 +353,14 @@ Mọi key đi qua `ConfigDefaults` (skill `pf-add-key`). Không hardcode trong c
 
 ## 10. Ánh xạ sang PrototypeFramework
 
-### 10.1 ⚠ Camera 3D là spine change, phải làm trước tiên
+### 10.1 Camera 3D: đã chốt ADR-001 phương án B
+
+> **Hiện hành:** [`ADR-001-camera-3d.md`](ADR-001-camera-3d.md) §5. `GamePlayCamera` đã là perspective
+> (FOV 30). Board tự đặt mình trước camera và nghiêng −60°. Tap đi qua hit-catcher uGUI + raycast 3D
+> trong View. Nội dung 2D không được đặt ở layer GamePlay. Phần dưới đây là phân tích ban đầu, giữ lại
+> để tham khảo.
+
+#### Phân tích ban đầu
 Camera của rig PF đều orthographic, tỷ lệ 1 px = 1 world unit (skill `pf-world-space`). Một camera
 perspective cho khối chai, slot và băng chuyền **cần cấu hình camera riêng**. Theo framework, đó là
 điều kiện để thêm một **RenderLayer mới**, tức là **spine change**, và phải **route qua
@@ -357,11 +386,23 @@ perspective cho khối chai, slot và băng chuyền **cần cấu hình camera 
 | **Views** | `BottleView`, `CapTrayView`, `SlotView`, `ConveyorView`, `BoxView`, `HudView`, `ResultPopupView` (theme Win/Lose) |
 | **Screens / Dialogs** (manifest + `Scaffold.Sync`) | Screens `Title`, `Gameplay` · Dialogs `Win`, `Lose` |
 
-Test headless tối thiểu:
-- Parser và validator chạy với mọi file trong `Content/Levels/`.
-- Solver: mọi level ship đều giải được.
-- `level_0012` với chuỗi tap trong video 1 phải ra **thua**.
-- Gravity và reveal: `level_0013` với chuỗi tap trong video 2 phải lộ màu **R** ở ô `(3, 3)`.
+**Trạng thái Domain (2026-09-30), đã xong và nằm trong gate headless (88 test):**
+
+| File (`Assets/CapsChaos/Domain/CapChaos/`, namespace `Game.Domain`) | Nội dung |
+|---|---|
+| `JsonReader.cs` | JSON reader chặt, engine-free (báo dòng/cột, chặn key trùng) |
+| `LevelDefinition.cs`, `LevelJson.cs` | Mô hình level; parse = V1 (khớp schema), writer ổn định |
+| `LevelValidator.cs` | V2–V5; `LevelSolver` (V6: DFS + memo + budget), `Prove` (replay `meta.solution`) |
+| `BottleStack.cs`, `CapChaosGame.cs`, `GameFacts.cs` | Luật R1–R16. `Tap(lane)` trả về chuỗi fact theo thứ tự xảy ra |
+| `LevelGenerator.cs` | Sinh level giải được theo cách dựng, nhận `IRandom` (luật #14) |
+
+Test ở `SkuHeadlessTests/CapChaos/`: mỗi luật R1–R16 và V1–V6 có ít nhất một test; `ContentLevelsTests`
+chạy với mọi level trong `Content/Levels/`.
+
+> **Lệch so với kế hoạch ban đầu:** không tái dựng được *chính xác* chuỗi tap trong video, vì video không
+> cho biết đủ trạng thái. Thay vào đó, R15 được test bằng một tình huống kẹt dựng theo frame 76,5 s
+> (`R15_three_jammed_slots_lose_like_video_1_at_76s`), còn R3/R4 test bằng lưới nhỏ có chai ẩn.
+> `level_0012`/`0013` chỉ **mô phỏng** hình dạng khối chai trong video.
 
 ---
 
