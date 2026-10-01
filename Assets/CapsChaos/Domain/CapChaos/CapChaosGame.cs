@@ -13,6 +13,8 @@ namespace Game.Domain
         RejectedLocked,
         /// <summary>R19: the front tray is linked and its partner is not at the front of its own lane yet.</summary>
         RejectedLinkNotReady,
+        /// <summary>R19: the front position of the lane is empty — its belt is held until the belt it is linked to can move too.</summary>
+        RejectedBeltHeld,
     }
 
     public sealed class TapResult
@@ -38,6 +40,7 @@ namespace Game.Domain
         private int[][] _lockTurns;
         private TrayRef?[][] _partner;
         private readonly int[] _lockLeft;          // per lane: placements the FRONT tray still waits for (R18)
+        private readonly int[] _gap;               // per lane: empty positions at the front of a HELD belt (R19)
         private readonly CapColor[] _slotColor;   // None = empty slot
         private readonly int[] _slotFilled;
 
@@ -64,6 +67,7 @@ namespace Game.Domain
             for (int j = 0; j < lanes.Count; j++) _lanes[j] = new List<CapColor>(lanes[j]);
             _laneHead = new int[lanes.Count];
             _lockLeft = new int[lanes.Count];
+            _gap = new int[lanes.Count];
             _slotColor = new CapColor[slots];
             _slotFilled = new int[slots];
             Status = GameStatus.Playing;
@@ -77,6 +81,7 @@ namespace Game.Domain
             _laneHead = (int[])src._laneHead.Clone();     // …only the heads move
             _hidden = src._hidden; _lockTurns = src._lockTurns; _partner = src._partner;
             _lockLeft = (int[])src._lockLeft.Clone();
+            _gap = (int[])src._gap.Clone();
             _slotColor = (CapColor[])src._slotColor.Clone();
             _slotFilled = (int[])src._slotFilled.Clone();
             Status = src.Status;
@@ -126,15 +131,20 @@ namespace Game.Domain
         // ── queries (what a View / solver reads) ────────────────────────────────────────────
         public int LaneRemaining(int lane) => _lanes[lane].Count - _laneHead[lane];
         /// <summary>The front tray's colour, or <see cref="CapColor.None"/> when the lane is empty.</summary>
-        public CapColor LaneFront(int lane) => LaneRemaining(lane) > 0 ? _lanes[lane][_laneHead[lane]] : CapColor.None;
+        public CapColor LaneFront(int lane) => HasFront(lane) ? _lanes[lane][_laneHead[lane]] : CapColor.None;
         public CapColor LaneAt(int lane, int offset) => _laneHead[lane] + offset < _lanes[lane].Count ? _lanes[lane][_laneHead[lane] + offset] : CapColor.None;
         /// <summary>The colour of the tray in <paramref name="slot"/>, or <see cref="CapColor.None"/> when it is free.</summary>
         public CapColor SlotColor(int slot) => _slotColor[slot];
         public int SlotFilled(int slot) => _slotFilled[slot];
         public bool HasFreeSlot => FreeSlot() >= 0;
 
-        /// <summary>Authored index of the front tray of <paramref name="lane"/> (= how many trays have left it).</summary>
+        /// <summary>Authored index of the next tray of <paramref name="lane"/> (= how many trays have left it).</summary>
         public int LaneHead(int lane) => _laneHead[lane];
+        /// <summary>R19: empty positions at the front of <paramref name="lane"/>'s belt while it is held; 0 = its next tray is at the front.</summary>
+        public int LaneGap(int lane) => _gap[lane];
+        /// <summary>Is authored tray <paramref name="tray"/> standing at the front position of its belt?</summary>
+        public bool IsAtFront(int lane, int tray) => tray == _laneHead[lane] && HasFront(lane);
+        private bool HasFront(int lane) => _gap[lane] == 0 && LaneRemaining(lane) > 0;
         /// <summary>The colour of authored tray <paramref name="tray"/> of <paramref name="lane"/>, hidden or not.</summary>
         public CapColor TrayColor(int lane, int tray) => _lanes[lane][tray];
         /// <summary>R18: placements the front tray of <paramref name="lane"/> still waits for; 0 = tappable.</summary>
@@ -148,8 +158,8 @@ namespace Game.Domain
         {
             if (_hidden == null || tray >= _hidden[lane].Length || !_hidden[lane][tray]) return false;
             int head = _laneHead[lane];
-            if (tray <= head) return false;
-            return !(tray == head + 1 && TryPartner(lane, head, out var p) && p.Lane == lane && p.Index == tray);
+            if (tray < head || (tray == head && _gap[lane] == 0)) return false;
+            return !(tray == head + 1 && _gap[lane] == 0 && TryPartner(lane, head, out var p) && p.Lane == lane && p.Index == tray);
         }
 
         /// <summary>The tray linked to authored tray <paramref name="tray"/> of <paramref name="lane"/>, if any (R19).</summary>
@@ -164,13 +174,17 @@ namespace Game.Domain
         /// <summary>
         /// Release the front tray of <paramref name="lane"/> (R5–R7). A linked front tray takes its partner with it
         /// (R19) — both leave in authored order (same lane: front first; two lanes: the left lane first), each to the
-        /// left-most free slot. Every placement counts down the locks of the trays already waiting at the front of
-        /// the OTHER lanes (R18); a tray that only just reached the front starts counting with the next placement.
+        /// left-most free slot. Then the belts step forward (<see cref="AdvanceBelts"/>). Every placement counts down
+        /// the locks of the trays that were already waiting at the front (R18); a tray that only just reached the
+        /// front starts counting with the next placement.
         /// </summary>
         public TapResult Tap(int lane)
         {
             var outcome = Check(lane, out var group, out int count);
             if (outcome != TapOutcome.Accepted) return Reject(outcome);
+
+            var frontBefore = new int[_lanes.Length];
+            for (int j = 0; j < _lanes.Length; j++) frontBefore[j] = HasFront(j) ? _laneHead[j] : -1;
 
             var facts = new List<GameFact>();
             for (int i = 0; i < count; i++)
@@ -180,35 +194,75 @@ namespace Game.Domain
                 facts.Add(new TrayPlaced(group[i].Lane, slot, color));                          // R6
                 _slotColor[slot] = color;
                 _slotFilled[slot] = 0;
+                _laneHead[group[i].Lane]++;                                                     // the tray left; its position is empty
+                _gap[group[i].Lane]++;
+                _lockLeft[group[i].Lane] = 0;
             }
-
-            var advanced = new bool[_lanes.Length];
-            for (int i = 0; i < count; i++)
-            {
-                int j = group[i].Lane;
-                _laneHead[j]++;
-                advanced[j] = true;
-                facts.Add(new LaneAdvanced(j, LaneRemaining(j)));                               // R7
-            }
+            AdvanceBelts(facts);                                                                // R7, R19
 
             for (int j = 0; j < _lanes.Length; j++)
             {
-                if (advanced[j])
+                int front = HasFront(j) ? _laneHead[j] : -1;
+                if (front < 0) continue;
+                if (front != frontBefore[j])                                                    // just arrived at the front
                 {
-                    int head = _laneHead[j];
-                    _lockLeft[j] = head < _lanes[j].Count ? LockTurnsAt(j, head) : 0;            // R18: starts counting next time
-                    RevealAt(j, head, facts);                                                    // R17
-                    if (TryPartner(j, head, out var p) && p.Lane == j && p.Index == head + 1) RevealAt(j, head + 1, facts);
+                    _lockLeft[j] = LockTurnsAt(j, front);                                       // R18: counts from the next placement
+                    RevealAt(j, front, facts);                                                  // R17
+                    if (TryPartner(j, front, out var p) && p.Lane == j && p.Index == front + 1) RevealAt(j, front + 1, facts);
                 }
                 else if (_lockLeft[j] > 0)
                 {
                     _lockLeft[j] = Math.Max(0, _lockLeft[j] - count);
-                    facts.Add(new TrayLockTicked(j, _laneHead[j], _lockLeft[j]));
+                    facts.Add(new TrayLockTicked(j, front, _lockLeft[j]));
                 }
             }
 
             Resolve(facts);
             return new TapResult(TapOutcome.Accepted, facts);
+        }
+
+        /// <summary>
+        /// R7 + R19: a belt with an empty front position steps one tray forward — unless it carries a tray linked to a
+        /// tray on ANOTHER belt: linked trays stay side by side, so those belts only step together, when every one of
+        /// them has an empty front. A belt that can not step yet is HELD (its front stays empty, nothing on it can be
+        /// tapped) until the belts it is linked to can step too. Repeats until no belt can step; one
+        /// <see cref="LaneAdvanced"/> per belt per step.
+        /// </summary>
+        private void AdvanceBelts(List<GameFact> facts)
+        {
+            var moves = new bool[_lanes.Length];
+            while (true)
+            {
+                for (int j = 0; j < _lanes.Length; j++) moves[j] = _gap[j] > 0;
+                bool changed = true;
+                while (changed)                                                                 // drop belts tied to a belt that can not step
+                {
+                    changed = false;
+                    for (int j = 0; j < _lanes.Length; j++)
+                        if (moves[j] && TiedToStuckBelt(j, moves)) { moves[j] = false; changed = true; }
+                }
+                bool any = false;
+                for (int j = 0; j < _lanes.Length; j++)
+                {
+                    if (!moves[j]) continue;
+                    _gap[j]--;
+                    facts.Add(new LaneAdvanced(j, LaneRemaining(j)));
+                    any = true;
+                }
+                if (!any) return;
+            }
+        }
+
+        /// <summary>Does a tray still on belt <paramref name="lane"/> have a partner on a belt that is not stepping?</summary>
+        private bool TiedToStuckBelt(int lane, bool[] moves)
+        {
+            if (_partner == null) return false;
+            for (int t = _laneHead[lane]; t < _lanes[lane].Count; t++)
+            {
+                var p = _partner[lane][t];
+                if (p.HasValue && p.Value.Lane != lane && !moves[p.Value.Lane]) return true;
+            }
+            return false;
         }
 
         /// <summary>Would a tap on <paramref name="lane"/> be accepted? The trays it would release land in
@@ -219,6 +273,7 @@ namespace Game.Domain
             if (Status != GameStatus.Playing) return TapOutcome.RejectedGameOver;
             if (lane < 0 || lane >= _lanes.Length) return TapOutcome.RejectedBadLane;
             if (LaneRemaining(lane) == 0) return TapOutcome.RejectedEmptyLane;                   // R5
+            if (_gap[lane] > 0) return TapOutcome.RejectedBeltHeld;                              // R19
             if (_lockLeft[lane] > 0) return TapOutcome.RejectedLocked;                           // R18
             int head = _laneHead[lane];
             var front = new TrayRef(lane, head);
@@ -226,7 +281,7 @@ namespace Game.Domain
             {
                 bool ready = partner.Lane == lane
                     ? partner.Index == head + 1
-                    : _laneHead[partner.Lane] == partner.Index && _lockLeft[partner.Lane] == 0;
+                    : IsAtFront(partner.Lane, partner.Index) && _lockLeft[partner.Lane] == 0;
                 if (!ready) return TapOutcome.RejectedLinkNotReady;
                 if (FreeSlotCount() < 2) return TapOutcome.RejectedNoFreeSlot;
                 bool frontFirst = partner.Lane == lane || lane < partner.Lane;
@@ -354,7 +409,7 @@ namespace Game.Domain
         public string StateKey()
         {
             var sb = new StringBuilder(64 + _stack.Count * 2);
-            for (int j = 0; j < _laneHead.Length; j++) sb.Append(_laneHead[j]).Append(':').Append(_lockLeft[j]).Append(',');
+            for (int j = 0; j < _laneHead.Length; j++) sb.Append(_laneHead[j]).Append(':').Append(_gap[j]).Append(':').Append(_lockLeft[j]).Append(',');
             sb.Append('#');
             for (int s = 0; s < _slotColor.Length; s++) sb.Append(_slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]);
             sb.Append('#');

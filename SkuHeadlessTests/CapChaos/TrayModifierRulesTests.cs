@@ -69,19 +69,44 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         public void R19_two_linked_trays_in_one_lane_fly_together_front_first()
         {
             var g = new CapChaosGame(Level(NoMatch, new[] { "ROB" }, slots: 5, capacity: 1, links: new[] { new[] { 0, 0, 0, 1 } }));
-            Assert.That(Trace(g.Tap(0).Facts), Does.StartWith("place(L0->S0:R) place(L0->S1:O) advance(L0:2) advance(L0:1)"));
+            Assert.That(Trace(g.Tap(0).Facts), Does.StartWith("place(L0->S0:R) place(L0->S1:O) advance(L0:1) advance(L0:1)"),
+                "both leave, then the belt steps twice");
             Assert.That(g.LaneFront(0), Is.EqualTo(CapColor.Blue));
         }
 
         [Test]
-        public void R19_trays_linked_across_lanes_wait_until_both_are_at_the_front()
+        public void R19_a_belt_carrying_a_linked_tray_is_held_until_the_linked_belt_can_move_too()
         {
-            var g = new CapChaosGame(Level(NoMatch, new[] { "RO", "BG" }, slots: 5, capacity: 1, links: new[] { new[] { 0, 1, 1, 1 } }));
-            g.Tap(0);                                                                      // R leaves; O (linked) is at the front
-            Assert.That(g.Tap(0).Outcome, Is.EqualTo(TapOutcome.RejectedLinkNotReady), "G is still behind B");
-            g.Tap(1);                                                                      // B leaves; G reaches the front
-            // tapped on the RIGHT lane, still placed left lane first
-            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L0->S2:O) place(L1->S3:G) advance(L0:0) advance(L1:0)"));
+            // level_0018's lanes: B O R | O R O, with O (lane 0, #1) tied to R (lane 1, #1)
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BOR", "ORO" }, slots: 5, capacity: 1, links: new[] { new[] { 0, 1, 1, 1 } }));
+            Assert.That(Trace(g.Tap(0).Facts), Is.EqualTo("place(L0->S0:B)"),
+                "B leaves, belt 0 does NOT move: its O must stay beside lane 1's R");
+            Assert.That(g.LaneGap(0), Is.EqualTo(1));
+            Assert.That(g.LaneFront(0), Is.EqualTo(CapColor.None), "the front of belt 0 is empty");
+            Assert.That(g.Tap(0).Outcome, Is.EqualTo(TapOutcome.RejectedBeltHeld));
+
+            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L1->S1:O) advance(L0:2) advance(L1:2)"),
+                "lane 1's front leaves: both belts step together");
+            Assert.That(g.IsAtFront(0, 1) && g.IsAtFront(1, 1), Is.True, "the pair arrives at the front side by side");
+            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L0->S2:O) place(L1->S3:R) advance(L0:1) advance(L1:1)"),
+                "a tap on either tray of the pair releases both, left lane first; the belts are free again");
+        }
+
+        [Test]
+        public void R19_the_two_belts_of_a_link_step_together_whichever_front_leaves_last()
+        {
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BOR", "ORO" }, slots: 5, capacity: 1, links: new[] { new[] { 0, 1, 1, 1 } }));
+            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L1->S0:O)").And.Not.Contains("advance"));
+            Assert.That(Trace(g.Tap(0).Facts), Does.StartWith("place(L0->S1:B) advance(L0:2) advance(L1:2)"));
+        }
+
+        [Test]
+        public void R19_R17_a_hidden_tray_on_a_held_belt_stays_hidden_until_the_belts_move()
+        {
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BoR", "ORO" }, slots: 5, capacity: 1, links: new[] { new[] { 0, 1, 1, 1 } }));
+            Assert.That(g.Tap(0).Facts.OfType<TrayRevealed>(), Is.Empty, "belt 0 is held: the ? tray is not at the front");
+            Assert.That(g.IsTrayHidden(0, 1), Is.True);
+            Assert.That(Trace(g.Tap(1).Facts), Does.Contain("advance(L0:2) advance(L1:2) trayReveal(L0#1:O)"));
         }
 
         [Test]

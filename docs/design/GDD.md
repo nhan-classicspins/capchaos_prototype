@@ -194,7 +194,11 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
   - chưa sẵn sàng (một khay chưa ở đầu làn) mà tap vào khay nào của cặp thì **cả 2 khay cùng rung**;
   - sẵn sàng thì tap vào khay nào của cặp cũng được: cả 2 bay lên slot, thứ tự theo file level (cùng làn: khay
     trước trước; 2 làn: làn trái trước). Dây được tháo khi khay bay. **Cần 2 slot trống**, thiếu thì cả cặp rung.
-  - Cặp nối khác làn: các làn vẫn chạy độc lập, nên dây có thể nối chéo khi một làn chạy trước.
+  - Cặp nối khác làn **luôn đứng ngang nhau** (sửa 2026-10-01 theo feedback chủ SKU). Băng chuyền chở một khay nối
+    sang làn khác chỉ chạy khi **băng chuyền kia cũng chạy được**. Nếu khay đầu của làn A bay đi mà làn B chưa trống
+    đầu, băng A **đứng yên** với ô đầu bị trống, và không khay nào trên băng A tap được (`RejectedBeltHeld`, khay rung).
+    Khi khay đầu làn B bay đi thì **cả 2 băng cùng chạy** (`CapChaosGame.AdvanceBelts`). Ví dụ level 18: tap khay đầu
+    làn 0 ⇒ băng 0 đứng yên; tap tiếp khay đầu làn 1 ⇒ 2 băng cùng chạy, cặp nối cùng lên đầu hàng.
   - Khay nối không được khoá (V7).
 - **Thua khi hết nước** Nếu còn slot trống mà không lần tap nào được chấp nhận (mọi khay đầu làn đang khoá, đang chờ
   bạn nối, hoặc cặp nối thiếu slot) thì thua với lý do `NoMovesLeft`, vì chỉ có tap mới thay đổi được trạng thái.

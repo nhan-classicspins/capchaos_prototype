@@ -35,6 +35,9 @@ namespace Game.Views
         private readonly List<Renderer> _belts = new List<Renderer>();
         private readonly List<float> _beltOffset = new List<float>();
         private readonly List<Transform> _laneRoots = new List<Transform>();
+        // per lane: empty positions at the front of a HELD belt (GDD R19) — tray i of a lane's list stands at
+        // belt position i + gap
+        private readonly List<int> _laneGap = new List<int>();
         // Visual slots. The rules free a slot the instant its tray is full; on screen that slot is still busy
         // until the box lifts off. So a rules slot is mapped to a VISUAL slot when its tray arrives: the same
         // one if it is clear, else the left-most clear one — a tap never waits behind a leaving box.
@@ -105,6 +108,7 @@ namespace Game.Views
                 _belts.Add(belt != null ? belt.GetComponent<Renderer>() : null);
                 _beltOffset.Add(0f);
                 _lanes.Add(new List<GameObject>());
+                _laneGap.Add(0);
             }
         }
 
@@ -133,7 +137,7 @@ namespace Game.Views
         {
             var list = _lanes[lane];
             if (list.Count >= B.VisibleTraysPerLane) return;
-            var tray = TrayOnBelt(lane, list.Count, look);
+            var tray = TrayOnBelt(lane, list.Count + _laneGap[lane], look);
             list.Add(tray);
         }
 
@@ -189,6 +193,7 @@ namespace Game.Views
             if (list.Count == 0) return;
             var tray = list[0];
             list.RemoveAt(0);
+            _laneGap[lane]++;                                         // its position stays empty until the belt steps
             var hit = tray.GetComponent<Collider>();
             if (hit != null) hit.enabled = false;                     // off the belt: no longer tappable
             ReleaseLinks(tray.transform);                             // R19: the link ends when the trays fly
@@ -207,20 +212,23 @@ namespace Game.Views
                     .Bind(k => { if (tt != null) tt.localScale = k; }).AddTo(tray).ToUniTask(destroyCancellationToken));
         }
 
-        /// <summary>The belt steps forward to close the gap the trays that left opened; <paramref name="newTails"/> slide
-        /// in at the back, in order. One call per lane per tap, however many trays left it (a linked pair is two).</summary>
-        public async UniTask AdvanceLane(int lane, IReadOnlyList<TrayLook> newTails)
+        /// <summary>The belt steps <paramref name="steps"/> positions forward into the empty front the trays that left
+        /// opened; <paramref name="newTails"/> slide in at the back, in order. One call per lane per tap. A belt that is
+        /// HELD (R19) simply gets no call: its trays stay put and its front stays empty.</summary>
+        public async UniTask AdvanceLane(int lane, int steps, IReadOnlyList<TrayLook> newTails)
         {
             var list = _lanes[lane];
+            _laneGap[lane] = Mathf.Max(0, _laneGap[lane] - steps);
+            int gap = _laneGap[lane];
             foreach (var look in newTails)                             // each starts as far back as the belt moves
             {
                 if (list.Count >= B.VisibleTraysPerLane) break;
-                list.Add(TrayOnBelt(lane, list.Count + newTails.Count, look));
+                list.Add(TrayOnBelt(lane, list.Count + gap + steps, look));
             }
             var moves = new List<UniTask>();
             for (int i = 0; i < list.Count; i++)
-                moves.Add(Move(list[i].transform, list[i].transform.localPosition, TrayOnLane(i), M.LaneAdvance, Ease.OutCubic));
-            moves.Add(ScrollBelt(lane));
+                moves.Add(Move(list[i].transform, list[i].transform.localPosition, TrayOnLane(i + gap), M.LaneAdvance, Ease.OutCubic));
+            moves.Add(ScrollBelt(lane, steps));
             await UniTask.WhenAll(moves);
         }
 
@@ -416,7 +424,7 @@ namespace Game.Views
         {
             if (lane < 0 || lane >= _lanes.Count || index < 0 || index >= _lanes[lane].Count) return;
             var t = _lanes[lane][index].transform;
-            var rest = TrayOnLane(index);
+            var rest = TrayOnLane(index + _laneGap[lane]);
             await LMotion.Create(0f, 1f, M.TrayShake).WithEase(Ease.Linear).Bind(k =>
             {
                 if (t == null) return;
@@ -506,11 +514,11 @@ namespace Game.Views
             LMotion.Create(from, to, seconds).WithEase(ease)
                 .Bind(p => { if (t != null) t.localPosition = p; }).AddTo(t.gameObject).ToUniTask(destroyCancellationToken);
 
-        private UniTask ScrollBelt(int lane)
+        private UniTask ScrollBelt(int lane, int steps)
         {
             var r = _belts[lane];
             if (r == null) return UniTask.CompletedTask;
-            float from = _beltOffset[lane], to = from - 1f;
+            float from = _beltOffset[lane], to = from - steps;
             _beltOffset[lane] = to;
             var block = new MaterialPropertyBlock();
             return LMotion.Create(from, to, M.LaneAdvance).WithEase(Ease.OutCubic).Bind(v =>

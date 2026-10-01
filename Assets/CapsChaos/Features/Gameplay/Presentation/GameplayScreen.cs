@@ -230,7 +230,8 @@ namespace Game.Presentation
         /// <summary>
         /// R5: only the FRONT tray of a lane is released to a slot. A tray behind it answers "not this one" by
         /// shaking; so does the front tray when no slot is free (R8), when it is locked (R18), or when it is linked and
-        /// its partner is not at the front yet (R19 — the pair shakes together). A linked pair is released by a tap on
+        /// its partner is not at the front yet (R19 — the pair shakes together). A belt carrying a tray linked to another
+        /// lane is HELD with an empty front until the linked belt can step too (R19); its trays shake. A linked pair is released by a tap on
         /// either of its trays once both are ready. The belt itself is not tappable.
         /// <para>"Free" is what the player SEES: the rules empty a slot the instant its tray is full, but on screen
         /// that tray is still collecting (bottles in flight, the box packing) until the box lifts off. A tap in that
@@ -244,23 +245,25 @@ namespace Game.Presentation
             int tray = _laneTaken[lane] + index;
             bool linked = _game.TryPartner(lane, tray, out var partner);
 
-            // the lane whose front the tap releases: the tray's own, or — for the back tray of a same-lane pair whose
-            // front tray is at the front — that same lane
-            bool atFront = index == 0 || (linked && partner.Lane == lane && partner.Index == tray - 1 && index == 1);
+            // the tray must stand at the front of its belt — or be the back tray of a same-lane pair whose front tray
+            // does. A held belt (R19) has an empty front: nothing on it is at the front.
+            bool atFront = _game.IsAtFront(lane, tray)
+                || (linked && partner.Lane == lane && partner.Index == tray - 1 && _game.IsAtFront(lane, tray - 1));
             if (!atFront) { Shake(lane, tray, linked, partner); return; }
             if (_board.ClearSlotCount < (linked ? 2 : 1)) { Shake(lane, tray, linked, partner); return; }
 
             var result = _game.Tap(lane);
             if (!result.Accepted)
             {
-                if (result.Outcome is TapOutcome.RejectedNoFreeSlot or TapOutcome.RejectedLocked or TapOutcome.RejectedLinkNotReady)
+                if (result.Outcome is TapOutcome.RejectedNoFreeSlot or TapOutcome.RejectedLocked or TapOutcome.RejectedLinkNotReady
+                    or TapOutcome.RejectedBeltHeld)
                     Shake(lane, tray, linked, partner);
                 return;
             }
 
             // Immediate feedback: the released trays leave the belt NOW, not after earlier animations replay, and the
             // belt / reveal / lock beats play at once too. Every stack fact keeps its order in the replay queue.
-            var advanced = new Dictionary<int, List<TrayLook>>();
+            var advanced = new Dictionary<int, (int steps, List<TrayLook> tails)>();
             foreach (var f in result.Facts)
             {
                 switch (f)
@@ -273,8 +276,9 @@ namespace Game.Presentation
                         _board.PlaceTray(id, t.Lane, t.Slot).Forget();
                         break;
                     case LaneAdvanced a:
-                        if (!advanced.TryGetValue(a.Lane, out var tails)) advanced[a.Lane] = tails = new List<TrayLook>();
-                        if (_laneShown[a.Lane] < _level.Lanes[a.Lane].Count) tails.Add(LookOf(a.Lane, _laneShown[a.Lane]++));
+                        var step = advanced.TryGetValue(a.Lane, out var st) ? st : (0, new List<TrayLook>());
+                        if (_laneShown[a.Lane] < _level.Lanes[a.Lane].Count) step.Item2.Add(LookOf(a.Lane, _laneShown[a.Lane]++));
+                        advanced[a.Lane] = (step.Item1 + 1, step.Item2);
                         break;
                     case TrayRevealed _:
                     case TrayLockTicked _:
@@ -295,8 +299,8 @@ namespace Game.Presentation
             }
             foreach (var kv in advanced)
             {
-                int shownBefore = _laneShown[kv.Key] - kv.Value.Count;
-                _board.AdvanceLane(kv.Key, kv.Value).Forget();
+                int shownBefore = _laneShown[kv.Key] - kv.Value.tails.Count;
+                _board.AdvanceLane(kv.Key, kv.Value.steps, kv.Value.tails).Forget();
                 for (int t = shownBefore; t < _laneShown[kv.Key]; t++) LinkIfShown(kv.Key, t);
             }
             foreach (var f in result.Facts)
@@ -327,7 +331,7 @@ namespace Game.Presentation
         /// <summary>How authored tray <paramref name="tray"/> of <paramref name="lane"/> looks right now (R17, R18).</summary>
         private TrayLook LookOf(int lane, int tray)
         {
-            int locked = tray == _game.LaneHead(lane) ? _game.LockLeft(lane) : _game.LockTurns(lane, tray);
+            int locked = _game.IsAtFront(lane, tray) ? _game.LockLeft(lane) : _game.LockTurns(lane, tray);
             bool hidden = _game.IsTrayHidden(lane, tray);
             return new TrayLook(hidden ? TintFlavor.None : _game.TrayColor(lane, tray).ToTint(), hidden,
                 locked > 0 ? LockLabel(locked) : null);
