@@ -15,6 +15,11 @@ MonoBehaviour:
   m_GroupName: Local
   m_GUID: b7f97dd9f75664e39ae2f19f3897edcf
   m_SerializeEntries:
+  - m_GUID: 092097be9cb464d7aaeb35e23d4eba8f
+    m_Address: ResultDialog
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 1206cddfa8c864fc5b5093546b1c029e
     m_Address: Scenes/Main
     m_ReadOnly: 0

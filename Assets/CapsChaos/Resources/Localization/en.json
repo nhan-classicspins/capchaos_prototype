@@ -6,5 +6,11 @@
   "level_select.difficulty_tutorial": "Tutorial",
   "level_select.difficulty_unknown": "-",
   "level_select.number": "{0}",
-  "level_select.title": "LEVELS"
+  "level_select.title": "LEVELS",
+  "lose.restart": "RESTART",
+  "lose.subtitle": "Out of space!",
+  "lose.title": "YOU CAN\\nDO IT",
+  "win.next": "NEXT",
+  "win.subtitle": "Level {0} cleared!",
+  "win.title": "GOOD\\nJOB"
 }

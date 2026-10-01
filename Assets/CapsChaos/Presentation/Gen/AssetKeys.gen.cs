@@ -20,6 +20,7 @@ namespace Game.Presentation
         public static readonly AssetKey<GameObject> Lane              = new("Lane");
         public static readonly AssetKey<GameObject> LevelButton       = new("LevelButton");
         public static readonly AssetKey<GameObject> LevelSelectWidget = new("LevelSelectWidget");
+        public static readonly AssetKey<GameObject> ResultDialog      = new("ResultDialog");
         public static readonly AssetKey<GameObject> Slot              = new("Slot");
     }
 }

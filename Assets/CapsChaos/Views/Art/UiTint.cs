@@ -18,6 +18,18 @@ namespace Game.Views
         TextOnFill = 6,
         Invisible = 7,
         // 8 and 9 were LevelNumber / LevelLabel — text moved to TextTint (keyed by TintFlavor). Never reuse them.
+        WinHeader = 10,
+        WinBody = 11,
+        WinBand = 12,
+        WinButtonTop = 13,
+        WinButtonBottom = 14,
+        WinButtonLip = 15,
+        LoseHeader = 16,
+        LoseBody = 17,
+        LoseBand = 18,
+        LoseButtonTop = 19,
+        LoseButtonBottom = 20,
+        LoseButtonLip = 21,
     }
 
     /// <summary>
@@ -78,6 +90,18 @@ namespace Game.Views
             UiToken.HudButtonShadow => DesignTokens.HudButtonShadow,
             UiToken.TextOnFill      => DesignTokens.TextOnFill,
             UiToken.Invisible       => DesignTokens.Invisible,
+            UiToken.WinHeader        => DesignTokens.Win.Header,
+            UiToken.WinBody          => DesignTokens.Win.Body,
+            UiToken.WinBand          => DesignTokens.Win.Band,
+            UiToken.WinButtonTop     => DesignTokens.Win.ButtonTop,
+            UiToken.WinButtonBottom  => DesignTokens.Win.ButtonBottom,
+            UiToken.WinButtonLip     => DesignTokens.Win.ButtonLip,
+            UiToken.LoseHeader       => DesignTokens.Lose.Header,
+            UiToken.LoseBody         => DesignTokens.Lose.Body,
+            UiToken.LoseBand         => DesignTokens.Lose.Band,
+            UiToken.LoseButtonTop    => DesignTokens.Lose.ButtonTop,
+            UiToken.LoseButtonBottom => DesignTokens.Lose.ButtonBottom,
+            UiToken.LoseButtonLip    => DesignTokens.Lose.ButtonLip,
             _                       => Color.magenta,
         };
 

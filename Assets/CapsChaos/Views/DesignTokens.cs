@@ -136,7 +136,8 @@ namespace Game.Views
         /// display white; a flavour reads as its Body colour. Defaults only — the live values are in
         /// <c>Content/UI/UiPalette.asset</c> (see UiPalette).
         /// </summary>
-        public static Color TextColor(TintFlavor flavor) => flavor == TintFlavor.None ? TextOnFill : Flavor(flavor).Body;
+        public static Color TextColor(TintFlavor flavor) =>
+            flavor == TintFlavor.None || flavor == TintFlavor.White ? TextOnFill : Flavor(flavor).Body;
         /// <summary>A raycast-only surface (the board hit-catcher): receives pointer events, draws nothing.</summary>
         public static readonly Color Invisible  = new Color(0f, 0f, 0f, 0f);
 
@@ -181,6 +182,16 @@ namespace Game.Views
             public const float HudButtonShadowDrop = 8f;
             public const float HudButtonIcon = 52f;
             public const float HudInset = 4 * Unit;     // 48 — from the safe-area corner to the button's touch box
+
+            /// <summary>Result popup (art §5, refs 09/10): a 3-band panel over one big primary button, on the Popup host.</summary>
+            public const float ResultPanelWidth = 780f;
+            public const float ResultHeader = 72f, ResultBody = 330f, ResultBand = 120f;
+            public const float ResultPanelLip = 12f;
+            public const float ResultPanelY = 150f;             // panel centre above the screen centre
+            public const float ResultButtonWidth = 560f, ResultButtonHeight = 190f;
+            public const float ResultButtonLip = 16f;           // ≈ 12 % of the face, art §5 "gờ dưới dày 12 %"
+            public const float ResultGap = 5 * Unit;            // 60 — panel → button
+            public const float FontResultTitle = 124f, FontResultButton = 104f, FontResultSubtitle = 46f;
 
             /// <summary>Rounded-rect sprite corner radius in texture px (== canvas px at PPU 1).</summary>
             public const float CornerRadius = 40f;

@@ -27,6 +27,9 @@ namespace Game.Composition
                 ?? throw new System.InvalidOperationException("Gameplay.unity has no GameplayHudView — add the GameplayHudWidget prefab instance.");
             builder.RegisterInstance(hud);
             builder.Register<GameplayHudWidget>(Lifetime.Scoped).AsSelf();
+
+            // the Win / Lose popup: the dialog service resolves its controller from this (the active) scope
+            builder.Register<ResultDialog>(Lifetime.Transient);
             builder.RegisterEntryScreen<GameplayScreen>();
         }
     }

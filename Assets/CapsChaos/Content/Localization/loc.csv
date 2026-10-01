@@ -7,3 +7,9 @@ level_select.difficulty_medium,Medium,Vừa
 level_select.difficulty_hard,Hard,Khó
 level_select.difficulty_breather,Breather,Thư giãn
 level_select.difficulty_unknown,-,-
+win.title,GOOD\nJOB,LÀM TỐT\nLẮM
+win.subtitle,Level {0} cleared!,Đã qua màn {0}!
+win.next,NEXT,TIẾP
+lose.title,YOU CAN\nDO IT,CỐ LÊN\nNÀO
+lose.subtitle,Out of space!,Hết chỗ rồi!
+lose.restart,RESTART,CHƠI LẠI

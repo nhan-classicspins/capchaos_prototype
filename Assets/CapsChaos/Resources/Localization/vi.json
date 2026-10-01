@@ -6,5 +6,11 @@
   "level_select.difficulty_tutorial": "Hướng dẫn",
   "level_select.difficulty_unknown": "-",
   "level_select.number": "{0}",
-  "level_select.title": "CHỌN MÀN"
+  "level_select.title": "CHỌN MÀN",
+  "lose.restart": "CHƠI LẠI",
+  "lose.subtitle": "Hết chỗ rồi!",
+  "lose.title": "CỐ LÊN\\nNÀO",
+  "win.next": "TIẾP",
+  "win.subtitle": "Đã qua màn {0}!",
+  "win.title": "LÀM TỐT\\nLẮM"
 }

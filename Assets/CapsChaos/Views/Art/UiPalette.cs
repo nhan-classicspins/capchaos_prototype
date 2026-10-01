@@ -32,6 +32,22 @@ namespace Game.Views
         [SerializeField] private Color _hudButtonRim = DesignTokens.HudButtonRim;
         [SerializeField] private Color _hudButtonShadow = DesignTokens.HudButtonShadow;
 
+        [Header("Result popup — Win (art §3.3)")]
+        [SerializeField] private Color _winHeader = DesignTokens.Win.Header;
+        [SerializeField] private Color _winBody = DesignTokens.Win.Body;
+        [SerializeField] private Color _winBand = DesignTokens.Win.Band;
+        [SerializeField] private Color _winButtonTop = DesignTokens.Win.ButtonTop;
+        [SerializeField] private Color _winButtonBottom = DesignTokens.Win.ButtonBottom;
+        [SerializeField] private Color _winButtonLip = DesignTokens.Win.ButtonLip;
+
+        [Header("Result popup — Lose (art §3.3)")]
+        [SerializeField] private Color _loseHeader = DesignTokens.Lose.Header;
+        [SerializeField] private Color _loseBody = DesignTokens.Lose.Body;
+        [SerializeField] private Color _loseBand = DesignTokens.Lose.Band;
+        [SerializeField] private Color _loseButtonTop = DesignTokens.Lose.ButtonTop;
+        [SerializeField] private Color _loseButtonBottom = DesignTokens.Lose.ButtonBottom;
+        [SerializeField] private Color _loseButtonLip = DesignTokens.Lose.ButtonLip;
+
         [Header("Icons on a fill")]
         [SerializeField] private Color _textOnFill = DesignTokens.TextOnFill;
 
@@ -83,6 +99,18 @@ namespace Game.Views
             UiToken.HudButtonRim    => _hudButtonRim,
             UiToken.HudButtonShadow => _hudButtonShadow,
             UiToken.TextOnFill      => _textOnFill,
+            UiToken.WinHeader        => _winHeader,
+            UiToken.WinBody          => _winBody,
+            UiToken.WinBand          => _winBand,
+            UiToken.WinButtonTop     => _winButtonTop,
+            UiToken.WinButtonBottom  => _winButtonBottom,
+            UiToken.WinButtonLip     => _winButtonLip,
+            UiToken.LoseHeader       => _loseHeader,
+            UiToken.LoseBody         => _loseBody,
+            UiToken.LoseBand         => _loseBand,
+            UiToken.LoseButtonTop    => _loseButtonTop,
+            UiToken.LoseButtonBottom => _loseButtonBottom,
+            UiToken.LoseButtonLip    => _loseButtonLip,
             UiToken.Invisible       => DesignTokens.Invisible,   // a raycast-only surface is never a colour choice
             _                       => Color.magenta,
         };
@@ -111,6 +139,10 @@ namespace Game.Views
             _ground = DesignTokens.Ground; _hudPill = DesignTokens.HudPill; _hudPillLip = DesignTokens.HudPillLip;
             _hudButton = DesignTokens.HudButton; _hudButtonRim = DesignTokens.HudButtonRim; _hudButtonShadow = DesignTokens.HudButtonShadow;
             _textOnFill = DesignTokens.TextOnFill;
+            _winHeader = DesignTokens.Win.Header; _winBody = DesignTokens.Win.Body; _winBand = DesignTokens.Win.Band;
+            _winButtonTop = DesignTokens.Win.ButtonTop; _winButtonBottom = DesignTokens.Win.ButtonBottom; _winButtonLip = DesignTokens.Win.ButtonLip;
+            _loseHeader = DesignTokens.Lose.Header; _loseBody = DesignTokens.Lose.Body; _loseBand = DesignTokens.Lose.Band;
+            _loseButtonTop = DesignTokens.Lose.ButtonTop; _loseButtonBottom = DesignTokens.Lose.ButtonBottom; _loseButtonLip = DesignTokens.Lose.ButtonLip;
             _textNone = DesignTokens.TextColor(TintFlavor.None); 
             _textRed = DesignTokens.TextColor(TintFlavor.Red);
             _textOrange = DesignTokens.TextColor(TintFlavor.Orange); 

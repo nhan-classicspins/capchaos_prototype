@@ -26,8 +26,9 @@ namespace Game.Presentation
     /// (<see cref="CapChaosGame"/>), turns a lane tap into a rules call, and replays the returned facts on
     /// the <see cref="BoardView"/> in order (R9 — the Domain has already resolved; the board catches up).
     /// Loaded additively by the scene service as <c>Scenes/Gameplay</c> on top of Master.
-    /// <para>MVP round end, until the Win/Lose dialogs land: a win moves on to the next level, a loss
-    /// replays the same one, both in place (no scene reload) after a short pause.</para>
+    /// <para>Round end (GDD §5.4): after a short pause the Result popup — "GOOD JOB" + NEXT on a win (R14), "YOU CAN
+    /// DO IT" + RESTART on a loss (R15). NEXT plays the next level, RESTART the same one, both in place (no scene
+    /// reload); Back on the popup goes Home.</para>
     /// </summary>
     public sealed class GameplayScreen : ScreenBase
     {
@@ -38,6 +39,7 @@ namespace Game.Presentation
         private readonly ISceneService _scenes;
         private readonly GameplaySceneRoot _root;
         private readonly GameplayHudWidget _hud;
+        private readonly IDialogService _dialogs;
         private readonly ILog _log;
 
         private readonly BoardPrefabs _prefabs = new BoardPrefabs();
@@ -66,8 +68,10 @@ namespace Game.Presentation
         private bool _leaving;
 
         public GameplayScreen(GameplayParam param, LevelCatalog catalog, IRenderLayerRegistry layers,
-            IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud, ILog log = null)
+            IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
+            IDialogService dialogs, ILog log = null)
         {
+            _dialogs = dialogs;
             _hud = hud;
             _scenes = scenes;
             _param = param;
@@ -300,15 +304,28 @@ namespace Game.Presentation
                     foreach (var pack in _packs) await pack;
                     _log.Info($"[GameplayScreen] {_level.Id} cleared.");
                     await UniTask.Delay(TimeSpan.FromSeconds(DesignTokens.Motion.RoundEndPause), cancellationToken: ct);
-                    StartRound(_levelIndex + 1);
+                    await ShowResultAsync(won: true, ct);
                     break;
                 case LevelFailed f:
                     _log.Info($"[GameplayScreen] {_level.Id} failed ({f.Reason}).");
                     await _board.Jam();
                     await UniTask.Delay(TimeSpan.FromSeconds(DesignTokens.Motion.RoundEndPause), cancellationToken: ct);
-                    StartRound(_levelIndex);
+                    await ShowResultAsync(won: false, ct);
                     break;
             }
+        }
+
+        /// <summary>The Result popup, then what its button means: NEXT → the next level, RESTART → this one again.</summary>
+        private async UniTask ShowResultAsync(bool won, CancellationToken ct)
+        {
+            var result = await _dialogs.ShowAsync<ResultDialog, Unit>(
+                new ResultArgs(won, _catalog.Normalize(_levelIndex) + 1), default, ct);
+            // A torn-down round (Home, Restart, scene change) aborts the popup — nothing more to do.
+            if (ct.IsCancellationRequested || result.Reason == DialogCloseReason.Aborted || result.Reason == DialogCloseReason.CloseAll)
+                return;
+            if (result.Reason == DialogCloseReason.BackButton) { GoHome(); return; }
+            _log.Info($"[GameplayScreen] {(won ? "next" : "restart")} after {_level?.Id}.");
+            StartRound(won ? _levelIndex + 1 : _levelIndex);
         }
 
         private static void SetLayer(Transform t, int layer)
