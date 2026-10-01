@@ -97,16 +97,21 @@ Nhịp một lượt, đo từ video 1 với mốc tap = 0 [QS]:
 **Màu** [CHỐT D2]: chỉ dùng màu, không nhãn. Bảng MVP có 8 màu. Mỗi level chọn một tập con (video dùng 4).
 Mã hex ở Art §3.
 
-| Mã JSON | Màu | Có trong video |
-|---|---|---|
-| `R` | Hồng-đỏ | ✔ |
-| `O` | Cam | ✔ |
-| `B` | Xanh dương | ✔ |
-| `G` | Xanh lá | ✔ |
-| `P` | Tím | — |
-| `Y` | Vàng | — |
-| `C` | Xanh ngọc (cyan) | — |
-| `N` | Nâu | — |
+Trong level JSON (format v2), màu ghi bằng **số** = giá trị enum `Game.Domain.CapColor`. Số **không bao giờ đổi**
+(tool của designer ghi số này), màu mới lấy số tiếp theo. `0` = ô trống. Mã chữ chỉ còn ở format v1 cũ, spec của
+LevelTool và test.
+
+| Số JSON | `CapColor` | Màu | Mã chữ (v1) | Có trong video |
+|---|---|---|---|---|
+| `0` | `None` | ô trống (chỉ trong `stack`) | `.` | — |
+| `1` | `Red` | Hồng-đỏ | `R` | ✔ |
+| `2` | `Orange` | Cam | `O` | ✔ |
+| `3` | `Blue` | Xanh dương | `B` | ✔ |
+| `4` | `Green` | Xanh lá | `G` | ✔ |
+| `5` | `Purple` | Tím | `P` | — |
+| `6` | `Yellow` | Vàng | `Y` | — |
+| `7` | `Cyan` | Xanh ngọc (cyan) | `C` | — |
+| `8` | `Brown` | Nâu | `N` | — |
 
 ---
 
@@ -221,40 +226,45 @@ Unity**. Đây là machine zone: diff được, review được, test headless �
 |---|---|
 | `Assets/CapsChaos/Content/LevelConfig/level_0001.json` … | Một file cho mỗi level (TextAsset). Cả folder là **một** entry Addressables, address `LevelConfig`, nên mỗi file có address `LevelConfig/<id>.json` và level mới không cần đăng ký thêm |
 | `Assets/CapsChaos/Content/LevelConfig/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
-| `Game.Domain.CapColor` | Enum màu, dùng chung cho chai, tray, nắp và hộp. Trong JSON màu vẫn viết bằng mã 1 chữ (`R O B G P Y C N`, chữ thường = chai ẩn); chỉ codec/LevelTool dùng mã |
+| `Game.Domain.CapColor` | Enum màu, dùng chung cho chai, tray, nắp và hộp. Trong JSON (v2) màu là **số** của enum (bảng §4) |
 | [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12), là nguồn chân lý của định dạng |
 
-### 6.2 Định dạng
+### 6.2 Định dạng (format v2, đổi 2026-10-01)
+
+Định dạng viết cho **designer** (họ có thể tự viết tool): màu là **số** (§4), mọi cờ là **field có tên**. File format
+v1 cũ (mã chữ) vẫn load được (`LevelFormatV1`), nhưng tool luôn ghi v2; `LevelTool migrate` chuyển cả thư mục.
 
 ```json
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
-  "id": "level_0013",
-  "slots": 3,
+  "formatVersion": 2,
+  "id": "level_0019",
+  "slots": 4,
   "trayCapacity": 4,
-  "colors": ["R", "O", "B", "G"],
+  "colors": [1, 2, 3],
   "stack": {
-    "cols": 7,
-    "rows": 4,
+    "cols": 3,
+    "rows": 2,
     "layers": [
-      ["GOOOOOG",
-       "GOOOOOG",
-       "GOOOOOG",
-       "GBBOBBG"],
-      ["rrbbggo",
-       "oobbggr",
-       "rgbbogr",
-       "ggr.brr"]
+      [[3, 2, 1],
+       [1, 2, 3]],
+      [[0, 2, 0],
+       [0, 1, 0]]
+    ],
+    "hidden": [
+      { "layer": 1, "row": 0, "col": 1 }
     ]
   },
   "lanes": [
-    ["B", "O", "B", "G", "O"],
-    ["R", "G", "O", "R", "G"],
-    ["R", "O", "R", "R", "B"]
+    [{ "color": 3 }, { "color": 2, "hidden": true }],
+    [{ "color": 1, "lockTurns": 2 }, { "color": 2 }],
+    [{ "color": 1 }, { "color": 3 }]
+  ],
+  "links": [
+    { "a": { "lane": 2, "tray": 0 }, "b": { "lane": 2, "tray": 1 } }
   ],
   "view": { "cameraPreset": "default", "stackScale": 1.0 },
-  "meta": { "name": "Mystery Tower", "difficulty": "hard", "notes": "Tái dựng từ video 2" }
+  "meta": { "name": "Ví dụ", "difficulty": "easy", "notes": "Chỉ để minh hoạ định dạng" }
 }
 ```
 
@@ -262,16 +272,18 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm, và 
 
 | Trường | Ý nghĩa |
 |---|---|
-| `formatVersion` | Tăng khi đổi định dạng; loader có migrator cho từng version |
+| `formatVersion` | `2`. Tăng khi đổi định dạng; loader có migrator cho từng version (v1: `LevelFormatV1`, schema `level.schema.v1.json`) |
 | `slots` | Số slot, 1–5 (mặc định 3) |
 | `trayCapacity` | Số nắp mỗi khay (mặc định 4) |
-| `colors` | Tập màu dùng trong level; mọi ký tự trong `stack` và `lanes` phải thuộc tập này |
+| `colors` | Tập số màu dùng trong level; mọi số khác 0 trong `stack` và `lanes` phải thuộc tập này |
 | `stack.layers[k]` | Lưới của tầng `k`; `layers[0]` là **tầng đất** |
-| `stack.layers[k][i]` | Một chuỗi dài `cols` ký tự; **`i = 0` là hàng xa nhất**, **`i = rows−1` là hàng trước** (gần người chơi) |
-| Ký tự | `.` = trống · **chữ HOA** = chai lộ màu · **chữ thường** = chai **ẩn** (cầu vồng), lộ màu khi chạm đất |
-| `lanes[j]` | Hàng đợi của băng chuyền `j` (trái → phải). Phần tử `[0]` là khay đầu làn. **Chữ thường** = khay **ẩn** (R17) |
-| `locks` | (tuỳ chọn) `[{ "lane": 2, "tray": 1, "turns": 3 }]`: khay `lanes[2][1]` (chỉ số theo file) khoá 3 lượt (R18) |
-| `links` | (tuỳ chọn) `[{ "a": [0, 1], "b": [1, 1] }]`: nối khay `lanes[0][1]` với `lanes[1][1]` (R19) |
+| `stack.layers[k][i]` | Một mảng `cols` số; **`i = 0` là hàng xa nhất**, **`i = rows−1` là hàng trước** (gần người chơi). `0` = ô trống |
+| `stack.hidden` | (tuỳ chọn) danh sách chai **ẩn** (R4, cầu vồng, lộ màu khi chạm đất): `{ "layer", "row", "col" }`, phải trỏ vào ô có chai, không ở tầng 0 (V3) |
+| `lanes[j]` | Hàng đợi của băng chuyền `j` (trái → phải), mỗi phần tử là một khay. Phần tử `[0]` là khay đầu làn |
+| `lanes[j][t].color` | Số màu của khay |
+| `lanes[j][t].hidden` | (tuỳ chọn, mặc định `false`) khay **ẩn** (R17) |
+| `lanes[j][t].lockTurns` | (tuỳ chọn) khay **khoá** `n` lượt, 1–99 (R18) |
+| `links` | (tuỳ chọn) cặp khay **nối** (R19): `{ "a": { "lane": 0, "tray": 1 }, "b": { "lane": 1, "tray": 1 } }`, `tray` là chỉ số trong `lanes[lane]` |
 | `view` | (tuỳ chọn) preset camera và scale khối chai, dùng khi khối chai quá to |
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
 | `meta.solution` | (tuỳ chọn) một chuỗi tap thắng (chỉ số làn), do LevelTool ghi; V6 chạy lại nó để chứng minh level giải được. Có thể dùng làm gợi ý (hint) sau này |
@@ -286,7 +298,7 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 
 | # | Luật | Lỗi mẫu |
 |---|---|---|
-| V1 | JSON khớp schema | `stack.layers[1][2]: length 6 ≠ cols 7` |
+| V1 | JSON khớp schema | `$.stack.layers[1][2]: 6 cells ≠ cols 7` |
 | V2 | Không có chai lơ lửng: chai ở tầng `k ≥ 1` phải có chai ở tầng `k−1` cùng ô | `floating bottle at (3,1,2)` |
 | V3 | Không có chai ẩn ở tầng 0 | `hidden bottle on ground at (0,3)` |
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
@@ -331,6 +343,7 @@ dotnet run --project Tools/LevelTool -- generate          # spec → level JSON 
 dotnet run --project Tools/LevelTool -- generate --check  # exit 1 nếu output khác file đã commit
 dotnet run --project Tools/LevelTool -- validate          # V1–V6 + index cho mọi level
 dotnet run --project Tools/LevelTool -- stats             # độ khó: tỉ lệ thắng khi tap ngẫu nhiên + effort của solver
+dotnet run --project Tools/LevelTool -- migrate           # ghi lại mọi level theo format hiện tại (v2), nội dung giữ nguyên; --check: exit 1 nếu còn file cũ
 ```
 
 - Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: hình dạng khối chai (`#` chai lộ màu, `?` chai ẩn),

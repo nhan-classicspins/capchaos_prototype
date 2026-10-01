@@ -85,7 +85,7 @@ namespace Game.Domain
     /// <summary>One level, fully data-driven (GDD §6). Immutable; build it with <see cref="LevelJson.Parse"/>.</summary>
     public sealed class LevelDefinition
     {
-        public const int CurrentFormatVersion = 1;
+        public const int CurrentFormatVersion = 2;
         public const int DefaultSlots = 3;
         public const int DefaultTrayCapacity = 4;
 

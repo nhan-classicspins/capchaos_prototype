@@ -1,34 +1,34 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "level_0008",
   "slots": 3,
   "trayCapacity": 4,
-  "colors": ["R", "O", "B", "G"],
+  "colors": [1, 2, 3, 4],
   "stack": {
     "cols": 8,
     "rows": 5,
     "layers": [
       [
-        "RRBBRGRG",
-        "BBGORBOO",
-        "OOBOBROO",
-        "OBGGGRRB",
-        "OBGGGBRB"
+        [1, 1, 3, 3, 1, 4, 1, 4],
+        [3, 3, 4, 2, 1, 3, 2, 2],
+        [2, 2, 3, 2, 3, 1, 2, 2],
+        [2, 3, 4, 4, 4, 1, 1, 3],
+        [2, 3, 4, 4, 4, 3, 1, 3]
       ],
       [
-        "........",
-        ".GGGRGG.",
-        ".ORBRGR.",
-        ".ORBROR.",
-        ".OBBOOG."
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 4, 4, 4, 1, 4, 4, 0],
+        [0, 2, 1, 3, 1, 4, 1, 0],
+        [0, 2, 1, 3, 1, 2, 1, 0],
+        [0, 2, 3, 3, 2, 2, 4, 0]
       ]
     ]
   },
   "lanes": [
-    ["G", "R", "O", "B", "G", "R"],
-    ["O", "B", "O", "R", "G"],
-    ["B", "G", "O", "B", "R"]
+    [{ "color": 4 }, { "color": 1 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 1 }],
+    [{ "color": 2 }, { "color": 3 }, { "color": 2 }, { "color": 1 }, { "color": 4 }],
+    [{ "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 1 }]
   ],
   "view": { "cameraPreset": "default", "stackScale": 1 },
   "meta": { "name": "Wide Crate", "difficulty": "medium", "solution": [0, 2, 1, 1, 1, 0, 0, 2, 0, 1, 2, 0, 2, 0, 1, 2] }

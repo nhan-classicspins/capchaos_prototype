@@ -1,41 +1,41 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "level_0009",
   "slots": 3,
   "trayCapacity": 4,
-  "colors": ["R", "O", "B", "G"],
+  "colors": [1, 2, 3, 4],
   "stack": {
     "cols": 8,
     "rows": 5,
     "layers": [
       [
-        "OBGBBRRR",
-        "RRGBGROO",
-        "ORGRGBBB",
-        "OBOOBBOG",
-        "GORROBBG"
+        [2, 3, 4, 3, 3, 1, 1, 1],
+        [1, 1, 4, 3, 4, 1, 2, 2],
+        [2, 1, 4, 1, 4, 3, 3, 3],
+        [2, 3, 2, 2, 3, 3, 2, 4],
+        [4, 2, 1, 1, 2, 3, 3, 4]
       ],
       [
-        "........",
-        ".RBROGR.",
-        ".RRROOO.",
-        "........",
-        "........"
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 3, 1, 2, 4, 1, 0],
+        [0, 1, 1, 1, 2, 2, 2, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0]
       ],
       [
-        "........",
-        "..GBBG..",
-        "..BGOO..",
-        "........",
-        "........"
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 4, 3, 3, 4, 0, 0],
+        [0, 0, 3, 4, 2, 2, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0]
       ]
     ]
   },
   "lanes": [
-    ["B", "G", "O", "R", "R"],
-    ["O", "O", "R", "R", "B", "B"],
-    ["G", "B", "G", "O"]
+    [{ "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 1 }, { "color": 1 }],
+    [{ "color": 2 }, { "color": 2 }, { "color": 1 }, { "color": 1 }, { "color": 3 }, { "color": 3 }],
+    [{ "color": 4 }, { "color": 3 }, { "color": 4 }, { "color": 2 }]
   ],
   "view": { "cameraPreset": "default", "stackScale": 1 },
   "meta": { "name": "Tight Slots", "difficulty": "medium", "notes": "First level where a careless order jams the slots.", "solution": [2, 0, 1, 2, 0, 2, 0, 1, 1, 0, 1, 2, 1, 0, 1] }

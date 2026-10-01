@@ -33,8 +33,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var l = Level(new[] { new[] { "RRRO" } }, new[] { "R" });
             var e = LevelValidator.Validate(l);
-            Assert.That(e, Has.Some.Contains("V4 colour R: 3 bottles vs 1 trays × 4 = 4"));
-            Assert.That(e, Has.Some.Contains("V4 colour O: 1 bottles vs 0 trays"));
+            Assert.That(e, Has.Some.Contains("V4 colour 1 (Red): 3 bottles vs 1 trays × 4 = 4"));
+            Assert.That(e, Has.Some.Contains("V4 colour 2 (Orange): 1 bottles vs 0 trays"));
         }
 
         [Test]
@@ -42,8 +42,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var l = Level(new[] { new[] { "RRRR" } }, new[] { "R" }, colors: "OB");
             var e = LevelValidator.Validate(l);
-            Assert.That(e, Has.Some.StartsWith("V5 stack.layers[0][0][0]: colour 'R' is not in colors"));
-            Assert.That(e, Has.Some.StartsWith("V5 colors: 'O' is declared but never used"));
+            Assert.That(e, Has.Some.StartsWith("V5 stack.layers[0][0][0]: colour 1 (Red) is not in colors"));
+            Assert.That(e, Has.Some.StartsWith("V5 colors: 2 (Orange) is declared but never used"));
         }
 
         [Test]

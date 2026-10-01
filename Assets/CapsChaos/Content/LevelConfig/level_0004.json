@@ -1,32 +1,32 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "level_0004",
   "slots": 4,
   "trayCapacity": 4,
-  "colors": ["R", "O", "B"],
+  "colors": [1, 2, 3],
   "stack": {
     "cols": 6,
     "rows": 4,
     "layers": [
       [
-        "BBRORR",
-        "BBROBO",
-        "RBRRBO",
-        "RBOROO"
+        [3, 3, 1, 2, 1, 1],
+        [3, 3, 1, 2, 3, 2],
+        [1, 3, 1, 1, 3, 2],
+        [1, 3, 2, 1, 2, 2]
       ],
       [
-        "......",
-        ".OROO.",
-        ".RROO.",
-        "......"
+        [0, 0, 0, 0, 0, 0],
+        [0, 2, 1, 2, 2, 0],
+        [0, 1, 1, 2, 2, 0],
+        [0, 0, 0, 0, 0, 0]
       ]
     ]
   },
   "lanes": [
-    ["B", "O", "R"],
-    ["O", "R", "O"],
-    ["R", "B"]
+    [{ "color": 3 }, { "color": 2 }, { "color": 1 }],
+    [{ "color": 2 }, { "color": 1 }, { "color": 2 }],
+    [{ "color": 1 }, { "color": 3 }]
   ],
   "view": { "cameraPreset": "default", "stackScale": 1 },
   "meta": { "name": "Second Floor", "difficulty": "easy", "notes": "Teaches: bottles on top drop down when the one below is taken.", "solution": [1, 2, 0, 1, 0, 0, 2, 1] }

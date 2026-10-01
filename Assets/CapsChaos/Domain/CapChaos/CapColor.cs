@@ -8,23 +8,25 @@ namespace Game.Domain
     /// A flavour colour (GDD §4). ONE colour is shared by everything that matches: a bottle, the tray that
     /// takes it, the caps on that tray and the box it ships in. Hex values live in DesignTokens, never here.
     /// <see cref="None"/> is "no colour" (an empty slot, an empty lane, an empty stack cell).
+    /// <para>The NUMBERS are the level file's spelling (format v2, GDD §6.2) — designers' tools write them, so a value
+    /// is never renumbered or reused; a new colour takes the next number.</para>
     /// </summary>
     public enum CapColor : byte
     {
         None = 0,
-        Red,
-        Orange,
-        Blue,
-        Green,
-        Purple,
-        Yellow,
-        Cyan,
-        Brown,
+        Red = 1,
+        Orange = 2,
+        Blue = 3,
+        Green = 4,
+        Purple = 5,
+        Yellow = 6,
+        Cyan = 7,
+        Brown = 8,
     }
 
     /// <summary>
-    /// The level format's spelling of <see cref="CapColor"/>: one uppercase letter per colour. Only the
-    /// JSON codec, the level tool and the solver's state key speak codes — everything else speaks the enum.
+    /// One uppercase letter per <see cref="CapColor"/>: level format v1's spelling (read by <c>LevelFormatV1</c>), the
+    /// LevelTool spec, the solver's state key and terse test levels. Format v2 files use the enum's numbers.
     /// </summary>
     public static class CapColorCodes
     {

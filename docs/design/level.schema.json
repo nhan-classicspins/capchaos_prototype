@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://classicspins.local/capschaos/level.schema.json",
-  "title": "Cap Chaos level",
-  "description": "One level, fully data-driven (GDD §6). Structural checks live here; semantic checks (floating bottles, hidden-on-ground, colour balance, solvability, lock/link targets) are LevelValidator V2–V7.",
+  "title": "Cap Chaos level — format v2",
+  "description": "One level, fully data-driven (GDD §6). Written for designers and their own tools: every colour is a NUMBER (see $defs.colorId), every flag is a named field. Structural checks live here; semantic checks (floating bottles, hidden-on-ground, colour balance, solvability, link targets) are LevelValidator V2–V7. Format v1 files (letter codes) still load: level.schema.v1.json.",
   "type": "object",
   "additionalProperties": false,
   "required": ["formatVersion", "id", "colors", "stack", "lanes"],
   "properties": {
     "$schema": { "type": "string" },
-    "formatVersion": { "const": 1 },
+    "formatVersion": { "const": 2 },
     "id": {
       "type": "string",
       "pattern": "^level_[0-9]{4}$",
@@ -21,7 +21,7 @@
       "minItems": 1,
       "maxItems": 8,
       "uniqueItems": true,
-      "items": { "$ref": "#/$defs/colorCode" },
+      "items": { "$ref": "#/$defs/colorId" },
       "description": "Palette subset used by this level. Hex values live in DesignTokens, never here."
     },
     "stack": {
@@ -35,14 +35,28 @@
           "type": "array",
           "minItems": 1,
           "maxItems": 8,
-          "description": "layers[0] is the GROUND. Each layer is `rows` strings of `cols` chars; string 0 is the BACK row, the last string is the FRONT row (nearest the player).",
+          "description": "layers[0] is the GROUND. Each layer is `rows` rows of `cols` cells; row 0 is the BACK row, the last row is the FRONT row (nearest the player).",
           "items": {
             "type": "array",
             "minItems": 1,
             "items": {
-              "type": "string",
-              "pattern": "^[.ROBGPYCNrobgpycn]+$",
-              "description": "'.' empty · UPPERCASE visible bottle · lowercase hidden (rainbow) bottle, revealed on reaching the ground."
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/cellId" }
+            }
+          }
+        },
+        "hidden": {
+          "type": "array",
+          "description": "Hidden bottles (R4): shown as rainbow until they reach the ground. Each names a non-empty cell. V3: never on layer 0.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["layer", "row", "col"],
+            "properties": {
+              "layer": { "type": "integer", "minimum": 0 },
+              "row": { "type": "integer", "minimum": 0 },
+              "col": { "type": "integer", "minimum": 0 }
             }
           }
         }
@@ -52,30 +66,16 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 4,
-      "description": "Conveyor queues left→right. Element [0] of each lane is the tappable front tray. A lowercase code is a HIDDEN tray (R17): no colour until it reaches the front.",
+      "description": "Conveyor queues left→right. Element [0] of each lane is the tappable front tray.",
       "items": {
         "type": "array",
         "minItems": 1,
-        "items": { "$ref": "#/$defs/trayCode" }
-      }
-    },
-    "locks": {
-      "type": "array",
-      "description": "Locked trays (R18): not tappable until `turns` trays have flown to the slots while it stands at the front of its lane. V7: the tray exists, is locked once and is not linked.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["lane", "tray", "turns"],
-        "properties": {
-          "lane": { "type": "integer", "minimum": 0, "maximum": 3 },
-          "tray": { "type": "integer", "minimum": 0, "description": "Index in lanes[lane] as authored." },
-          "turns": { "type": "integer", "minimum": 1, "maximum": 99 }
-        }
+        "items": { "$ref": "#/$defs/tray" }
       }
     },
     "links": {
       "type": "array",
-      "description": "Linked tray pairs (R19): they fly to the slots together (2 free slots needed) or not at all. V7: two neighbours in one lane, or the same position of two neighbouring lanes; a tray is in at most one link.",
+      "description": "Linked tray pairs (R19): they fly to the slots together (2 free slots needed); belts carrying a pair across two lanes only move together. V7: two neighbours in one lane, or the same position of two neighbouring lanes; a tray is in at most one link and is never locked.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -110,22 +110,34 @@
     }
   },
   "$defs": {
-    "colorCode": {
-      "type": "string",
-      "enum": ["R", "O", "B", "G", "P", "Y", "C", "N"],
-      "description": "R pink-red · O orange · B blue · G green · P purple · Y yellow · C cyan · N brown"
+    "colorId": {
+      "type": "integer",
+      "enum": [1, 2, 3, 4, 5, 6, 7, 8],
+      "description": "Game.Domain.CapColor: 1 Red (pink-red) · 2 Orange · 3 Blue · 4 Green · 5 Purple · 6 Yellow · 7 Cyan · 8 Brown. Never renumbered."
     },
-    "trayCode": {
-      "type": "string",
-      "enum": ["R", "O", "B", "G", "P", "Y", "C", "N", "r", "o", "b", "g", "p", "y", "c", "n"],
-      "description": "A colour code; lowercase = hidden tray."
+    "cellId": {
+      "type": "integer",
+      "enum": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+      "description": "0 = empty cell, otherwise a colorId."
+    },
+    "tray": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["color"],
+      "properties": {
+        "color": { "$ref": "#/$defs/colorId" },
+        "hidden": { "type": "boolean", "default": false, "description": "Hidden tray (R17): tray and caps show '?' until the tray reaches the front of its lane." },
+        "lockTurns": { "type": "integer", "minimum": 1, "maximum": 99, "description": "Locked tray (R18): opens after this many trays fly to the slots while it stands at the front." }
+      }
     },
     "trayRef": {
-      "type": "array",
-      "minItems": 2,
-      "maxItems": 2,
-      "items": { "type": "integer", "minimum": 0 },
-      "description": "[lane, tray] — tray is the index in lanes[lane] as authored."
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lane", "tray"],
+      "properties": {
+        "lane": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "tray": { "type": "integer", "minimum": 0, "description": "Index in lanes[lane] as authored." }
+      }
     }
   }
 }

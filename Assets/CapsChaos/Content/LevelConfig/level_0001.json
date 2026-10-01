@@ -1,23 +1,23 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "level_0001",
   "slots": 1,
   "trayCapacity": 4,
-  "colors": ["R", "O"],
+  "colors": [1, 2],
   "stack": {
     "cols": 4,
     "rows": 2,
     "layers": [
       [
-        "RROO",
-        "RROO"
+        [1, 1, 2, 2],
+        [1, 1, 2, 2]
       ]
     ]
   },
   "lanes": [
-    ["O"],
-    ["R"]
+    [{ "color": 2 }],
+    [{ "color": 1 }]
   ],
   "view": { "cameraPreset": "default", "stackScale": 1 },
   "meta": { "name": "First Caps", "difficulty": "tutorial", "notes": "Teaches: tap a tray, bottles fly in, the box ships.", "solution": [0, 1] }

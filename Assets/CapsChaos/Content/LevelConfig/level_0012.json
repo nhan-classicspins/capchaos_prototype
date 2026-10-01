@@ -1,44 +1,44 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "level_0012",
   "slots": 3,
   "trayCapacity": 4,
-  "colors": ["R", "O", "B", "G"],
+  "colors": [1, 2, 3, 4],
   "stack": {
     "cols": 9,
     "rows": 6,
     "layers": [
       [
-        "..BGGOO..",
-        ".ORGGRRG.",
-        "OORGOGRGO",
-        "RBRORGORO",
-        ".BBORGGO.",
-        "..OGROG.."
+        [0, 0, 3, 4, 4, 2, 2, 0, 0],
+        [0, 2, 1, 4, 4, 1, 1, 4, 0],
+        [2, 2, 1, 4, 2, 4, 1, 4, 2],
+        [1, 3, 1, 2, 1, 4, 2, 1, 2],
+        [0, 3, 3, 2, 1, 4, 4, 2, 0],
+        [0, 0, 2, 4, 1, 2, 4, 0, 0]
       ],
       [
-        ".........",
-        "..GOOGG..",
-        ".BBOGBBR.",
-        ".RBBRBBR.",
-        "..BRROB..",
-        "........."
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 4, 2, 2, 4, 4, 0, 0],
+        [0, 3, 3, 2, 4, 3, 3, 1, 0],
+        [0, 1, 3, 3, 1, 3, 3, 1, 0],
+        [0, 0, 3, 1, 1, 2, 3, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0]
       ],
       [
-        ".........",
-        "...RBG...",
-        "..RRBBB..",
-        "..RGOBG..",
-        "..RROBR..",
-        "........."
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 3, 4, 0, 0, 0],
+        [0, 0, 1, 1, 3, 3, 3, 0, 0],
+        [0, 0, 1, 4, 2, 3, 4, 0, 0],
+        [0, 0, 1, 1, 2, 3, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0]
       ]
     ]
   },
   "lanes": [
-    ["R", "G", "O", "O", "G", "B", "R"],
-    ["G", "R", "R", "B", "R", "G", "O"],
-    ["O", "B", "R", "O", "B", "G", "B"]
+    [{ "color": 1 }, { "color": 4 }, { "color": 2 }, { "color": 2 }, { "color": 4 }, { "color": 3 }, { "color": 1 }],
+    [{ "color": 4 }, { "color": 1 }, { "color": 1 }, { "color": 3 }, { "color": 1 }, { "color": 4 }, { "color": 2 }],
+    [{ "color": 2 }, { "color": 3 }, { "color": 1 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 3 }]
   ],
   "view": { "cameraPreset": "default", "stackScale": 1 },
   "meta": { "name": "Cake Tower", "difficulty": "hard", "notes": "Approximates reference video 1 (three visible tiers, no hidden bottles).", "solution": [2, 0, 1, 0, 0, 2, 1, 0, 2, 1, 2, 1, 1, 2, 2, 0, 0, 0, 2, 1, 1] }

@@ -1,32 +1,32 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "level_0005",
   "slots": 4,
   "trayCapacity": 4,
-  "colors": ["R", "O", "B", "G"],
+  "colors": [1, 2, 3, 4],
   "stack": {
     "cols": 8,
     "rows": 4,
     "layers": [
       [
-        "..GRBB..",
-        ".OGROBG.",
-        "ROGROBGG",
-        ".OGOOBO."
+        [0, 0, 4, 1, 3, 3, 0, 0],
+        [0, 2, 4, 1, 2, 3, 4, 0],
+        [1, 2, 4, 1, 2, 3, 4, 4],
+        [0, 2, 4, 2, 2, 3, 2, 0]
       ],
       [
-        "........",
-        "..RBBR..",
-        "..RBGR..",
-        "........"
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 3, 3, 1, 0, 0],
+        [0, 0, 1, 3, 4, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0]
       ]
     ]
   },
   "lanes": [
-    ["O", "G"],
-    ["G", "B", "R"],
-    ["R", "B", "O"]
+    [{ "color": 2 }, { "color": 4 }],
+    [{ "color": 4 }, { "color": 3 }, { "color": 1 }],
+    [{ "color": 1 }, { "color": 3 }, { "color": 2 }]
   ],
   "view": { "cameraPreset": "default", "stackScale": 1 },
   "meta": { "name": "Four Flavours", "difficulty": "easy", "solution": [0, 1, 2, 0, 1, 1, 2, 2] }

@@ -27,7 +27,7 @@ namespace Game.Domain
                             errors.Add($"V2 {where}: floating bottle — layer {k - 1} is empty below it");
                         if (k == 0 && c.Hidden)
                             errors.Add($"V3 {where}: hidden bottle on the ground (it could never be revealed)");
-                        if (!declared.Contains(c.Color)) errors.Add($"V5 {where}: colour '{Code(c.Color)}' is not in colors");
+                        if (!declared.Contains(c.Color)) errors.Add($"V5 {where}: colour {Code(c.Color)} is not in colors");
                         bottles[c.Color] = (bottles.TryGetValue(c.Color, out var n) ? n : 0) + 1;
                     }
 
@@ -35,7 +35,7 @@ namespace Game.Domain
                 for (int t = 0; t < level.Lanes[j].Count; t++)
                 {
                     var c = level.Lanes[j][t];
-                    if (!declared.Contains(c)) errors.Add($"V5 lanes[{j}][{t}]: colour '{Code(c)}' is not in colors");
+                    if (!declared.Contains(c)) errors.Add($"V5 lanes[{j}][{t}]: colour {Code(c)} is not in colors");
                     trays[c] = (trays.TryGetValue(c, out var n) ? n : 0) + 1;
                 }
 
@@ -43,7 +43,7 @@ namespace Game.Domain
             {
                 int b = bottles.TryGetValue(c, out var nb) ? nb : 0;
                 int t = trays.TryGetValue(c, out var nt) ? nt : 0;
-                if (b == 0 && t == 0) errors.Add($"V5 colors: '{Code(c)}' is declared but never used");
+                if (b == 0 && t == 0) errors.Add($"V5 colors: {Code(c)} is declared but never used");
                 else if (b != t * level.TrayCapacity)
                     errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} trays × {level.TrayCapacity} = {t * level.TrayCapacity}");
             }
@@ -83,8 +83,8 @@ namespace Game.Domain
             }
         }
 
-        // messages name colours by their level-file code, so an error points straight at the JSON
-        private static char Code(CapColor c) => CapColorCodes.ToCode(c);
+        // messages name colours by their level-file number (and name), so an error points straight at the JSON
+        private static string Code(CapColor c) => LevelJson.Name(c);
     }
 
     public enum SolveStatus { Solvable, Unsolvable, Unknown }

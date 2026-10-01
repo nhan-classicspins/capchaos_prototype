@@ -11,7 +11,8 @@ namespace CapsChaos.LevelTool
 {
     /// <summary>
     ///   LevelTool generate [--specs P] [--out DIR] [--check]   build seed levels (--check: exit 1 if any file would change)
-    ///   LevelTool validate [--dir DIR] [--budget N]            V1–V6 over every level_*.json + the index
+    ///   LevelTool validate [--dir DIR] [--budget N]            V1–V7 over every level_*.json + the index
+    ///   LevelTool migrate  [--dir DIR] [--check]               rewrite every level_*.json in the current format, content unchanged
     /// Exit codes (framework CLI contract): 0 Ok · 1 Drift · 2 Error.
     /// </summary>
     public static class Program
@@ -35,6 +36,8 @@ namespace CapsChaos.LevelTool
                     case "validate":
                         return Validate(Path.Combine(root, Get(opts, "dir", DefaultDir)),
                             int.Parse(Get(opts, "budget", LevelSolver.DefaultNodeBudget.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture));
+                    case "migrate":
+                        return Migrate(Path.Combine(root, Get(opts, "dir", DefaultDir)), opts.ContainsKey("check"));
                     case "stats":
                         return Stats(Path.Combine(root, Get(opts, "dir", DefaultDir)),
                             int.Parse(Get(opts, "plays", "500"), CultureInfo.InvariantCulture));
@@ -50,7 +53,7 @@ namespace CapsChaos.LevelTool
 
         private static int Usage()
         {
-            Console.Error.WriteLine("usage: LevelTool generate [--specs P] [--out DIR] [--check] | validate [--dir DIR] [--budget N]");
+            Console.Error.WriteLine("usage: LevelTool generate [--specs P] [--out DIR] [--check] | validate [--dir DIR] [--budget N] | migrate [--dir DIR] [--check] | stats [--dir DIR] [--plays N]");
             return Error;
         }
 
@@ -114,6 +117,34 @@ namespace CapsChaos.LevelTool
                 if (!c.IsEmpty) { b++; if (c.Hidden) h++; }
             }
             return (b, h);
+        }
+
+        // ── migrate ──────────────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Read every level in whatever format it is in and write it back in the current one (LevelJson.Write). The
+        /// level itself does not change — hand edits, hand-authored levels and solutions survive. --check: exit 1 if a
+        /// file is not in the current format yet.
+        /// </summary>
+        private static int Migrate(string dir, bool check)
+        {
+            var drift = new List<string>();
+            int failed = 0;
+            foreach (var f in Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal))
+            {
+                var parsed = LevelJson.Parse(File.ReadAllText(f));
+                if (!parsed.Ok)
+                {
+                    failed++;
+                    foreach (var e in parsed.Errors) Console.WriteLine($"FAIL {Path.GetFileName(f)}: {e}");
+                    continue;
+                }
+                Emit(f, LevelJson.Write(parsed.Level), check, drift);
+            }
+            if (failed > 0) return Error;
+            if (check && drift.Count > 0) { foreach (var d in drift) Console.WriteLine("drift: " + d); return Drift; }
+            Console.WriteLine(check ? "ok: every level is in format " + LevelDefinition.CurrentFormatVersion
+                                    : $"migrated {Directory.GetFiles(dir, "level_*.json").Length} levels to format {LevelDefinition.CurrentFormatVersion}");
+            return Ok;
         }
 
         // ── validate ─────────────────────────────────────────────────────────────────────────
