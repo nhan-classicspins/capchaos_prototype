@@ -3,6 +3,24 @@ using UnityEngine;
 namespace Game.Views
 {
     /// <summary>
+    /// Which flavour palette a bottle / tray / cap / box is painted with (art §3.2). The View-side twin of
+    /// <c>Game.Domain.CapColor</c> — same members, same order — because Game.Views may not reference
+    /// Game.Domain; the Gameplay controller maps one to the other (<c>CapColorTint</c>).
+    /// </summary>
+    public enum TintFlavor
+    {
+        None = 0,
+        Red,
+        Orange,
+        Blue,
+        Green,
+        Purple,
+        Yellow,
+        Cyan,
+        Brown,
+    }
+
+    /// <summary>
     /// The SKU's single source of visual truth (rule 17). Every value here is transcribed from
     /// <c>docs/art-direction.md</c> §3 — that spec outranks this file; when they disagree, fix this
     /// file in the same change. Views index these tokens; nothing redeclares a colour.
@@ -24,7 +42,7 @@ namespace Game.Views
         public static readonly Color LaneBeltB  = Hex("CAD2DF");
         public static readonly Color Tape       = Hex("F4F1EA");
 
-        // ── Gameplay colours (art §3.2) — indexed by the level-JSON colour code ──────────────
+        // ── Gameplay colours (art §3.2) — indexed by TintFlavor ────────────────────────────────
         public readonly struct FlavorColors
         {
             public readonly Color Body, Shade, Cap;
@@ -32,9 +50,7 @@ namespace Game.Views
             { Body = Hex(body); Shade = Hex(shade); Cap = Hex(cap); }
         }
 
-        /// <summary>Colour codes in art-spec order: R O B G P Y C N.</summary>
-        public const string FlavorCodes = "ROBGPYCN";
-
+        /// <summary>Art-spec order R O B G P Y C N — <c>Flavors[i]</c> is <c>(TintFlavor)(i + 1)</c>.</summary>
         private static readonly FlavorColors[] Flavors =
         {
             new("EF2B86", "B81F65", "F692C2"), // R pink-red
@@ -47,11 +63,13 @@ namespace Game.Views
             new("8B5A3A", "5A3620", "C08A66"), // N brown
         };
 
-        /// <summary>Upper- or lower-case code (lower = hidden in level JSON; the colour is the same).</summary>
-        public static FlavorColors Flavor(char code)
+        private static readonly FlavorColors Missing = new("FF00FF", "FF00FF", "FF00FF");
+
+        /// <summary>The palette of <paramref name="flavor"/>; magenta for <see cref="TintFlavor.None"/> (a bug made visible).</summary>
+        public static FlavorColors Flavor(TintFlavor flavor)
         {
-            int i = FlavorCodes.IndexOf(char.ToUpperInvariant(code));
-            return i >= 0 ? Flavors[i] : new FlavorColors("FF00FF", "FF00FF", "FF00FF");
+            int i = (int)flavor - 1;
+            return i >= 0 && i < Flavors.Length ? Flavors[i] : Missing;
         }
 
         /// <summary>The frosted band on a bottle body is its Body lifted this far toward white (art §4.1).</summary>
@@ -104,6 +122,11 @@ namespace Game.Views
         public static readonly Color HudPill    = Hex("2EBCFB");
         public static readonly Color HudPillLip = Hex("1E8FD0");
         public static readonly Color HudButton  = Hex("0C345B");
+        /// <summary>The lighter ring round a HUD button and its hard drop shadow (ref 02_gameplay_start). Not in the
+        /// art spec's table — decided here (rule 17): the rim is HudButton lifted toward HudPillLip, the shadow is
+        /// HudButton pushed toward black.</summary>
+        public static readonly Color HudButtonRim    = Hex("2F6FA8");
+        public static readonly Color HudButtonShadow = Hex("06192C");
         public static readonly Color TextOnFill = Hex("FFFFFF");
         /// <summary>A raycast-only surface (the board hit-catcher): receives pointer events, draws nothing.</summary>
         public static readonly Color Invisible  = new Color(0f, 0f, 0f, 0f);
@@ -117,6 +140,41 @@ namespace Game.Views
                 Header = Hex(header); Body = Hex(body); Band = Hex(band);
                 ButtonTop = Hex(top); ButtonBottom = Hex(bottom); ButtonLip = Hex(lip);
             }
+        }
+
+        /// <summary>
+        /// Screen UI rhythm on the 1 px = 1 unit rig (canvas reference 1080 × 1920, safe rect x ∈ ±540). ONE base
+        /// unit; every gap is a multiple of it. Three type sizes per screen (art §5).
+        /// </summary>
+        public static class Ui
+        {
+            public const float Unit = 12f;
+
+            public const float FontTitle = 96f;       // screen title
+            public const float FontValue = 88f;       // the big number on a tile
+            public const float FontLabel = 34f;       // secondary line on a tile
+
+            public const float EdgePad = 5 * Unit;    // 60 — screen edge → content
+            public const float Gap = 3 * Unit;        // 36 — between tiles
+            public const float TitleHeight = 16 * Unit; // 192 — title band at the top of a list screen
+
+            /// <summary>Level tiles: 4 columns fill the 1080 safe width: 2 × 60 + 4 × 213 + 3 × 36 = 1080.</summary>
+            public const int TileColumns = 4;
+            public const float TileSize = 213f;
+            public const float TileLip = Unit;        // the darker lip under a pill (art §5 "gờ dưới")
+            public const float TilePress = 8f;        // how far the face sinks while pressed
+            public const float TileNumberDrop = 10f;  // the number sits a little above centre, the label below it
+
+            /// <summary>Round HUD buttons (art §5): ≈ 9 % of the 1080 width, a ≥ 120 px touch target, in the top corners.</summary>
+            public const float HudButtonHit = 120f;     // the touch target (invisible)
+            public const float HudButtonSize = 100f;    // the visible disc (≈ 9 % of 1080)
+            public const float HudButtonRimWidth = 6f;
+            public const float HudButtonShadowDrop = 8f;
+            public const float HudButtonIcon = 52f;
+            public const float HudInset = 4 * Unit;     // 48 — from the safe-area corner to the button's touch box
+
+            /// <summary>Rounded-rect sprite corner radius in texture px (== canvas px at PPU 1).</summary>
+            public const float CornerRadius = 40f;
         }
 
         public static readonly ResultTheme Win  = new("57935B", "4B9B8B", "5DB987", "89D851", "86D64F", "75C34C", "428C66");

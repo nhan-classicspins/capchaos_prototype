@@ -14,7 +14,7 @@ namespace Game.Domain
         public int Slots { get; set; } = LevelDefinition.DefaultSlots;
         public int TrayCapacity { get; set; } = LevelDefinition.DefaultTrayCapacity;
         public int Lanes { get; set; } = 3;
-        public string Colors { get; set; } = "ROBG";
+        public IReadOnlyList<CapColor> Colors { get; set; } = CapColorCodes.ParseList("ROBG");
         /// <summary>Stack SHAPE, layers[k][row] like the level format but with '#' = visible bottle,
         /// '?' = hidden bottle, '.' = empty. Row 0 is the back row.</summary>
         public List<List<string>> Shape { get; set; } = new List<List<string>>();
@@ -52,17 +52,15 @@ namespace Game.Domain
             Check(spec);
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                var layers = Paint(spec);
-                var stackDef = new StackDefinition(spec.Shape[0][0].Length, spec.Shape[0].Count, layers);
-                var lanes = new List<List<char>>();
-                for (int j = 0; j < spec.Lanes; j++) lanes.Add(new List<char>());
+                var stackDef = new StackDefinition(Paint(spec));
+                var lanes = new List<List<CapColor>>();
+                for (int j = 0; j < spec.Lanes; j++) lanes.Add(new List<CapColor>());
                 var solution = new List<int>();
                 if (!Construct(spec, stackDef, lanes, solution)) continue;
 
-                var laneViews = new List<IReadOnlyList<char>>();
+                var laneViews = new List<IReadOnlyList<CapColor>>();
                 foreach (var l in lanes) laneViews.Add(l);
-                var colors = new List<char>();
-                foreach (char c in spec.Colors) colors.Add(c);
+                var colors = new List<CapColor>(spec.Colors);
                 var level = new LevelDefinition(spec.Id, spec.Slots, spec.TrayCapacity, colors, stackDef, laneViews,
                     name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution);
                 return new GeneratedLevel(level, solution, attempt);
@@ -77,12 +75,13 @@ namespace Game.Domain
             foreach (var layer in spec.Shape) foreach (var row in layer) foreach (char c in row) if (c == '#' || c == '?') cells++;
             if (cells % spec.TrayCapacity != 0)
                 throw new ArgumentException($"{spec.Id}: {cells} bottles is not a multiple of trayCapacity {spec.TrayCapacity}");
-            if (cells / spec.TrayCapacity < spec.Colors.Length)
-                throw new ArgumentException($"{spec.Id}: too few bottles for {spec.Colors.Length} colours");
+            if (spec.Colors.Count == 0) throw new ArgumentException($"{spec.Id}: no colours");
+            if (cells / spec.TrayCapacity < spec.Colors.Count)
+                throw new ArgumentException($"{spec.Id}: too few bottles for {spec.Colors.Count} colours");
         }
 
         /// <summary>Assign colours: per-colour totals are multiples of the capacity, spread as evenly as possible.</summary>
-        private List<IReadOnlyList<string>> Paint(LevelSpec spec)
+        private StackCell[,,] Paint(LevelSpec spec)
         {
             int cols = spec.Shape[0][0].Length, rows = spec.Shape[0].Count;
             var slots = new List<(int k, int r, int x)>();
@@ -92,62 +91,52 @@ namespace Game.Domain
                         if (spec.Shape[k][r][x] != '.') slots.Add((k, r, x));
 
             int traysTotal = slots.Count / spec.TrayCapacity;
-            var bag = new List<char>();
+            var bag = new List<CapColor>();
             for (int t = 0; t < traysTotal; t++)
-                for (int i = 0; i < spec.TrayCapacity; i++) bag.Add(spec.Colors[t % spec.Colors.Length]);
+                for (int i = 0; i < spec.TrayCapacity; i++) bag.Add(spec.Colors[t % spec.Colors.Count]);
             _rng.Shuffle(bag);
 
-            var grid = new char[spec.Shape.Count, rows, cols];
+            var grid = new StackCell[spec.Shape.Count, rows, cols];
             // paint front→back, ground→up, so "copy the front neighbour" (clustering) sees painted cells
             slots.Sort((a, b) => a.k != b.k ? a.k.CompareTo(b.k) : a.r != b.r ? b.r.CompareTo(a.r) : a.x.CompareTo(b.x));
             foreach (var (k, r, x) in slots)
             {
-                char pick = bag[bag.Count - 1];
-                if (r + 1 < rows && grid[k, r + 1, x] != '\0' && _rng.NextFloat() < spec.Clustering)
+                var pick = bag[bag.Count - 1];
+                if (r + 1 < rows && !grid[k, r + 1, x].IsEmpty && _rng.NextFloat() < spec.Clustering)
                 {
-                    int i = bag.LastIndexOf(char.ToUpperInvariant(grid[k, r + 1, x]));
+                    int i = bag.LastIndexOf(grid[k, r + 1, x].Color);
                     if (i >= 0) pick = bag[i];
                 }
                 bag.RemoveAt(bag.LastIndexOf(pick));
-                grid[k, r, x] = spec.Shape[k][r][x] == '?' ? char.ToLowerInvariant(pick) : pick;
+                grid[k, r, x] = new StackCell(pick, spec.Shape[k][r][x] == '?');
             }
-
-            var layers = new List<IReadOnlyList<string>>();
-            for (int k = 0; k < spec.Shape.Count; k++)
-            {
-                var rowsOut = new List<string>();
-                for (int r = 0; r < rows; r++)
-                {
-                    var line = new char[cols];
-                    for (int x = 0; x < cols; x++) line[x] = grid[k, r, x] == '\0' ? CapColors.Empty : grid[k, r, x];
-                    rowsOut.Add(new string(line));
-                }
-                layers.Add(rowsOut);
-            }
-            return layers;
+            return grid;
         }
 
-        private bool Construct(LevelSpec spec, StackDefinition stackDef, List<List<char>> lanes, List<int> solution)
+        private bool Construct(LevelSpec spec, StackDefinition stackDef, List<List<CapColor>> lanes, List<int> solution)
         {
             var stack = BottleStack.FromDefinition(stackDef);
-            var quota = new Dictionary<char, int>();
+            var quota = new Dictionary<CapColor, int>();
             for (int x = 0; x < stack.Cols; x++)
                 for (int z = 0; z < stack.Depth; z++)
                     for (int h = 0; h < stack.Height(x, z); h++)
                     {
-                        char c = stack.At(x, z, h).Color;
+                        var c = stack.At(x, z, h).Color;
                         quota[c] = (quota.TryGetValue(c, out var n) ? n : 0) + 1;
                     }
-            var keys = new List<char>(quota.Keys);
-            foreach (char c in keys) quota[c] /= spec.TrayCapacity;
+            var keys = new List<CapColor>(quota.Keys);
+            foreach (var c in keys) quota[c] /= spec.TrayCapacity;
 
-            var game = new CapChaosGame(stack, Array.Empty<IReadOnlyList<char>>(), spec.Slots, spec.TrayCapacity) { EndlessSupply = true };
+            var game = new CapChaosGame(stack, Array.Empty<IReadOnlyList<CapColor>>(), spec.Slots, spec.TrayCapacity) { EndlessSupply = true };
             while (game.Status == GameStatus.Playing)
             {
-                var order = new List<char>();
+                var order = new List<CapColor>();
                 foreach (var kv in quota) if (kv.Value > 0) order.Add(kv.Key);
                 if (order.Count == 0) return false;
-                order.Sort();                         // dictionary order is not a contract; the rng must see a stable list
+                // dictionary order is not a contract; the rng must see a stable list. Sorted by CODE, not by
+                // enum value: that is the order the seeds were tuned against, so every shipped level stays
+                // byte-identical under `LevelTool generate --check`.
+                order.Sort(ByCode);
                 _rng.Shuffle(order);
                 if (_rng.NextFloat() < spec.Greed)
                 {
@@ -156,7 +145,7 @@ namespace Game.Domain
                 }
 
                 bool placed = false;
-                foreach (char c in order)
+                foreach (var c in order)
                 {
                     var next = game.Clone();
                     next.PlaceTray(c);
@@ -176,7 +165,7 @@ namespace Game.Domain
 
         /// <summary>Every lane gets a tray before any gets a second (the schema forbids an empty lane);
         /// after that shorter lanes are likelier, so the queues stay roughly even.</summary>
-        private int PickLane(List<List<char>> lanes)
+        private int PickLane(List<List<CapColor>> lanes)
         {
             int min = int.MaxValue;
             foreach (var l in lanes) min = Math.Min(min, l.Count);
@@ -186,19 +175,21 @@ namespace Game.Domain
             return candidates[_rng.NextInt(0, candidates.Count)];
         }
 
-        private static Dictionary<char, int> CountExposed(BottleStack s)
+        private static Dictionary<CapColor, int> CountExposed(BottleStack s)
         {
-            var d = new Dictionary<char, int>();
+            var d = new Dictionary<CapColor, int>();
             for (int x = 0; x < s.Cols; x++)
             {
                 int z = s.FrontZ(x);
                 if (z < 0 || !s.IsExposed(x, z)) continue;
-                char c = s.At(x, z, 0).Color;
+                var c = s.At(x, z, 0).Color;
                 d[c] = Get(d, c) + 1;
             }
             return d;
         }
 
-        private static int Get(Dictionary<char, int> d, char c) => d.TryGetValue(c, out var n) ? n : 0;
+        private static int Get(Dictionary<CapColor, int> d, CapColor c) => d.TryGetValue(c, out var n) ? n : 0;
+
+        private static int ByCode(CapColor a, CapColor b) => CapColorCodes.ToCode(a).CompareTo(CapColorCodes.ToCode(b));
     }
 }

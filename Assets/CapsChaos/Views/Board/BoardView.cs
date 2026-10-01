@@ -115,7 +115,7 @@ namespace Game.Views
             _stamp(_stackRoot.gameObject);
         }
 
-        public void AddBottle(int x, int z, int height, char color, bool hidden)
+        public void AddBottle(int x, int z, int height, TintFlavor color, bool hidden)
         {
             var go = Spawn(hidden ? _p.BottleHidden : _p.Bottle, _stackRoot, CellLocal(x, z, height));
             go.transform.localRotation = Quaternion.Euler(0f, (x * 7 + z * 3 + height) * 37f, 0f);
@@ -124,7 +124,7 @@ namespace Game.Views
         }
 
         /// <summary>Append a tray to the visible tail of <paramref name="lane"/>.</summary>
-        public void AddLaneTray(int lane, char color)
+        public void AddLaneTray(int lane, TintFlavor color)
         {
             var list = _lanes[lane];
             if (list.Count >= B.VisibleTraysPerLane) return;
@@ -135,8 +135,9 @@ namespace Game.Views
         // ── animations (the fact replay) ─────────────────────────────────────────────────────
         /// <summary>
         /// The front tray of <paramref name="lane"/> becomes tray <paramref name="trayId"/> and flies to a slot:
-        /// <paramref name="preferredSlot"/> if it is clear on screen, else the left-most clear one (a leaving box
-        /// never makes a tap wait). Registered synchronously, so bottles can already fly to it.
+        /// <paramref name="preferredSlot"/> if it is clear on screen, else the left-most clear one. Claimed
+        /// synchronously when a slot is clear (the controller only releases a tray when
+        /// <see cref="HasClearSlot"/>), so bottles can already fly to it and the next tap sees the slot taken.
         /// </summary>
         public async UniTask PlaceTray(int trayId, int lane, int preferredSlot)
         {
@@ -160,11 +161,11 @@ namespace Game.Views
                     .Bind(k => { if (tt != null) tt.localScale = k; }).AddTo(tray).ToUniTask(destroyCancellationToken));
         }
 
-        /// <summary>The belt steps one tray forward; <paramref name="newTail"/> ('\0' = none) slides in at the back.</summary>
-        public async UniTask AdvanceLane(int lane, char newTail)
+        /// <summary>The belt steps one tray forward; <paramref name="newTail"/> (None = nothing) slides in at the back.</summary>
+        public async UniTask AdvanceLane(int lane, TintFlavor newTail)
         {
             var list = _lanes[lane];
-            if (newTail != '\0' && list.Count < B.VisibleTraysPerLane)
+            if (newTail != TintFlavor.None && list.Count < B.VisibleTraysPerLane)
             {
                 var tray = TrayOnBelt(lane, list.Count + 1, newTail);
                 list.Add(tray);
@@ -229,7 +230,7 @@ namespace Game.Views
         }
 
         /// <summary>The hidden (rainbow) ground bottle at (x, z) turns out to be <paramref name="color"/> (R4).</summary>
-        public async UniTask Reveal(int x, int z, char color)
+        public async UniTask Reveal(int x, int z, TintFlavor color)
         {
             var pile = Pile(x, z);
             if (pile.Count == 0) return;
@@ -245,7 +246,7 @@ namespace Game.Views
         }
 
         /// <summary>Box full tray <paramref name="trayId"/> and ship it (R13): drop, fold, tape, fly away.</summary>
-        public async UniTask PackTray(int trayId, char color)
+        public async UniTask PackTray(int trayId, TintFlavor color)
         {
             if (!_trays.TryGetValue(trayId, out var rec) || rec.Go == null) return;
             _trays.Remove(trayId);
@@ -323,6 +324,20 @@ namespace Game.Views
         // claim and assignment happen with no await between them, so "no tray and no box" is the whole test
         private bool VisualFree(int v) => _slotTray[v] == null && !_slotLeaving[v];
 
+        /// <summary>
+        /// True when at least one slot is clear ON SCREEN: no tray sits on it and no box is still being packed
+        /// there. A slot stays taken for the tray's whole collect cycle — bottles flying in, the box dropping and
+        /// folding — and frees the moment the box lifts off.
+        /// </summary>
+        public bool HasClearSlot
+        {
+            get
+            {
+                for (int v = 0; v < _slotCount; v++) if (VisualFree(v)) return true;
+                return false;
+            }
+        }
+
         // ── input support (BoardInputView) ───────────────────────────────────────────────────
         /// <summary>The lane a collider belongs to, or −1.</summary>
         /// <summary>Which belt tray a collider is: lane and position in the queue (0 = front). False if none.</summary>
@@ -362,7 +377,7 @@ namespace Game.Views
             return go;
         }
 
-        private GameObject TrayOnBelt(int lane, int index, char color)
+        private GameObject TrayOnBelt(int lane, int index, TintFlavor color)
         {
             var tray = Spawn(_p.CapTray, _laneRoots[lane], TrayOnLane(index));
             Tint(tray, color);
@@ -372,7 +387,7 @@ namespace Game.Views
             return tray;
         }
 
-        private static void Tint(GameObject go, char color)
+        private static void Tint(GameObject go, TintFlavor color)
         {
             foreach (var t in go.GetComponentsInChildren<TokenTint>(true)) t.SetFlavor(color);
         }

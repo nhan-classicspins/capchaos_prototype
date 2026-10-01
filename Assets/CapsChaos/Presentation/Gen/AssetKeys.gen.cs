@@ -10,13 +10,16 @@ namespace Game.Presentation
     /// <summary>Typed AssetKey<GameObject> VALUES for the SKU, DERIVED from the Prefabs/ scan (Story 2.4, FR-043/044) — no hand manifest. Nested static classes mirror the folder layout under Prefabs/; the address (the logical key) is independent of Addressables group/bundle packing, so a post-pilot repack changes zero call sites. Codegen-owned; never hand-edit.</summary>
     public static class AssetKeys
     {
-        public static readonly AssetKey<GameObject> Bottle       = new("Bottle");
-        public static readonly AssetKey<GameObject> BottleHidden = new("BottleHidden");
-        public static readonly AssetKey<GameObject> Box          = new("Box");
-        public static readonly AssetKey<GameObject> Cap          = new("Cap");
-        public static readonly AssetKey<GameObject> CapTray      = new("CapTray");
-        public static readonly AssetKey<GameObject> Floor        = new("Floor");
-        public static readonly AssetKey<GameObject> Lane         = new("Lane");
-        public static readonly AssetKey<GameObject> Slot         = new("Slot");
+        public static readonly AssetKey<GameObject> Bottle            = new("Bottle");
+        public static readonly AssetKey<GameObject> BottleHidden      = new("BottleHidden");
+        public static readonly AssetKey<GameObject> Box               = new("Box");
+        public static readonly AssetKey<GameObject> Cap               = new("Cap");
+        public static readonly AssetKey<GameObject> CapTray           = new("CapTray");
+        public static readonly AssetKey<GameObject> Floor             = new("Floor");
+        public static readonly AssetKey<GameObject> GameplayHudWidget = new("GameplayHudWidget");
+        public static readonly AssetKey<GameObject> Lane              = new("Lane");
+        public static readonly AssetKey<GameObject> LevelButton       = new("LevelButton");
+        public static readonly AssetKey<GameObject> LevelSelectWidget = new("LevelSelectWidget");
+        public static readonly AssetKey<GameObject> Slot              = new("Slot");
     }
 }

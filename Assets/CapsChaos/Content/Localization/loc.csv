@@ -1,0 +1,9 @@
+key,en,vi
+level_select.title,LEVELS,CHỌN MÀN
+level_select.number,{0},{0}
+level_select.difficulty_tutorial,Tutorial,Hướng dẫn
+level_select.difficulty_easy,Easy,Dễ
+level_select.difficulty_medium,Medium,Vừa
+level_select.difficulty_hard,Hard,Khó
+level_select.difficulty_breather,Breather,Thư giãn
+level_select.difficulty_unknown,-,-

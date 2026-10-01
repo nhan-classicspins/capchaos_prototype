@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0007",
+  "slots": 3,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B", "G"],
+  "stack": {
+    "cols": 8,
+    "rows": 5,
+    "layers": [
+      [
+        "OBBGRRGG",
+        "OBBGRRRG",
+        "BGRRRORG",
+        "BORBBORO",
+        "RGBBBOBG"
+      ],
+      [
+        "........",
+        ".OROBGO.",
+        ".ORORGB.",
+        "........",
+        "........"
+      ],
+      [
+        "........",
+        "..ROGO..",
+        "..BOBO..",
+        "........",
+        "........"
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "O", "R", "G", "O", "G"],
+    ["R", "B", "O", "O", "B"],
+    ["B", "R", "R", "G"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Pyramid", "difficulty": "medium", "solution": [2, 1, 0, 2, 0, 0, 2, 1, 0, 1, 1, 0, 2, 0, 1] }
+}

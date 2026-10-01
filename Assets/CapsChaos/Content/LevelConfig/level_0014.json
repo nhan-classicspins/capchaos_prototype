@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0014",
+  "slots": 3,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B", "G"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "RBRRGG",
+        "OBOROG",
+        "GOOOOR",
+        "GOBRBR"
+      ],
+      [
+        ".obro.",
+        ".oorr.",
+        ".gggr.",
+        ".bbbr."
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "R", "O", "O"],
+    ["R", "G", "B"],
+    ["R", "G", "O"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Surprise Inside", "difficulty": "medium", "solution": [0, 1, 2, 0, 2, 0, 1, 0, 2, 1] }
+}

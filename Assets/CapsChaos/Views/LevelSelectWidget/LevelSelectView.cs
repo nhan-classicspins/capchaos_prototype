@@ -1,0 +1,49 @@
+using UnityEngine;
+using UnityEngine.UI;
+using ClassicSpins.PrototypeFramework.Views;
+
+namespace Game.Views
+{
+    /// <summary>
+    /// The level-select panel: a titled, vertically scrolling grid of level tiles over the ground colour.
+    /// Dumb by design — the controller hands it the title text and parents the pooled tiles under
+    /// <see cref="Grid"/>; the grid's cell size, gap and padding come from <see cref="DesignTokens.Ui"/>.
+    /// Gallery-safe: every member works in any order without the game running.
+    /// </summary>
+    [DisallowMultipleComponent]
+    public sealed class LevelSelectView : WidgetViewBase
+    {
+        [SerializeField] private TextProxy _title;
+        [SerializeField] private ScrollRect _scroll;
+        [SerializeField] private GridLayoutGroup _grid;
+
+        /// <summary>Where the controller parents the tiles.</summary>
+        public RectTransform Grid => (RectTransform)_grid.transform;
+
+        public void SetTitle(string text)
+        {
+            if (_title != null) _title.SetText(text);
+        }
+
+        public void ScrollToTop()
+        {
+            if (_scroll != null) _scroll.verticalNormalizedPosition = 1f;
+        }
+
+        private void Awake() => ApplyTokens();
+        private void OnValidate() => ApplyTokens();
+
+        private void ApplyTokens()
+        {
+            if (_grid == null) return;
+            var u = DesignTokens.Ui.Unit;
+            _grid.cellSize = new Vector2(DesignTokens.Ui.TileSize, DesignTokens.Ui.TileSize);
+            _grid.spacing = new Vector2(DesignTokens.Ui.Gap, DesignTokens.Ui.Gap);
+            int pad = Mathf.RoundToInt(DesignTokens.Ui.EdgePad);
+            _grid.padding = new RectOffset(pad, pad, Mathf.RoundToInt(2 * u), pad);
+            _grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            _grid.constraintCount = DesignTokens.Ui.TileColumns;
+            _grid.childAlignment = TextAnchor.UpperCenter;
+        }
+    }
+}

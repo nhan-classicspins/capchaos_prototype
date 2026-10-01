@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0003",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "RORBBB",
+        "ROOOBR",
+        "ROBOBR",
+        "OOBRBR"
+      ]
+    ]
+  },
+  "lanes": [
+    ["O", "R"],
+    ["B"],
+    ["R", "O", "B"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Front Row First", "difficulty": "tutorial", "notes": "Teaches: only the front bottle of a column can be taken.", "solution": [2, 0, 1, 2, 2, 0] }
+}

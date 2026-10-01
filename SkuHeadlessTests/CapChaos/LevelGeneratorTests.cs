@@ -10,7 +10,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         private static LevelSpec Spec() => new LevelSpec
         {
             Id = "level_0099",
-            Colors = "ROBG",
+            Colors = CapColorCodes.ParseList("ROBG"),
             Shape = new List<List<string>>
             {
                 new List<string> { "######", "######", "######", "######" },
@@ -53,11 +53,17 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
-        public void Hidden_cells_in_the_shape_become_lowercase_bottles()
+        public void Hidden_cells_in_the_shape_become_hidden_bottles()
         {
             var gen = new LevelGenerator(new Pcg32(3)).Generate(Spec());
-            foreach (char c in gen.Level.Stack.Layers[1][1]) Assert.That(char.IsLower(c), Is.True);
-            foreach (char c in gen.Level.Stack.Layers[0][0]) Assert.That(char.IsUpper(c), Is.True);
+            for (int x = 0; x < gen.Level.Stack.Cols; x++)
+            {
+                var upper = gen.Level.Stack.At(1, 1, x);
+                var ground = gen.Level.Stack.At(0, 0, x);
+                Assert.That(upper.IsEmpty || ground.IsEmpty, Is.False);
+                Assert.That(upper.Hidden, Is.True);
+                Assert.That(ground.Hidden, Is.False);
+            }
         }
     }
 }

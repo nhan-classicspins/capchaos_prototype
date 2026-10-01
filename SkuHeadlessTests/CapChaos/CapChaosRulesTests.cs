@@ -26,7 +26,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var r = g.Tap(0);
             Assert.That(r.Outcome, Is.EqualTo(TapOutcome.Accepted));
             Assert.That(Trace(r.Facts), Does.StartWith("place(L0->S0:B) advance(L0:1)"));
-            Assert.That(g.LaneFront(0), Is.EqualTo('O'));
+            Assert.That(g.LaneFront(0), Is.EqualTo(CapColor.Orange));
         }
 
         [Test]

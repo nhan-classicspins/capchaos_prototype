@@ -1,6 +1,9 @@
+using System;
+using System.Linq;
 using VContainer;
 using ClassicSpins.PrototypeFramework.Composition;
 using Game.Presentation;
+using Game.Views;
 
 namespace Game.Composition
 {
@@ -16,7 +19,16 @@ namespace Game.Composition
     {
         protected override void Configure(IContainerBuilder builder)
         {
+            // The level-select panel is authored in Main.unity (a LevelSelectWidget prefab instance under an
+            // edit-time preview canvas); hand the scene's instance to the widget, which re-hosts it on load.
+            var levelSelect = gameObject.scene.GetRootGameObjects()
+                .Select(g => g.GetComponentInChildren<LevelSelectView>(true))
+                .FirstOrDefault(v => v != null)
+                ?? throw new InvalidOperationException("Main.unity has no LevelSelectView — add the LevelSelectWidget prefab instance.");
+            builder.RegisterInstance(levelSelect);
+
             builder.RegisterEntryScreen<MainScreen>();
+            builder.Register<LevelSelectWidget>(Lifetime.Scoped).AsSelf();
         }
     }
 }

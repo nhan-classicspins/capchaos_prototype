@@ -106,7 +106,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: 0
 --- !u!114 &7795966290078072191
 MonoBehaviour:
@@ -121,5 +121,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 3
-  _flavor: 82
+  _color: 1
   _materialIndex: 1

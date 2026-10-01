@@ -12,44 +12,46 @@ namespace Game.Domain
         {
             var errors = new List<string>();
             var st = level.Stack;
-            var declared = new HashSet<char>(level.Colors);
-            var bottles = new Dictionary<char, int>();
-            var trays = new Dictionary<char, int>();
+            var declared = new HashSet<CapColor>(level.Colors);
+            var bottles = new Dictionary<CapColor, int>();
+            var trays = new Dictionary<CapColor, int>();
 
-            for (int k = 0; k < st.Layers.Count; k++)
+            for (int k = 0; k < st.LayerCount; k++)
                 for (int r = 0; r < st.Rows; r++)
                     for (int x = 0; x < st.Cols; x++)
                     {
-                        char c = st.At(k, r, x);
-                        if (c == CapColors.Empty) continue;
+                        var c = st.At(k, r, x);
+                        if (c.IsEmpty) continue;
                         string where = $"stack.layers[{k}][{r}][{x}]";
-                        if (k > 0 && st.At(k - 1, r, x) == CapColors.Empty)
+                        if (k > 0 && st.At(k - 1, r, x).IsEmpty)
                             errors.Add($"V2 {where}: floating bottle — layer {k - 1} is empty below it");
-                        if (k == 0 && char.IsLower(c))
+                        if (k == 0 && c.Hidden)
                             errors.Add($"V3 {where}: hidden bottle on the ground (it could never be revealed)");
-                        char code = char.ToUpperInvariant(c);
-                        if (!declared.Contains(code)) errors.Add($"V5 {where}: colour '{code}' is not in colors");
-                        bottles[code] = (bottles.TryGetValue(code, out var n) ? n : 0) + 1;
+                        if (!declared.Contains(c.Color)) errors.Add($"V5 {where}: colour '{Code(c.Color)}' is not in colors");
+                        bottles[c.Color] = (bottles.TryGetValue(c.Color, out var n) ? n : 0) + 1;
                     }
 
             for (int j = 0; j < level.Lanes.Count; j++)
                 for (int t = 0; t < level.Lanes[j].Count; t++)
                 {
-                    char c = level.Lanes[j][t];
-                    if (!declared.Contains(c)) errors.Add($"V5 lanes[{j}][{t}]: colour '{c}' is not in colors");
+                    var c = level.Lanes[j][t];
+                    if (!declared.Contains(c)) errors.Add($"V5 lanes[{j}][{t}]: colour '{Code(c)}' is not in colors");
                     trays[c] = (trays.TryGetValue(c, out var n) ? n : 0) + 1;
                 }
 
-            foreach (char c in level.Colors)
+            foreach (var c in level.Colors)
             {
                 int b = bottles.TryGetValue(c, out var nb) ? nb : 0;
                 int t = trays.TryGetValue(c, out var nt) ? nt : 0;
-                if (b == 0 && t == 0) errors.Add($"V5 colors: '{c}' is declared but never used");
+                if (b == 0 && t == 0) errors.Add($"V5 colors: '{Code(c)}' is declared but never used");
                 else if (b != t * level.TrayCapacity)
-                    errors.Add($"V4 colour {c}: {b} bottles vs {t} trays × {level.TrayCapacity} = {t * level.TrayCapacity}");
+                    errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} trays × {level.TrayCapacity} = {t * level.TrayCapacity}");
             }
             return errors;
         }
+
+        // messages name colours by their level-file code, so an error points straight at the JSON
+        private static char Code(CapColor c) => CapColorCodes.ToCode(c);
     }
 
     public enum SolveStatus { Solvable, Unsolvable, Unknown }

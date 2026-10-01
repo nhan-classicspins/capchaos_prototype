@@ -1,0 +1,7 @@
+{
+  "kind": "widget",
+  "entries": [
+    { "id": "LevelSelect" },
+    { "id": "GameplayHud" }
+  ]
+}

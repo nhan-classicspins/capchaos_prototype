@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0004",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "BBRORR",
+        "BBROBO",
+        "RBRRBO",
+        "RBOROO"
+      ],
+      [
+        "......",
+        ".OROO.",
+        ".RROO.",
+        "......"
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "O", "R"],
+    ["O", "R", "O"],
+    ["R", "B"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Second Floor", "difficulty": "easy", "notes": "Teaches: bottles on top drop down when the one below is taken.", "solution": [1, 2, 0, 1, 0, 0, 2, 1] }
+}

@@ -3,32 +3,53 @@ using System.Collections.Generic;
 
 namespace Game.Domain
 {
-    /// <summary>The colour codes of the level format (GDD §4). Hex values live in DesignTokens, never here.</summary>
-    public static class CapColors
-    {
-        public const string Codes = "ROBGPYCN";
-        public const char Empty = '.';
-
-        public static bool IsCode(char c) => Codes.IndexOf(c) >= 0;
-
-        /// <summary>A stack cell char: '.', an uppercase code (visible) or a lowercase code (hidden).</summary>
-        public static bool IsCell(char c) => c == Empty || IsCode(c) || IsCode(char.ToUpperInvariant(c)) && char.IsLower(c);
-    }
-
-    /// <summary>The bottle stack exactly as authored: <c>Layers[k][row]</c> is a string of <c>Cols</c> chars;
-    /// layer 0 is the ground; row 0 is the BACK row and row Rows-1 the FRONT row.</summary>
+    /// <summary>The bottle stack as authored: <c>At(layer, row, col)</c>; layer 0 is the ground; row 0 is the
+    /// BACK row and row Rows-1 the FRONT row. Immutable.</summary>
     public sealed class StackDefinition
     {
         public int Cols { get; }
         public int Rows { get; }
-        public IReadOnlyList<IReadOnlyList<string>> Layers { get; }
+        public int LayerCount { get; }
+        private readonly StackCell[,,] _cells;   // [layer, row, col]
 
-        public StackDefinition(int cols, int rows, IReadOnlyList<IReadOnlyList<string>> layers)
+        /// <param name="cells">Indexed <c>[layer, row, col]</c>; copied, so the caller may reuse it.</param>
+        public StackDefinition(StackCell[,,] cells)
         {
-            Cols = cols; Rows = rows; Layers = layers ?? throw new ArgumentNullException(nameof(layers));
+            if (cells == null) throw new ArgumentNullException(nameof(cells));
+            LayerCount = cells.GetLength(0); Rows = cells.GetLength(1); Cols = cells.GetLength(2);
+            _cells = (StackCell[,,])cells.Clone();
         }
 
-        public char At(int layer, int row, int col) => Layers[layer][row][col];
+        /// <summary>From the level format's row strings (<c>layers[k][row]</c>, one cell code per column).</summary>
+        /// <exception cref="FormatException">A row has the wrong length or a char that is not a cell code.</exception>
+        public static StackDefinition FromRows(int cols, int rows, IReadOnlyList<IReadOnlyList<string>> layers)
+        {
+            if (layers == null) throw new ArgumentNullException(nameof(layers));
+            var cells = new StackCell[layers.Count, rows, cols];
+            for (int k = 0; k < layers.Count; k++)
+            {
+                if (layers[k].Count != rows) throw new FormatException($"layer {k}: {layers[k].Count} rows ≠ {rows}");
+                for (int r = 0; r < rows; r++)
+                {
+                    string line = layers[k][r];
+                    if (line.Length != cols) throw new FormatException($"layer {k} row {r}: length {line.Length} ≠ {cols}");
+                    for (int x = 0; x < cols; x++)
+                        if (!StackCell.TryParse(line[x], out cells[k, r, x]))
+                            throw new FormatException($"layer {k} row {r} col {x}: '{line[x]}' is not a cell code");
+                }
+            }
+            return new StackDefinition(cells);
+        }
+
+        public StackCell At(int layer, int row, int col) => _cells[layer, row, col];
+
+        /// <summary>One row in the level format (the writer's view).</summary>
+        public string RowCodes(int layer, int row)
+        {
+            var line = new char[Cols];
+            for (int x = 0; x < Cols; x++) line[x] = _cells[layer, row, x].ToCode();
+            return new string(line);
+        }
     }
 
     /// <summary>One level, fully data-driven (GDD §6). Immutable; build it with <see cref="LevelJson.Parse"/>.</summary>
@@ -42,10 +63,10 @@ namespace Game.Domain
         public string Id { get; }
         public int Slots { get; }
         public int TrayCapacity { get; }
-        public IReadOnlyList<char> Colors { get; }
+        public IReadOnlyList<CapColor> Colors { get; }
         public StackDefinition Stack { get; }
         /// <summary><c>Lanes[j][0]</c> is the tappable front tray of conveyor j.</summary>
-        public IReadOnlyList<IReadOnlyList<char>> Lanes { get; }
+        public IReadOnlyList<IReadOnlyList<CapColor>> Lanes { get; }
         public string CameraPreset { get; }
         public double StackScale { get; }
         public string Name { get; }
@@ -54,8 +75,8 @@ namespace Game.Domain
         /// <summary>Optional winning tap sequence (lane indices) — V6 replays it as proof of solvability.</summary>
         public IReadOnlyList<int> Solution { get; }
 
-        public LevelDefinition(string id, int slots, int trayCapacity, IReadOnlyList<char> colors,
-            StackDefinition stack, IReadOnlyList<IReadOnlyList<char>> lanes,
+        public LevelDefinition(string id, int slots, int trayCapacity, IReadOnlyList<CapColor> colors,
+            StackDefinition stack, IReadOnlyList<IReadOnlyList<CapColor>> lanes,
             string cameraPreset = "default", double stackScale = 1.0,
             string name = null, string difficulty = null, string notes = null,
             int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null)

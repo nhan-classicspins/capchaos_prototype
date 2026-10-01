@@ -1,0 +1,10 @@
+{
+  "level_select.difficulty_breather": "Thư giãn",
+  "level_select.difficulty_easy": "Dễ",
+  "level_select.difficulty_hard": "Khó",
+  "level_select.difficulty_medium": "Vừa",
+  "level_select.difficulty_tutorial": "Hướng dẫn",
+  "level_select.difficulty_unknown": "-",
+  "level_select.number": "{0}",
+  "level_select.title": "CHỌN MÀN"
+}

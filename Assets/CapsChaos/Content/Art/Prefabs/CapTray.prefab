@@ -108,7 +108,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1001 &2071359957322247569
 PrefabInstance:

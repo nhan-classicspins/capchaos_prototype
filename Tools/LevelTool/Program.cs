@@ -18,7 +18,7 @@ namespace CapsChaos.LevelTool
     {
         private const int Ok = 0, Drift = 1, Error = 2;
         private const string DefaultSpecs = "Tools/LevelTool/seed-levels.json";
-        private const string DefaultDir = "Assets/CapsChaos/Content/Resources/Levels";
+        private const string DefaultDir = "Assets/CapsChaos/Content/LevelConfig";
         private const string IndexFile = "levels.index.json";
 
         public static int Main(string[] args)
@@ -75,7 +75,7 @@ namespace CapsChaos.LevelTool
                 ids.Add(spec.Id);
 
                 var (bottles, hidden) = Count(gen.Level);
-                Console.WriteLine($"{spec.Id,-11} {seed,6} {spec.Colors,-6} {bottles,7} {hidden,6} {bottles / spec.TrayCapacity,5} {gen.Level.Stack.Layers.Count,6} {gen.Attempts,5}  " +
+                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {hidden,6} {bottles / spec.TrayCapacity,5} {gen.Level.Stack.LayerCount,6} {gen.Attempts,5}  " +
                                   string.Join(" ", gen.Level.Lanes.Select(l => l.Count)));
             }
             var index = new StringBuilder("{\n  \"order\": [\n");
@@ -102,8 +102,12 @@ namespace CapsChaos.LevelTool
         private static (int bottles, int hidden) Count(LevelDefinition l)
         {
             int b = 0, h = 0;
-            foreach (var layer in l.Stack.Layers) foreach (var row in layer) foreach (char c in row)
-                if (c != CapColors.Empty) { b++; if (char.IsLower(c)) h++; }
+            var st = l.Stack;
+            for (int k = 0; k < st.LayerCount; k++) for (int r = 0; r < st.Rows; r++) for (int x = 0; x < st.Cols; x++)
+            {
+                var c = st.At(k, r, x);
+                if (!c.IsEmpty) { b++; if (c.Hidden) h++; }
+            }
             return (b, h);
         }
 
@@ -200,7 +204,7 @@ namespace CapsChaos.LevelTool
                 var spec = new LevelSpec
                 {
                     Id = S(l, "id"), Name = S(l, "name"), Difficulty = S(l, "difficulty"), Notes = S(l, "notes"),
-                    Colors = S(l, "colors") ?? "ROBG",
+                    Colors = CapColorCodes.ParseList(S(l, "colors") ?? "ROBG"),
                     Slots = (int)N(l, "slots", LevelDefinition.DefaultSlots),
                     TrayCapacity = (int)N(l, "trayCapacity", LevelDefinition.DefaultTrayCapacity),
                     Lanes = (int)N(l, "lanes", 3),

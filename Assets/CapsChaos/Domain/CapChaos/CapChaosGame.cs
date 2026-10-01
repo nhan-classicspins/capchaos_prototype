@@ -24,9 +24,9 @@ namespace Game.Domain
     public sealed class CapChaosGame
     {
         private readonly BottleStack _stack;
-        private readonly List<char>[] _lanes;
+        private readonly List<CapColor>[] _lanes;
         private readonly int[] _laneHead;
-        private readonly char[] _slotColor;   // '\0' = empty slot
+        private readonly CapColor[] _slotColor;   // None = empty slot
         private readonly int[] _slotFilled;
 
         /// <summary>Generator mode: trays come from <see cref="PlaceTray"/>, so empty lanes are not a dead end.</summary>
@@ -41,14 +41,14 @@ namespace Game.Domain
         public CapChaosGame(LevelDefinition level)
             : this(BottleStack.FromDefinition(level.Stack), level.Lanes, level.Slots, level.TrayCapacity) { }
 
-        internal CapChaosGame(BottleStack stack, IReadOnlyList<IReadOnlyList<char>> lanes, int slots, int capacity)
+        internal CapChaosGame(BottleStack stack, IReadOnlyList<IReadOnlyList<CapColor>> lanes, int slots, int capacity)
         {
             _stack = stack;
             Capacity = capacity;
-            _lanes = new List<char>[lanes.Count];
-            for (int j = 0; j < lanes.Count; j++) _lanes[j] = new List<char>(lanes[j]);
+            _lanes = new List<CapColor>[lanes.Count];
+            for (int j = 0; j < lanes.Count; j++) _lanes[j] = new List<CapColor>(lanes[j]);
             _laneHead = new int[lanes.Count];
-            _slotColor = new char[slots];
+            _slotColor = new CapColor[slots];
             _slotFilled = new int[slots];
             Status = GameStatus.Playing;
         }
@@ -59,7 +59,7 @@ namespace Game.Domain
             Capacity = src.Capacity;
             _lanes = src._lanes;                          // lane CONTENT is immutable after construction…
             _laneHead = (int[])src._laneHead.Clone();     // …only the heads move
-            _slotColor = (char[])src._slotColor.Clone();
+            _slotColor = (CapColor[])src._slotColor.Clone();
             _slotFilled = (int[])src._slotFilled.Clone();
             Status = src.Status;
             EndlessSupply = src.EndlessSupply;
@@ -69,9 +69,11 @@ namespace Game.Domain
 
         // ── queries (what a View / solver reads) ────────────────────────────────────────────
         public int LaneRemaining(int lane) => _lanes[lane].Count - _laneHead[lane];
-        public char LaneFront(int lane) => LaneRemaining(lane) > 0 ? _lanes[lane][_laneHead[lane]] : '\0';
-        public char LaneAt(int lane, int offset) => _laneHead[lane] + offset < _lanes[lane].Count ? _lanes[lane][_laneHead[lane] + offset] : '\0';
-        public char SlotColor(int slot) => _slotColor[slot];
+        /// <summary>The front tray's colour, or <see cref="CapColor.None"/> when the lane is empty.</summary>
+        public CapColor LaneFront(int lane) => LaneRemaining(lane) > 0 ? _lanes[lane][_laneHead[lane]] : CapColor.None;
+        public CapColor LaneAt(int lane, int offset) => _laneHead[lane] + offset < _lanes[lane].Count ? _lanes[lane][_laneHead[lane] + offset] : CapColor.None;
+        /// <summary>The colour of the tray in <paramref name="slot"/>, or <see cref="CapColor.None"/> when it is free.</summary>
+        public CapColor SlotColor(int slot) => _slotColor[slot];
         public int SlotFilled(int slot) => _slotFilled[slot];
         public bool HasFreeSlot => FreeSlot() >= 0;
 
@@ -85,7 +87,7 @@ namespace Game.Domain
             if (slot < 0) return Reject(TapOutcome.RejectedNoFreeSlot);                         // R8
 
             var facts = new List<GameFact>();
-            char color = _lanes[lane][_laneHead[lane]];
+            CapColor color = _lanes[lane][_laneHead[lane]];
             _laneHead[lane]++;
             facts.Add(new TrayPlaced(lane, slot, color));                                       // R6
             facts.Add(new LaneAdvanced(lane, LaneRemaining(lane)));                             // R7
@@ -96,7 +98,7 @@ namespace Game.Domain
         }
 
         /// <summary>Generator hook: drop a tray of <paramref name="color"/> straight into a free slot (no lane).</summary>
-        internal IReadOnlyList<GameFact> PlaceTray(char color)
+        internal IReadOnlyList<GameFact> PlaceTray(CapColor color)
         {
             int slot = FreeSlot();
             if (Status != GameStatus.Playing || slot < 0) throw new InvalidOperationException("no free slot");
@@ -111,7 +113,7 @@ namespace Game.Domain
 
         private int FreeSlot()                                                                  // R6: left-most free
         {
-            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] == '\0') return s;
+            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] == CapColor.None) return s;
             return -1;
         }
 
@@ -124,7 +126,7 @@ namespace Game.Domain
                 progress = false;
                 for (int s = 0; s < _slotColor.Length && !progress; s++)
                 {
-                    if (_slotColor[s] == '\0') continue;
+                    if (_slotColor[s] == CapColor.None) continue;
                     if (!TryBest(s, out int bx, out int bz)) continue;
                     // the drop/reveal facts belong AFTER the pick in replay order
                     var tail = new List<GameFact>(2);
@@ -136,7 +138,7 @@ namespace Game.Domain
                     if (_slotFilled[s] >= Capacity)                                             // R13
                     {
                         facts.Add(new TrayPacked(s, _slotColor[s]));
-                        _slotColor[s] = '\0';
+                        _slotColor[s] = CapColor.None;
                         _slotFilled[s] = 0;
                     }
                     progress = true;
@@ -152,7 +154,7 @@ namespace Game.Domain
         private bool TryBest(int slot, out int bestX, out int bestZ)
         {
             bestX = bestZ = -1;
-            char color = _slotColor[slot];
+            CapColor color = _slotColor[slot];
             double centre = (slot + 0.5) * _stack.Cols / _slotColor.Length - 0.5;
             double bestDist = double.MaxValue;
             for (int x = 0; x < _stack.Cols; x++)
@@ -169,7 +171,7 @@ namespace Game.Domain
         private void Judge(List<GameFact> facts)
         {
             bool anyTray = false;
-            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] != '\0') anyTray = true;
+            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] != CapColor.None) anyTray = true;
             if (_stack.IsEmpty && !anyTray)
             {
                 Status = GameStatus.Won;                                                        // R14
@@ -197,7 +199,7 @@ namespace Game.Domain
             var sb = new StringBuilder(64 + _stack.Count * 2);
             foreach (var h in _laneHead) sb.Append(h).Append(',');
             sb.Append('#');
-            for (int s = 0; s < _slotColor.Length; s++) sb.Append(_slotColor[s] == '\0' ? '_' : _slotColor[s]).Append(_slotFilled[s]);
+            for (int s = 0; s < _slotColor.Length; s++) sb.Append(_slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]);
             sb.Append('#');
             _stack.AppendKey(sb);
             return sb.ToString();

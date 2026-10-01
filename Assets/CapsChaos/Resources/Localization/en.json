@@ -1,0 +1,10 @@
+{
+  "level_select.difficulty_breather": "Breather",
+  "level_select.difficulty_easy": "Easy",
+  "level_select.difficulty_hard": "Hard",
+  "level_select.difficulty_medium": "Medium",
+  "level_select.difficulty_tutorial": "Tutorial",
+  "level_select.difficulty_unknown": "-",
+  "level_select.number": "{0}",
+  "level_select.title": "LEVELS"
+}

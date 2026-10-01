@@ -4,67 +4,89 @@ using Game.Domain;
 
 namespace Game.Application
 {
-    /// <summary>
-    /// Port: raw level text by id, plus the play-order index. The adapter (Infrastructure) decides where
-    /// the bytes live; everything after the bytes — parsing and validation — is engine-free Domain code.
-    /// </summary>
-    public interface ILevelSource
-    {
-        /// <summary>The text of <c>levels.index.json</c>.</summary>
-        string ReadIndex();
-        /// <summary>The text of <c>&lt;levelId&gt;.json</c>, or null when there is no such level.</summary>
-        string ReadLevel(string levelId);
-    }
-
     public sealed class LevelLoadException : Exception
     {
         public LevelLoadException(string message) : base(message) { }
     }
 
     /// <summary>
-    /// The play order and the loaded levels (GDD §6). A level that fails V1–V5 is REFUSED at load with every
-    /// problem named — the runtime never plays a malformed level. V6 (solvability) is CI's job
-    /// (ContentLevelsTests / LevelTool validate), not a per-load cost.
+    /// The play order and every level, parsed and validated ONCE at boot (GDD §6). The boot node
+    /// (<c>LevelConfigNode</c>) fetches the raw text from <c>Content/LevelConfig/</c> and hands it to
+    /// <see cref="Populate"/>; after that <see cref="Get"/> is a plain lookup — no I/O, no parsing mid-game.
+    /// A level that fails V1–V5 is REFUSED with every problem named, and a refused level fails the whole
+    /// load: the runtime never plays a malformed level. V6 (solvability) is CI's job
+    /// (ContentLevelsTests / LevelTool validate), not a boot cost.
     /// </summary>
     public sealed class LevelCatalog
     {
-        private readonly ILevelSource _source;
-        private IReadOnlyList<string> _order;
+        /// <summary>The play-order file next to the levels.</summary>
+        public const string IndexFile = "levels.index.json";
 
-        public LevelCatalog(ILevelSource source) => _source = source ?? throw new ArgumentNullException(nameof(source));
+        private IReadOnlyList<string> _order = Array.Empty<string>();
+        private IReadOnlyList<LevelDefinition> _levels = Array.Empty<LevelDefinition>();
 
-        public IReadOnlyList<string> Order => _order ??= ReadOrder();
-
-        public int Count => Order.Count;
+        public bool IsLoaded { get; private set; }
+        public IReadOnlyList<string> Order => _order;
+        public int Count => _levels.Count;
 
         /// <summary>Index wraps past the end, so "next" after the last level replays from the first.</summary>
         public int Normalize(int index) => Count == 0 ? 0 : ((index % Count) + Count) % Count;
 
-        public LevelDefinition Load(int index)
+        public LevelDefinition Get(int index)
         {
-            if (Count == 0) throw new LevelLoadException("levels.index.json lists no levels");
-            string id = Order[Normalize(index)];
-            string text = _source.ReadLevel(id) ?? throw new LevelLoadException($"{id}: listed in the index but not found");
-            var parsed = LevelJson.Parse(text);
-            if (!parsed.Ok) throw new LevelLoadException($"{id}: " + string.Join("; ", parsed.Errors));
-            var problems = LevelValidator.Validate(parsed.Level);
-            if (problems.Count > 0) throw new LevelLoadException($"{id}: " + string.Join("; ", problems));
-            if (parsed.Level.Id != id) throw new LevelLoadException($"{id}: file declares id '{parsed.Level.Id}'");
-            return parsed.Level;
+            if (!IsLoaded) throw new LevelLoadException("levels are not loaded yet (LevelsLoaded boot cap)");
+            return _levels[Normalize(index)];
         }
 
-        private IReadOnlyList<string> ReadOrder()
+        /// <summary>The level ids <c>levels.index.json</c> lists, in play order.</summary>
+        public static IReadOnlyList<string> ParseOrder(string indexJson)
         {
-            var root = JsonReader.Parse(_source.ReadIndex() ?? throw new LevelLoadException("levels.index.json not found"));
+            if (indexJson == null) throw new LevelLoadException(IndexFile + " not found");
+            JsonValue root;
+            try { root = JsonReader.Parse(indexJson); }
+            catch (JsonParseException e) { throw new LevelLoadException(IndexFile + ": " + e.Message); }
             if (!root.TryGet("order", out var order) || order.Kind != JsonKind.Array)
-                throw new LevelLoadException("levels.index.json: 'order' array missing");
+                throw new LevelLoadException(IndexFile + ": 'order' array missing");
             var ids = new List<string>();
             foreach (var item in order.Items)
             {
-                if (item.Kind != JsonKind.String) throw new LevelLoadException("levels.index.json: 'order' entries must be strings");
+                if (item.Kind != JsonKind.String) throw new LevelLoadException(IndexFile + ": 'order' entries must be strings");
                 ids.Add(item.String);
             }
+            if (ids.Count == 0) throw new LevelLoadException(IndexFile + " lists no levels");
             return ids;
+        }
+
+        /// <summary>
+        /// Parse and validate every level in <paramref name="order"/>. All-or-nothing: on any problem it throws
+        /// one <see cref="LevelLoadException"/> naming every broken level, and the catalog stays as it was.
+        /// </summary>
+        /// <param name="levelTexts">Level id → JSON text; a missing id is a "listed but not found" problem.</param>
+        public void Populate(IReadOnlyList<string> order, IReadOnlyDictionary<string, string> levelTexts)
+        {
+            if (order == null) throw new ArgumentNullException(nameof(order));
+            if (levelTexts == null) throw new ArgumentNullException(nameof(levelTexts));
+            if (order.Count == 0) throw new LevelLoadException(IndexFile + " lists no levels");
+
+            var problems = new List<string>();
+            var levels = new List<LevelDefinition>(order.Count);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string id in order)
+            {
+                if (!seen.Add(id)) { problems.Add($"{id}: listed twice in {IndexFile}"); continue; }
+                if (!levelTexts.TryGetValue(id, out var text) || text == null) { problems.Add($"{id}: listed in the index but not found"); continue; }
+                var parsed = LevelJson.Parse(text);
+                if (!parsed.Ok) { problems.Add($"{id}: " + string.Join("; ", parsed.Errors)); continue; }
+                var semantic = LevelValidator.Validate(parsed.Level);
+                if (semantic.Count > 0) { problems.Add($"{id}: " + string.Join("; ", semantic)); continue; }
+                if (parsed.Level.Id != id) { problems.Add($"{id}: file declares id '{parsed.Level.Id}'"); continue; }
+                levels.Add(parsed.Level);
+            }
+            if (problems.Count > 0) throw new LevelLoadException(string.Join(" | ", problems));
+
+            _order = new List<string>(order);
+            _levels = levels;
+            IsLoaded = true;
         }
     }
 }

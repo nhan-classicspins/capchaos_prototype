@@ -114,23 +114,23 @@ namespace Game.Editor
             for (int i = -1; i <= 1; i++) Place(scene, "Slot", new Vector3(i * laneX, 0.02f, slotZ), Quaternion.identity, Vector3.one);
 
             // slot 0: pink tray filling (2 bottles capped), slot 1: orange box sealed, slot 2: blue box open
-            var tray = Place(scene, "CapTray", new Vector3(-laneX, 0.05f, slotZ), Quaternion.identity, Vector3.one, 'R');
+            var tray = Place(scene, "CapTray", new Vector3(-laneX, 0.05f, slotZ), Quaternion.identity, Vector3.one, "Red");
             var cells = ArtShapes.CellCentres();
             for (int c = 0; c < 2; c++)
             {
                 tray.transform.Find("Cap_" + c).gameObject.SetActive(false);
                 var pos = tray.transform.position + new Vector3(cells[c].x, ArtShapes.TrayHeight - 0.018f, cells[c].y);
-                Place(scene, "Bottle", pos, Quaternion.identity, Vector3.one, 'R');
-                Place(scene, "Cap", pos + Vector3.up * 0.925f, Quaternion.identity, Vector3.one, 'R');
+                Place(scene, "Bottle", pos, Quaternion.identity, Vector3.one, "Red");
+                Place(scene, "Cap", pos + Vector3.up * 0.925f, Quaternion.identity, Vector3.one, "Red");
             }
-            var sealedBox = Place(scene, "Box", new Vector3(0, 0.05f, slotZ), Quaternion.identity, Vector3.one, 'O');
+            var sealedBox = Place(scene, "Box", new Vector3(0, 0.05f, slotZ), Quaternion.identity, Vector3.one, "Orange");
             foreach (var f in new[] { "Flap_Left", "Flap_Right", "Flap_Front", "Flap_Back" })
             {
                 var p = sealedBox.transform.Find(f);
                 p.localRotation = p.localRotation * Quaternion.Euler(90f - ArtGenerator.FlapOpenLean, 0f, 0f);
             }
             sealedBox.transform.Find("Tape").gameObject.SetActive(true);
-            Place(scene, "Box", new Vector3(laneX, 0.05f, slotZ), Quaternion.identity, Vector3.one, 'B');
+            Place(scene, "Box", new Vector3(laneX, 0.05f, slotZ), Quaternion.identity, Vector3.one, "Blue");
 
             // ── 3 conveyor lanes ──
             string[] lanes = { "BOGRY", "RGBOC", "GRPOB" };
@@ -140,7 +140,7 @@ namespace Game.Editor
                 Place(scene, "Lane", new Vector3(x, 0f, z0), Quaternion.identity, Vector3.one);
                 for (int t = 0; t < lanes[l].Length; t++)
                     Place(scene, "CapTray", new Vector3(x, 0.01f, z0 - 0.5f - t * ArtShapes.LanePitch),
-                        Quaternion.identity, Vector3.one, lanes[l][t]);
+                        Quaternion.identity, Vector3.one, FlavorOf(lanes[l][t]));
             }
 
             // ── bottle stack: ground visible, upper layers hidden (rainbow) ──
@@ -152,7 +152,7 @@ namespace Game.Editor
                 {
                     var basePos = new Vector3((c - (cols - 1) * 0.5f) * pitch, 0f,
                         stackFrontZ + (ground.Length - 1 - r) * pitch);
-                    Place(scene, "Bottle", basePos, Quaternion.identity, Vector3.one, ground[r][c]);
+                    Place(scene, "Bottle", basePos, Quaternion.identity, Vector3.one, FlavorOf(ground[r][c]));
                     int layers = r == ground.Length - 1 ? (c % 3 == 0 ? 1 : 0) : (r == 0 ? 2 : 1);
                     for (int k = 1; k <= layers; k++)
                         Place(scene, "BottleHidden", basePos + Vector3.up * k * ArtShapes.BottleHeight * 0.92f,
@@ -160,26 +160,40 @@ namespace Game.Editor
                 }
         }
 
-        private static GameObject Place(Scene scene, string prefab, Vector3 pos, Quaternion rot, Vector3 scale, char flavor = '\0')
+        private static GameObject Place(Scene scene, string prefab, Vector3 pos, Quaternion rot, Vector3 scale, string flavor = null)
         {
             var asset = AssetDatabase.LoadAssetAtPath<GameObject>(Prefabs + prefab + ".prefab");
             if (asset == null) throw new InvalidOperationException("missing prefab " + prefab);
             var go = (GameObject)PrefabUtility.InstantiatePrefab(asset, scene);
             go.transform.SetPositionAndRotation(pos, rot);
             go.transform.localScale = scale;
-            if (flavor != '\0') SetFlavor(go, flavor);
+            if (flavor != null) SetFlavor(go, flavor);
             return go;
         }
 
         // TokenTint lives in Game.Views, which Game.Editor may not reference (pinned graph) — drive it
         // through its serialized fields; OnValidate repaints.
-        private static void SetFlavor(GameObject go, char flavor)
+        // The preview layouts are written in level-file codes; Game.Editor sees neither Game.Domain's CapColor
+        // nor Game.Views' TintFlavor (pinned graph), so the code → member-name table is mirrored here.
+        private const string FlavorCodes = "ROBGPYCN";
+        private static readonly string[] FlavorNames = { "Red", "Orange", "Blue", "Green", "Purple", "Yellow", "Cyan", "Brown" };
+
+        private static string FlavorOf(char code)
+        {
+            int i = FlavorCodes.IndexOf(code);
+            if (i < 0) throw new ArgumentException($"'{code}' is not a colour code ({FlavorCodes})");
+            return FlavorNames[i];
+        }
+
+        /// <param name="flavor">A <c>Game.Views.TintFlavor</c> member name ("Red", "Orange", …).</param>
+        private static void SetFlavor(GameObject go, string flavor)
         {
             foreach (var mb in go.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (mb == null || mb.GetType().FullName != "Game.Views.TokenTint") continue;
                 var so = new SerializedObject(mb);
-                so.FindProperty("_flavor").intValue = flavor;
+                var p = so.FindProperty("_color");
+                p.enumValueIndex = Array.IndexOf(p.enumNames, flavor);
                 so.ApplyModifiedPropertiesWithoutUndo();
                 mb.SendMessage("Apply", SendMessageOptions.DontRequireReceiver);
             }

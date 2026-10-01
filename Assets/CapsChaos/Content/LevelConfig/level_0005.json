@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0005",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B", "G"],
+  "stack": {
+    "cols": 8,
+    "rows": 4,
+    "layers": [
+      [
+        "..GRBB..",
+        ".OGROBG.",
+        "ROGROBGG",
+        ".OGOOBO."
+      ],
+      [
+        "........",
+        "..RBBR..",
+        "..RBGR..",
+        "........"
+      ]
+    ]
+  },
+  "lanes": [
+    ["O", "G"],
+    ["G", "B", "R"],
+    ["R", "B", "O"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Four Flavours", "difficulty": "easy", "solution": [0, 1, 2, 0, 1, 1, 2, 2] }
+}
