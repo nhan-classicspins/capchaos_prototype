@@ -1,5 +1,5 @@
 {
-  "_comment": "Seed-level SPECS for `dotnet run --project Tools/LevelTool -- generate`. Shape: '#' visible bottle, '?' hidden bottle, '.' empty; layers[0] = ground, row 0 = back. The tool paints colours and builds the conveyor queues (solvable by construction) and writes Assets/CapsChaos/Content/Resources/Levels/. greed: 1 = easy (trays match what is exposed), 0 = tense. clustering: 1 = one colour per column.",
+  "_comment": "Seed-level SPECS for `dotnet run --project Tools/LevelTool -- generate`. Shape: '#' visible bottle, '?' hidden bottle, '.' empty; layers[0] = ground, row 0 = back. The tool paints colours and builds the conveyor queues (solvable by construction) and writes Assets/CapsChaos/Content/LevelConfig/. greed: 1 = easy (trays match what is exposed), 0 = tense. clustering: 1 = one colour per column.",
   "levels": [
     { "id": "level_0001", "seed": 1001, "slots": 5, "name": "First Caps", "difficulty": "tutorial", "colors": "RO", "lanes": 2,
       "greed": 1.0, "clustering": 1.0, "notes": "Teaches: tap a tray, bottles fly in, the box ships.",

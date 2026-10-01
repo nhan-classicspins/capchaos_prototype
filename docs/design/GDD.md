@@ -194,8 +194,9 @@ Unity**. Đây là machine zone: diff được, review được, test headless �
 
 | File | Vai trò |
 |---|---|
-| `Assets/CapsChaos/Content/Resources/Levels/level_0001.json` … | Một file cho mỗi level (TextAsset, đọc bằng `Resources.Load("Levels/<id>")`) |
-| `Assets/CapsChaos/Content/Resources/Levels/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
+| `Assets/CapsChaos/Content/LevelConfig/level_0001.json` … | Một file cho mỗi level (TextAsset). Cả folder là **một** entry Addressables, address `LevelConfig`, nên mỗi file có address `LevelConfig/<id>.json` và level mới không cần đăng ký thêm |
+| `Assets/CapsChaos/Content/LevelConfig/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
+| `Game.Domain.CapColor` | Enum màu, dùng chung cho chai, tray, nắp và hộp. Trong JSON màu vẫn viết bằng mã 1 chữ (`R O B G P Y C N`, chữ thường = chai ẩn); chỉ codec/LevelTool dùng mã |
 | [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12), là nguồn chân lý của định dạng |
 
 ### 6.2 Định dạng
@@ -410,12 +411,14 @@ perspective cho khối chai, slot và băng chuyền **cần cấu hình camera 
 | Phần | File | Ghi chú |
 |---|---|---|
 | Screen (manifest + `Scaffold.Sync`) | `Scenes/Gameplay.unity`, `SceneKeys.Gameplay`, Addressables `Scenes/Gameplay` | **Scene riêng, load ADDITIVE** chồng lên Master qua `ISceneService`; `Replace` gỡ scene cũ (đã thử cả `Gameplay → Gameplay`) |
-| Boot | `Composition/CapsChaosFrameworkSettings.cs` | `FirstSceneConfig` → `Gameplay(LevelIndex 0)`. `Main` giữ lại cho màn Title |
-| Param / catalog / port | `Features/Gameplay/Application/{GameplayParam, LevelCatalog}.cs` | `ILevelSource` (engine-free). Load thì chạy V1–V5; V6 thuộc CI |
-| Adapter | `Infrastructure/ResourcesLevelSource.cs` | Level nằm ở `Content/Resources/Levels/`. Không dùng Addressables vì `Game.Editor` bị ghim, không có API editor của Addressables |
+| Boot | `Composition/CapsChaosFrameworkSettings.cs` | `FirstSceneConfig` → `Main(ColdBoot)`: danh sách level. Màn Title (§7) sẽ thay chỗ này sau |
+| Danh sách level (Main) | `Features/LevelSelectWidget/…/LevelSelectWidget.cs`, `Views/LevelSelectWidget/{LevelSelectView, LevelButtonView}.cs`, prefab `Content/UI/LevelSelect/Prefabs/` | Panel đặt sẵn trong `Main.unity` (instance prefab dưới canvas preview world-space trên layer `UI`, chỉ để nhìn và sửa trong Scene view); khi Main load, widget chuyển panel vào host `Ui` và xoá canvas preview. Lưới 4 cột, mỗi ô ghi số và độ khó (`loc.csv`). Bấm ô ⇒ `Gameplay(LevelIndex)`; Back/Escape trong Gameplay ⇒ về `Main`. Các ô chưa dùng pool vì `PoolInstaller` của framework chưa nối loader với `IAssetService` |
+| Param / catalog | `Features/Gameplay/Application/{GameplayParam, LevelCatalog}.cs` | Singleton ở Root scope (engine-free). `Populate` parse + chạy V1–V5 cho **mọi** level một lần; V6 thuộc CI |
+| Boot load | `Features/Boot/Infrastructure/LevelConfigNode.cs` | Boot node (Required) chạy ở giai đoạn Loading: `AssetReady → LevelConfig → LevelsLoaded`. Đọc index rồi mọi level qua `IAssetService`. `FirstScene` bị gate thêm cạnh `LevelsLoaded`. Một level hỏng ⇒ boot dừng, log nêu tên từng level hỏng |
+| HUD | `Features/GameplayHudWidget/…/GameplayHudWidget.cs`, `Views/GameplayHudWidget/GameplayHudView.cs`, prefab `Content/UI/GameplayHud/Prefabs/` | Nút tròn Restart (trái) và Home (phải), đặt sẵn trong `Gameplay.unity` dưới canvas preview, lúc chạy gắn vào host `Ui`. Restart chơi lại level ngay; Home và Back về `Main`. Icon ↻ ⌂ và đĩa tròn sinh bằng `CapsChaos/Art/Generate UI Sprites`. Pill "Level N" chưa làm |
 | Controller | `Features/Gameplay/Presentation/GameplayScreen.cs` | Tap → `CapChaosGame.Tap` → phát lại fact theo thứ tự trên `BoardView` |
-| Scope | `Features/Gameplay/Composition/GameplayScreenScope.cs` | Source, catalog, WorldRoot, entry screen |
-| Views | `Views/Board/{BoardView, BoardInputView}.cs`, `Views/DesignTokens.cs` (`Board`, `Motion`) | Animation dùng LitMotion lõi + UniTask. Input = hit-catcher uGUI → raycast 3D → chỉ số làn |
+| Scope | `Features/Gameplay/Composition/GameplayScreenScope.cs` | WorldRoot, entry screen (catalog kế thừa từ Root) |
+| Views | `Views/Board/{BoardView, BoardInputView}.cs`, `Views/DesignTokens.cs` (`Board`, `Motion`, `TintFlavor`) | `TintFlavor` là bản song sinh của `CapColor` ở tầng View (Game.Views không được tham chiếu Game.Domain); `Presentation/CapColorTint.cs` map giữa hai enum. Animation dùng LitMotion lõi + UniTask. Input = hit-catcher uGUI → raycast 3D → chỉ số làn |
 
 **Visual check** (play mode, 1080×1920, 2 phiên; ảnh `refs/13_gameplay_S*.jpg`):
 - **S1** `level_0001` lúc bắt đầu;
@@ -459,7 +462,7 @@ Không có Error/Exception nào.
 | `LevelGenerator.cs` | Sinh level giải được theo cách dựng, nhận `IRandom` (luật #14) |
 
 Test ở `SkuHeadlessTests/CapChaos/`: mỗi luật R1–R16 và V1–V6 có ít nhất một test; `ContentLevelsTests`
-chạy với mọi level trong `Content/Resources/Levels/`.
+chạy với mọi level trong `Content/LevelConfig/`; `Gate/LevelConfigAddressablesGateTests` giữ entry Addressables của folder.
 
 > **Lệch so với kế hoạch ban đầu:** không tái dựng được *chính xác* chuỗi tap trong video, vì video không
 > cho biết đủ trạng thái. Thay vào đó, R15 được test bằng một tình huống kẹt dựng theo frame 76,5 s

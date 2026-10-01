@@ -7,6 +7,7 @@ using ClassicSpins.PrototypeFramework.Presentation;
 using Cysharp.Threading.Tasks;
 using Game.Application;
 using Game.Domain;
+using Game.Gen;
 using Game.Views;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -34,7 +35,9 @@ namespace Game.Presentation
         private readonly LevelCatalog _catalog;
         private readonly IRenderLayerRegistry _layers;
         private readonly IAssetService _assets;
+        private readonly ISceneService _scenes;
         private readonly GameplaySceneRoot _root;
+        private readonly GameplayHudWidget _hud;
         private readonly ILog _log;
 
         private readonly BoardPrefabs _prefabs = new BoardPrefabs();
@@ -60,10 +63,13 @@ namespace Game.Presentation
         private int _nextTray;
         private readonly List<UniTask> _packs = new List<UniTask>();   // boxes still animating; the round end waits for all
         private bool _replaying;
+        private bool _leaving;
 
         public GameplayScreen(GameplayParam param, LevelCatalog catalog, IRenderLayerRegistry layers,
-            IAssetService assets, GameplaySceneRoot root, ILog log = null)
+            IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud, ILog log = null)
         {
+            _hud = hud;
+            _scenes = scenes;
             _param = param;
             _catalog = catalog;
             _layers = layers;
@@ -82,16 +88,57 @@ namespace Game.Presentation
             _prefabs.Slot = await Hold(AssetKeys.Slot, ct);
             _prefabs.Lane = await Hold(AssetKeys.Lane, ct);
             _prefabs.Floor = await Hold(AssetKeys.Floor, ct);
+            _hud.Attach();
+            _hud.RetryRequested += OnRetry;
+            _hud.HomeRequested += GoHome;
             StartRound(_param.LevelIndex);
         }
 
-        public override void OnEnter() => _log.Info($"[GameplayScreen] entered — {_level?.Id} ({_catalog.Normalize(_levelIndex) + 1}/{_catalog.Count}).");
+        public override void OnEnter()
+        {
+            _hud.SetVisible(true);
+            _hud.SetInteractable(true);
+            _log.Info($"[GameplayScreen] entered — {_level?.Id} ({_catalog.Normalize(_levelIndex) + 1}/{_catalog.Count}).");
+        }
 
-        public override void OnExit() => TeardownRound();
+        // OnPause/OnResume also fire when the APP loses/regains focus: the HUD stays visible and only stops
+        // taking taps. It is a sibling under the Ui host, so OnEnter/OnExit show and hide it.
+        public override void OnPause() => _hud.SetInteractable(false);
+        public override void OnResume() => _hud.SetInteractable(true);
+
+        public override void OnExit()
+        {
+            _hud.SetVisible(false);
+            TeardownRound();
+        }
+
+        /// <summary>Back (Escape in the Editor, the system back on Android) does what Home does.</summary>
+        public override void OnBackRequested() => GoHome();
+
+        /// <summary>HUD Restart (GDD §5): replay the current level from the start, at once, no confirmation.</summary>
+        private void OnRetry()
+        {
+            if (_leaving) return;
+            _log.Info($"[GameplayScreen] restart {_level?.Id}.");
+            StartRound(_levelIndex);
+        }
+
+        /// <summary>HUD Home / Back: return to the level list on Main.</summary>
+        private void GoHome()
+        {
+            if (_leaving) return;
+            _leaving = true;
+            TeardownRound();
+            _scenes.LoadAsync(SceneKeys.Main, new MainParam(ColdBoot: false), SceneTransition.Replace)
+                .Forget(e => { _leaving = false; _log.Error("[GameplayScreen] could not return to Main: " + e.Message); });
+        }
 
         public override UniTask OnUnloadAsync(CancellationToken ct)
         {
             TeardownRound();
+            _hud.RetryRequested -= OnRetry;
+            _hud.HomeRequested -= GoHome;
+            _hud.Dispose();
             for (int i = _held.Count - 1; i >= 0; i--) _assets.Release(_held[i]);
             _held.Clear();
             return UniTask.CompletedTask;
@@ -102,7 +149,8 @@ namespace Game.Presentation
         {
             TeardownRound();
             _levelIndex = _catalog.Normalize(index);
-            try { _level = _catalog.Load(_levelIndex); }
+            // already parsed and validated at boot (LevelConfigNode) — a failure here means boot never loaded them
+            try { _level = _catalog.Get(_levelIndex); }
             catch (LevelLoadException e) { _log.Error("[GameplayScreen] " + e.Message); return; }
 
             _game = new CapChaosGame(_level);
@@ -126,13 +174,13 @@ namespace Game.Presentation
                     for (int h = 0; h < stack.Height(x, z); h++)
                     {
                         var b = stack.At(x, z, h);
-                        _board.AddBottle(x, z, h, b.Color, b.Hidden);
+                        _board.AddBottle(x, z, h, b.Color.ToTint(), b.Hidden);
                     }
 
             _laneShown = new int[_level.Lanes.Count];
             for (int j = 0; j < _level.Lanes.Count; j++)
                 for (; _laneShown[j] < Math.Min(_level.Lanes[j].Count, DesignTokens.Board.VisibleTraysPerLane); _laneShown[j]++)
-                    _board.AddLaneTray(j, _level.Lanes[j][_laneShown[j]]);
+                    _board.AddLaneTray(j, _level.Lanes[j][_laneShown[j]].ToTint());
             _trayInSlot = new int[_level.Slots];
             _cells.Clear();
             _nextTray = 0;
@@ -166,12 +214,18 @@ namespace Game.Presentation
         // ── input → rules → replay ───────────────────────────────────────────────────────────
         /// <summary>
         /// R5: only the FRONT tray of a lane is released to a slot. A tray behind it answers "not this one" by
-        /// shaking; so does the front tray when every slot is full (R8). The belt itself is not tappable.
+        /// shaking; so does the front tray when no slot is free (R8). The belt itself is not tappable.
+        /// <para>"Free" is what the player SEES: the rules empty a slot the instant its tray is full, but on screen
+        /// that tray is still collecting (bottles in flight, the box packing) until the box lifts off. A tap in that
+        /// window is refused BEFORE it reaches the rules — nothing is placed and no bottle moves — so the board
+        /// never shows a tray the player could not see room for. The rules' own free slots always include the
+        /// on-screen ones, so a tap that passes this check is never refused for a full row by the rules.</para>
         /// </summary>
         private void OnTrayTapped(int lane, int index)
         {
             if (_game == null || _game.Status != GameStatus.Playing) return;
             if (index > 0) { _board.ShakeTray(lane, index).Forget(); return; }
+            if (!_board.HasClearSlot) { _board.ShakeTray(lane, 0).Forget(); return; }
 
             var result = _game.Tap(lane);
             if (!result.Accepted)
@@ -193,9 +247,9 @@ namespace Game.Presentation
                         _board.PlaceTray(id, t.Lane, t.Slot).Forget();
                         break;
                     case LaneAdvanced a:
-                        char tail = '\0';
+                        var tail = CapColor.None;
                         if (_laneShown[a.Lane] < _level.Lanes[a.Lane].Count) tail = _level.Lanes[a.Lane][_laneShown[a.Lane]++];
-                        _board.AdvanceLane(a.Lane, tail).Forget();
+                        _board.AdvanceLane(a.Lane, tail.ToTint()).Forget();
                         break;
                     case BottlePicked p:
                         int tray = _trayInSlot[p.Slot];
@@ -237,10 +291,10 @@ namespace Game.Presentation
                     await _board.DropPile(d.X, d.Z);
                     break;
                 case BottleRevealed r:
-                    await _board.Reveal(r.X, r.Z, r.Color);
+                    await _board.Reveal(r.X, r.Z, r.Color.ToTint());
                     break;
                 case TrayPacked k:
-                    _packs.Add(_board.PackTray(step.Tray, k.Color).Preserve());
+                    _packs.Add(_board.PackTray(step.Tray, k.Color.ToTint()).Preserve());
                     break;
                 case LevelCompleted _:
                     foreach (var pack in _packs) await pack;

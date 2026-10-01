@@ -104,7 +104,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1 &425256723003031642
 GameObject:
@@ -210,7 +210,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 10
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1 &799719521187960949
 GameObject:
@@ -316,7 +316,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1 &1691894438756336454
 GameObject:
@@ -422,7 +422,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1 &2016868126721696766
 GameObject:
@@ -528,7 +528,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1 &2059983517996218603
 GameObject:
@@ -666,7 +666,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TokenTint
   _token: 0
-  _flavor: 82
+  _color: 1
   _materialIndex: -1
 --- !u!1 &8438056073035576932
 GameObject:

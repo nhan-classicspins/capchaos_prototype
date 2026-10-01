@@ -6,9 +6,9 @@ namespace Game.Domain
 {
     public readonly struct Bottle
     {
-        public readonly char Color;   // uppercase code
+        public readonly CapColor Color;
         public readonly bool Hidden;
-        public Bottle(char color, bool hidden) { Color = color; Hidden = hidden; }
+        public Bottle(CapColor color, bool hidden) { Color = color; Hidden = hidden; }
     }
 
     /// <summary>
@@ -34,15 +34,15 @@ namespace Game.Domain
         public static BottleStack FromDefinition(StackDefinition def)
         {
             var s = new BottleStack(def.Cols, def.Rows);
-            for (int k = 0; k < def.Layers.Count; k++)
+            for (int k = 0; k < def.LayerCount; k++)
                 for (int r = 0; r < def.Rows; r++)
                     for (int x = 0; x < def.Cols; x++)
                     {
-                        char c = def.At(k, r, x);
-                        if (c == CapColors.Empty) continue;
+                        var c = def.At(k, r, x);
+                        if (c.IsEmpty) continue;
                         // gravity at load: a bottle over a gap settles onto whatever is below it (the validator
                         // rejects that authoring, V2; the model still never floats a bottle)
-                        s._cells[x * s.Depth + (def.Rows - 1 - r)].Add(new Bottle(char.ToUpperInvariant(c), char.IsLower(c)));
+                        s._cells[x * s.Depth + (def.Rows - 1 - r)].Add(new Bottle(c.Color, c.Hidden));
                         s.Count++;
                     }
             return s;
@@ -100,7 +100,7 @@ namespace Game.Domain
         {
             foreach (var cell in _cells)
             {
-                foreach (var b in cell) sb.Append(b.Hidden ? char.ToLowerInvariant(b.Color) : b.Color);
+                foreach (var b in cell) sb.Append(new StackCell(b.Color, b.Hidden).ToCode());
                 sb.Append('|');
             }
         }

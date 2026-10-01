@@ -61,6 +61,99 @@ namespace Game.Editor
             return tex;
         }
 
+        /// <summary>
+        /// A white rounded rectangle with an anti-aliased edge, for 9-sliced uGUI surfaces (pills, tiles,
+        /// panels). White so the colour comes from a UiTint token; the corner radius is DesignTokens.Ui.CornerRadius
+        /// (mirrored here — Game.Editor may not reference Game.Views).
+        /// </summary>
+        public static Texture2D RoundedRect(int size = 128, float radius = 40f)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "T_UiRounded" };
+            var px = new Color[size * size];
+            float half = size * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // signed distance to a rounded box centred in the texture (pixel centres at +0.5)
+                    float qx = Mathf.Abs(x + 0.5f - half) - (half - radius);
+                    float qy = Mathf.Abs(y + 0.5f - half) - (half - radius);
+                    float outside = new Vector2(Mathf.Max(qx, 0f), Mathf.Max(qy, 0f)).magnitude;
+                    float d = outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - radius;
+                    float a = Mathf.Clamp01(0.5f - d);
+                    px[y * size + x] = new Color(1f, 1f, 1f, a);
+                }
+            tex.SetPixels(px); tex.Apply(false);
+            return tex;
+        }
+
+        /// <summary>A white disc filling the texture (HUD round buttons, their rim and shadow).</summary>
+        public static Texture2D Disc(int size = 128)
+            => Shape("T_UiDisc", size, (x, y) => x * x + y * y <= 1f);
+
+        /// <summary>↻ Restart icon (art §5): an open ring with an arrowhead closing it clockwise from the top.</summary>
+        public static Texture2D IconRetry(int size = 128)
+        {
+            const float r = 0.56f, half = 0.12f;                      // ring radius and half thickness
+            const float gapFrom = 55f, gapTo = 100f;                  // degrees, measured CCW from +x
+            var a = Polar(r - 0.27f, gapFrom); var b = Polar(r + 0.27f, gapFrom); var tip = Polar(r, gapFrom + 36f);
+            return Shape("T_IconRetry", size, (x, y) =>
+            {
+                float d = Mathf.Sqrt(x * x + y * y);
+                float ang = Mathf.Repeat(Mathf.Atan2(y, x) * Mathf.Rad2Deg, 360f);
+                bool ring = Mathf.Abs(d - r) <= half && (ang < gapFrom || ang > gapTo);
+                return ring || InTriangle(new Vector2(x, y), a, b, tip);
+            });
+        }
+
+        /// <summary>⌂ Home icon (art §5): a roof over a house body with a door cut out.</summary>
+        public static Texture2D IconHome(int size = 128)
+        {
+            var roofL = new Vector2(-0.80f, 0.02f); var roofR = new Vector2(0.80f, 0.02f); var roofTop = new Vector2(0f, 0.78f);
+            return Shape("T_IconHome", size, (x, y) =>
+            {
+                var p = new Vector2(x, y);
+                bool roof = InTriangle(p, roofL, roofR, roofTop);
+                bool body = x >= -0.52f && x <= 0.52f && y >= -0.70f && y <= 0.10f;
+                bool door = x >= -0.16f && x <= 0.16f && y >= -0.70f && y <= -0.22f;
+                return roof || (body && !door);
+            });
+        }
+
+        // shape rasteriser: unit square [-1, 1]², y up, 4 × 4 supersampling for the anti-aliased edge
+        private static Texture2D Shape(string name, int size, System.Func<float, float, bool> inside)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = name };
+            var px = new Color[size * size];
+            const int ss = 4;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    int hits = 0;
+                    for (int sy = 0; sy < ss; sy++)
+                        for (int sx = 0; sx < ss; sx++)
+                        {
+                            float u = (x + (sx + 0.5f) / ss) / size * 2f - 1f;
+                            float v = (y + (sy + 0.5f) / ss) / size * 2f - 1f;
+                            if (inside(u, v)) hits++;
+                        }
+                    px[y * size + x] = new Color(1f, 1f, 1f, hits / (float)(ss * ss));
+                }
+            tex.SetPixels(px); tex.Apply(false);
+            return tex;
+        }
+
+        private static Vector2 Polar(float r, float degrees)
+            => new Vector2(Mathf.Cos(degrees * Mathf.Deg2Rad), Mathf.Sin(degrees * Mathf.Deg2Rad)) * r;
+
+        private static bool InTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+        {
+            float d1 = Cross(p, a, b), d2 = Cross(p, b, c), d3 = Cross(p, c, a);
+            bool neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+            return !(neg && pos);
+        }
+
+        private static float Cross(Vector2 p, Vector2 a, Vector2 b) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+
         /// <summary>Cardboard: light value noise + vertical fibres, greyscale around 0.9.</summary>
         public static Texture2D Cardboard(int size = 256)
         {

@@ -23,6 +23,46 @@ namespace Game.Editor
         // by type NAME; the colours themselves stay in Game.Views.DesignTokens.
         private const string TokenTintType = "Game.Views.TokenTint, Game.Views";
 
+        /// <summary>uGUI sprites (art §5): white 9-slice shapes the UiTint tokens colour.</summary>
+        public const string UiSprites = "Assets/CapsChaos/Content/UI/Common/Sprites";
+        private const float UiCornerRadius = 40f;   // == DesignTokens.Ui.CornerRadius
+
+        [MenuItem("CapsChaos/Art/Generate UI Sprites")]
+        public static void GenerateUiSpritesFromMenu() => Debug.Log(GenerateUiSprites());
+
+        public static string GenerateUiSprites()
+        {
+            EnsureFolder(UiSprites);
+            var paths = new System.Collections.Generic.List<string>
+            {
+                SaveUiSprite(ProceduralTextures.RoundedRect(128, UiCornerRadius), Mathf.CeilToInt(UiCornerRadius) + 4),
+                SaveUiSprite(ProceduralTextures.Disc(128), 0),
+                SaveUiSprite(ProceduralTextures.IconRetry(128), 0),
+                SaveUiSprite(ProceduralTextures.IconHome(128), 0),
+            };
+            return "[ArtGen] UI sprites → " + string.Join(", ", paths);
+        }
+
+        /// <summary>White sprite at PPU 1 (the rig ruler); <paramref name="border"/> &gt; 0 makes it 9-slice.</summary>
+        private static string SaveUiSprite(Texture2D tex, int border)
+        {
+            var path = $"{UiSprites}/{tex.name}.png";
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+            var imp = (TextureImporter)AssetImporter.GetAtPath(path);
+            imp.textureType = TextureImporterType.Sprite;
+            imp.spriteImportMode = SpriteImportMode.Single;
+            imp.spritePixelsPerUnit = 1f;                         // the rig ruler: 1 texture px == 1 canvas px
+            imp.spriteBorder = new Vector4(border, border, border, border);   // 9-slice: corners never stretch
+            imp.mipmapEnabled = false;
+            imp.alphaIsTransparency = true;
+            imp.wrapMode = TextureWrapMode.Clamp;
+            imp.filterMode = FilterMode.Bilinear;
+            imp.SaveAndReimport();
+            return path;
+        }
+
         [MenuItem("CapsChaos/Art/Generate 3D Assets")]
         public static void GenerateFromMenu() => Debug.Log(GenerateAll());
 

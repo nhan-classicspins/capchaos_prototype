@@ -25,13 +25,13 @@ namespace Game.Composition
         protected override void InstallGameConfig(IContainerBuilder builder)
         {
             // The real FirstSceneConfig (the framework registered FirstSceneConfig.None; this wins by
-            // later registration): boot lands straight on Gameplay, level 0 — loaded additively over Master
-            // like every screen. Main stays scaffolded for the Title screen (GDD §7), which will take this
-            // spot and navigate to Gameplay on PLAY.
+            // later registration): boot lands on Main — the level list, so any level is one tap away while
+            // levels are being tuned — loaded additively over Master like every screen. The Title screen
+            // (GDD §7) will take this spot later.
             builder.RegisterInstance(new FirstSceneConfig(
-                SceneKeys.Gameplay,
+                SceneKeys.Main,
                 (sceneService, ct) => sceneService.LoadAsync(
-                    SceneKeys.Gameplay, new GameplayParam(LevelIndex: 0), SceneTransition.Replace, null, ct)));
+                    SceneKeys.Main, new MainParam(ColdBoot: true), SceneTransition.Replace, null, ct)));
 
             // The SKU owns the single ConfigDefaults registration (the framework registers none —
             // zero registrants means every Get falls back to 0; two is a VContainer duplicate conflict).
@@ -41,16 +41,19 @@ namespace Game.Composition
         }
 
         /// <summary>
-        /// The SKU's own boot graph additions: show the Loading scene, hold boot on a test node, then let
-        /// the (unchanged) first-scene load put Main up and take the Loading scene back down.
+        /// The SKU's own boot graph additions: show the Loading scene, load every level, hold boot on a test
+        /// node, then let the (unchanged) first-scene load put the first screen up and take the Loading scene
+        /// back down.
         /// </summary>
         /// <remarks>
         /// Boot nodes are collected by the framework's <c>BootRunInstaller</c> from every registered
         /// <see cref="IBootNode"/>, and SKU installers run last, so these land in the graph with no
         /// framework-code edit. The order is expressed purely as capability edges (AD-4):
-        /// <c>AssetReady → LoadingScene → TestWait → FirstScene</c>. The decorator adds exactly ONE
-        /// edge in front of the framework's FirstScene node — <c>GameBootCaps.TestWaitDone</c> — and
-        /// nothing else; see the comment at the override for why the monetization caps are not there.
+        /// <c>AssetReady → LoadingScene → TestWait → FirstScene</c> and, in parallel,
+        /// <c>AssetReady → LevelConfig → FirstScene</c>. The decorator adds exactly TWO SKU edges in front
+        /// of the framework's FirstScene node — <c>GameBootCaps.TestWaitDone</c> and
+        /// <c>GameBootCaps.LevelsLoaded</c> — and nothing else; see the comment at the override for why the
+        /// monetization caps are not there.
         /// </remarks>
         private static void InstallBoot(IContainerBuilder builder)
         {
@@ -62,6 +65,10 @@ namespace Game.Composition
             builder.Register<LoadingSceneHost>(Lifetime.Singleton).AsSelf().As<IDisposable>();
             builder.Register<LoadingSceneNode>(Lifetime.Singleton).As<IBootNode>();
             builder.Register<TestWaitNode>(Lifetime.Singleton).As<IBootNode>();
+
+            // Levels load during the Loading stage, into a Root singleton every screen scope inherits.
+            builder.Register<LevelCatalog>(Lifetime.Singleton);
+            builder.Register<LevelConfigNode>(Lifetime.Singleton).As<IBootNode>();
 
             // The boot-abort teardown, for real. A Required boot node failing makes BootFlow throw
             // BootAbortedException; it propagates out of BootstrapEntryPoint.StartAsync into VContainer's
@@ -98,11 +105,11 @@ namespace Game.Composition
                 }
             });
 
-            // The AD-17 seam: swap the framework FirstScene node for the same node behind a
-            // TestWaitDone edge, with the Loading-scene teardown appended. The load itself is untouched —
+            // The AD-17 seam: swap the framework FirstScene node for the same node behind the
+            // TestWaitDone + LevelsLoaded edges, with the Loading-scene teardown appended. The load itself is untouched —
             // it still runs the FirstSceneConfig delegate registered above.
             //
-            // Deliberately ONLY TestWaitDone — never the framework's AdsReady / AnalyticsReady caps. The
+            // Deliberately ONLY SKU caps — never the framework's AdsReady / AnalyticsReady caps. The
             // framework's AdsInitNode documents that "FirstScene never waits" on AdsReady, and AdsInit
             // itself requires the ConsentResolved cap: an AdsReady edge here would make FirstScene a
             // TRANSITIVE dependent of ConsentResolved, so the mid-session ConsentRerunDriver's
@@ -117,7 +124,8 @@ namespace Game.Composition
                             resolver.Resolve<FirstSceneConfig>(),
                             resolver.TryResolve<ILog>(out var log) ? log : null),
                         resolver.Resolve<LoadingSceneHost>(),
-                        GameBootCaps.TestWaitDone)),
+                        GameBootCaps.TestWaitDone,
+                        GameBootCaps.LevelsLoaded)),
                 Lifetime.Singleton);
         }
     }

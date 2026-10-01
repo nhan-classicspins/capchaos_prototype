@@ -14,5 +14,8 @@ namespace Game.Application
 
         /// <summary>The artificial test delay has elapsed (see <c>TestWaitNode</c>).</summary>
         public static readonly BootCap TestWaitDone = new("TestWaitDone");
+
+        /// <summary>Every level in <c>Content/LevelConfig/</c> is loaded, validated and in the <c>LevelCatalog</c>.</summary>
+        public static readonly BootCap LevelsLoaded = new("LevelsLoaded");
     }
 }

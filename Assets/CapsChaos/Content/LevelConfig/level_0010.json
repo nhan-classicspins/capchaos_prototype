@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0010",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "ROOOBO",
+        "RBOOBR",
+        "RBROBR",
+        "RBROBB"
+      ]
+    ]
+  },
+  "lanes": [
+    ["O", "R", "B"],
+    ["B"],
+    ["R", "O"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Coffee Break", "difficulty": "breather", "solution": [1, 2, 0, 0, 2, 0] }
+}

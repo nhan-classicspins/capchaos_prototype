@@ -45,7 +45,7 @@ namespace Game.Domain
             int slots = Int(root, "slots", "$", errors, required: false, min: 1, max: 5, fallback: LevelDefinition.DefaultSlots);
             int cap = Int(root, "trayCapacity", "$", errors, required: false, min: 2, max: 6, fallback: LevelDefinition.DefaultTrayCapacity);
 
-            var colors = new List<char>();
+            var colors = new List<CapColor>();
             if (!root.TryGet("colors", out var colorsNode)) errors.Add("$.colors: required");
             else if (colorsNode.Kind != JsonKind.Array) errors.Add("$.colors: must be an array");
             else
@@ -53,9 +53,9 @@ namespace Game.Domain
                 if (colorsNode.Items.Count < 1 || colorsNode.Items.Count > 8) errors.Add("$.colors: 1..8 entries");
                 for (int i = 0; i < colorsNode.Items.Count; i++)
                 {
-                    char c = ColorCode(colorsNode.Items[i], $"$.colors[{i}]", errors);
-                    if (c == '\0') continue;
-                    if (colors.Contains(c)) errors.Add($"$.colors[{i}]: duplicate '{c}'");
+                    var c = ColorCode(colorsNode.Items[i], $"$.colors[{i}]", errors);
+                    if (c == CapColor.None) continue;
+                    if (colors.Contains(c)) errors.Add($"$.colors[{i}]: duplicate '{CapColorCodes.ToCode(c)}'");
                     else colors.Add(c);
                 }
             }
@@ -127,6 +127,7 @@ namespace Game.Domain
             if (!st.TryGet("layers", out var layersNode)) { errors.Add("$.stack.layers: required"); return null; }
             if (layersNode.Kind != JsonKind.Array) { errors.Add("$.stack.layers: must be an array"); return null; }
             if (layersNode.Items.Count < 1 || layersNode.Items.Count > 8) errors.Add("$.stack.layers: 1..8 layers");
+            int errorsBefore = errors.Count;
             var layers = new List<IReadOnlyList<string>>();
             for (int k = 0; k < layersNode.Items.Count; k++)
             {
@@ -142,30 +143,31 @@ namespace Game.Domain
                     if (rv.Kind != JsonKind.String) { errors.Add(rp + ": must be a string"); rowsList.Add(""); continue; }
                     if (cols > 0 && rv.String.Length != cols) errors.Add($"{rp}: length {rv.String.Length} ≠ cols {cols}");
                     for (int i = 0; i < rv.String.Length; i++)
-                        if (!CapColors.IsCell(rv.String[i])) errors.Add($"{rp}[{i}]: '{rv.String[i]}' is not '.', a colour code or its lowercase (hidden)");
+                        if (!StackCell.TryParse(rv.String[i], out _)) errors.Add($"{rp}[{i}]: '{rv.String[i]}' is not '.', a colour code or its lowercase (hidden)");
                     rowsList.Add(rv.String);
                 }
                 layers.Add(rowsList);
             }
-            return cols > 0 && rows > 0 ? new StackDefinition(cols, rows, layers) : null;
+            // only well-formed rows become cells; anything else is already reported above
+            return cols > 0 && rows > 0 && errors.Count == errorsBefore ? StackDefinition.FromRows(cols, rows, layers) : null;
         }
 
-        private static List<IReadOnlyList<char>> ParseLanes(JsonValue root, List<string> errors)
+        private static List<IReadOnlyList<CapColor>> ParseLanes(JsonValue root, List<string> errors)
         {
             if (!root.TryGet("lanes", out var ln)) { errors.Add("$.lanes: required"); return null; }
             if (ln.Kind != JsonKind.Array) { errors.Add("$.lanes: must be an array"); return null; }
             if (ln.Items.Count < 1 || ln.Items.Count > 4) errors.Add("$.lanes: 1..4 lanes");
-            var lanes = new List<IReadOnlyList<char>>();
+            var lanes = new List<IReadOnlyList<CapColor>>();
             for (int j = 0; j < ln.Items.Count; j++)
             {
                 var lane = ln.Items[j];
                 if (lane.Kind != JsonKind.Array) { errors.Add($"$.lanes[{j}]: must be an array"); continue; }
                 if (lane.Items.Count < 1) errors.Add($"$.lanes[{j}]: at least one tray");
-                var trays = new List<char>();
+                var trays = new List<CapColor>();
                 for (int t = 0; t < lane.Items.Count; t++)
                 {
-                    char c = ColorCode(lane.Items[t], $"$.lanes[{j}][{t}]", errors);
-                    if (c != '\0') trays.Add(c);
+                    var c = ColorCode(lane.Items[t], $"$.lanes[{j}][{t}]", errors);
+                    if (c != CapColor.None) trays.Add(c);
                 }
                 lanes.Add(trays);
             }
@@ -177,27 +179,27 @@ namespace Game.Domain
         {
             var sb = new StringBuilder();
             sb.Append("{\n");
-            // levels live in Assets/CapsChaos/Content/Resources/Levels/ — five levels below the repo root
-            sb.Append("  \"$schema\": \"../../../../../docs/design/level.schema.json\",\n");
+            // levels live in Assets/CapsChaos/Content/LevelConfig/ — four levels below the repo root
+            sb.Append("  \"$schema\": \"../../../../docs/design/level.schema.json\",\n");
             sb.Append($"  \"formatVersion\": {level.FormatVersion},\n");
             sb.Append($"  \"id\": {Q(level.Id)},\n");
             sb.Append($"  \"slots\": {level.Slots},\n");
             sb.Append($"  \"trayCapacity\": {level.TrayCapacity},\n");
-            sb.Append("  \"colors\": [").Append(string.Join(", ", Map(level.Colors, c => Q(c.ToString())))).Append("],\n");
+            sb.Append("  \"colors\": [").Append(string.Join(", ", Map(level.Colors, c => Q(CapColorCodes.ToCode(c).ToString())))).Append("],\n");
             sb.Append("  \"stack\": {\n");
             sb.Append($"    \"cols\": {level.Stack.Cols},\n    \"rows\": {level.Stack.Rows},\n    \"layers\": [\n");
-            for (int k = 0; k < level.Stack.Layers.Count; k++)
+            for (int k = 0; k < level.Stack.LayerCount; k++)
             {
                 sb.Append("      [\n");
-                var rows = level.Stack.Layers[k];
-                for (int r = 0; r < rows.Count; r++)
-                    sb.Append("        ").Append(Q(rows[r])).Append(r < rows.Count - 1 ? ",\n" : "\n");
-                sb.Append("      ]").Append(k < level.Stack.Layers.Count - 1 ? ",\n" : "\n");
+                int rows = level.Stack.Rows;
+                for (int r = 0; r < rows; r++)
+                    sb.Append("        ").Append(Q(level.Stack.RowCodes(k, r))).Append(r < rows - 1 ? ",\n" : "\n");
+                sb.Append("      ]").Append(k < level.Stack.LayerCount - 1 ? ",\n" : "\n");
             }
             sb.Append("    ]\n  },\n");
             sb.Append("  \"lanes\": [\n");
             for (int j = 0; j < level.Lanes.Count; j++)
-                sb.Append("    [").Append(string.Join(", ", Map(level.Lanes[j], c => Q(c.ToString())))).Append(j < level.Lanes.Count - 1 ? "],\n" : "]\n");
+                sb.Append("    [").Append(string.Join(", ", Map(level.Lanes[j], c => Q(CapColorCodes.ToCode(c).ToString())))).Append(j < level.Lanes.Count - 1 ? "],\n" : "]\n");
             sb.Append("  ],\n");
             sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)}, \"stackScale\": {level.StackScale.ToString("0.###", CultureInfo.InvariantCulture)} }}");
             var meta = new List<string>();
@@ -218,7 +220,7 @@ namespace Game.Domain
         }
 
         // ── helpers ───────────────────────────────────────────────────────────────────────────
-        private static IEnumerable<string> Map(IEnumerable<char> src, Func<char, string> f) { foreach (var c in src) yield return f(c); }
+        private static IEnumerable<string> Map(IEnumerable<CapColor> src, Func<CapColor, string> f) { foreach (var c in src) yield return f(c); }
 
         private static string Q(string s)
         {
@@ -262,14 +264,14 @@ namespace Game.Domain
             return v.String;
         }
 
-        private static char ColorCode(JsonValue v, string path, List<string> errors)
+        private static CapColor ColorCode(JsonValue v, string path, List<string> errors)
         {
-            if (v.Kind != JsonKind.String || v.String.Length != 1 || !CapColors.IsCode(v.String[0]))
+            if (v.Kind != JsonKind.String || v.String.Length != 1 || !CapColorCodes.TryParse(v.String[0], out var color))
             {
                 errors.Add($"{path}: must be one of \"R\",\"O\",\"B\",\"G\",\"P\",\"Y\",\"C\",\"N\"");
-                return '\0';
+                return CapColor.None;
             }
-            return v.String[0];
+            return color;
         }
     }
 }

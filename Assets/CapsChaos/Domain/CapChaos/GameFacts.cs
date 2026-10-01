@@ -10,8 +10,8 @@ namespace Game.Domain
     /// <summary>The front tray of <see cref="Lane"/> moved into <see cref="Slot"/>.</summary>
     public sealed class TrayPlaced : GameFact
     {
-        public int Lane { get; } public int Slot { get; } public char Color { get; }
-        public TrayPlaced(int lane, int slot, char color) { Lane = lane; Slot = slot; Color = color; }
+        public int Lane { get; } public int Slot { get; } public CapColor Color { get; }
+        public TrayPlaced(int lane, int slot, CapColor color) { Lane = lane; Slot = slot; Color = color; }
     }
 
     /// <summary>A conveyor stepped one tray forward (R7); <see cref="Remaining"/> trays are left on it.</summary>
@@ -24,8 +24,8 @@ namespace Game.Domain
     /// <summary>The ground bottle at (X, Z) flew to <see cref="Slot"/>'s tray (R10).</summary>
     public sealed class BottlePicked : GameFact
     {
-        public int X { get; } public int Z { get; } public int Slot { get; } public char Color { get; }
-        public BottlePicked(int x, int z, int slot, char color) { X = x; Z = z; Slot = slot; Color = color; }
+        public int X { get; } public int Z { get; } public int Slot { get; } public CapColor Color { get; }
+        public BottlePicked(int x, int z, int slot, CapColor color) { X = x; Z = z; Slot = slot; Color = color; }
     }
 
     /// <summary>The pile at (X, Z) dropped one level; <see cref="Height"/> bottles remain there (R3).</summary>
@@ -38,8 +38,8 @@ namespace Game.Domain
     /// <summary>A hidden bottle reached the ground at (X, Z) and turned out to be <see cref="Color"/> (R4).</summary>
     public sealed class BottleRevealed : GameFact
     {
-        public int X { get; } public int Z { get; } public char Color { get; }
-        public BottleRevealed(int x, int z, char color) { X = x; Z = z; Color = color; }
+        public int X { get; } public int Z { get; } public CapColor Color { get; }
+        public BottleRevealed(int x, int z, CapColor color) { X = x; Z = z; Color = color; }
     }
 
     /// <summary>A bottle was capped into <see cref="Slot"/>'s tray, which now holds <see cref="Filled"/>.</summary>
@@ -52,8 +52,8 @@ namespace Game.Domain
     /// <summary><see cref="Slot"/>'s tray was full, got boxed and shipped; the slot is free (R13).</summary>
     public sealed class TrayPacked : GameFact
     {
-        public int Slot { get; } public char Color { get; }
-        public TrayPacked(int slot, char color) { Slot = slot; Color = color; }
+        public int Slot { get; } public CapColor Color { get; }
+        public TrayPacked(int slot, CapColor color) { Slot = slot; Color = color; }
     }
 
     /// <summary>The stack is empty and the last box has shipped (R14).</summary>

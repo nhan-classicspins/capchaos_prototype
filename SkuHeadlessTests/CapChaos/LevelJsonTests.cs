@@ -24,8 +24,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(r.Level!.Id, Is.EqualTo("level_0007"));
             Assert.That(r.Level.Slots, Is.EqualTo(3));
             Assert.That(r.Level.TrayCapacity, Is.EqualTo(4));
-            Assert.That(r.Level.Stack.At(1, 0, 1), Is.EqualTo('o'));
-            Assert.That(r.Level.Lanes[1][0], Is.EqualTo('O'));
+            Assert.That(r.Level.Stack.At(1, 0, 1), Is.EqualTo(new StackCell(CapColor.Orange, hidden: true)));
+            Assert.That(r.Level.Lanes[1][0], Is.EqualTo(CapColor.Orange));
         }
 
         [TestCase("\"id\": \"level_0007\"", "\"id\": \"L7\"", "$.id: 'L7' must match level_NNNN")]
@@ -66,7 +66,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var schema = JsonReader.Parse(File.ReadAllText(RepoLayout.Path("docs", "design", "level.schema.json")));
             schema.TryGet("$defs", out var defs); defs.TryGet("colorCode", out var cc); cc.TryGet("enum", out var en);
-            Assert.That(string.Concat(en.Items.Select(i => i.String)), Is.EqualTo(CapColors.Codes));
+            Assert.That(string.Concat(en.Items.Select(i => i.String)), Is.EqualTo(CapColorCodes.Codes));
 
             schema.TryGet("properties", out var props);
             var withAll = Minimal.Replace("\"formatVersion\": 1,",

@@ -31,17 +31,17 @@ namespace Game.Views
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [SerializeField] private TintToken _token = TintToken.FlavorBody;
-        [Tooltip("Level-JSON colour code (R O B G P Y C N); used by the Flavor* tokens.")]
-        [SerializeField] private char _flavor = 'R';
+        [Tooltip("Flavour palette; used by the Flavor* tokens.")]
+        [SerializeField] private TintFlavor _color = TintFlavor.Red;
         [Tooltip("Material slot to paint; -1 paints the whole renderer.")]
         [SerializeField] private int _materialIndex = -1;
 
         private MaterialPropertyBlock _block;
 
-        /// <summary>Repaint with another colour code (what a bottle / tray / box View calls).</summary>
-        public void SetFlavor(char code)
+        /// <summary>Repaint with another flavour (what a bottle / tray / box View calls).</summary>
+        public void SetFlavor(TintFlavor flavor)
         {
-            _flavor = code;
+            _color = flavor;
             Apply();
         }
 
@@ -57,12 +57,12 @@ namespace Game.Views
             var renderer = GetComponent<Renderer>();
             if (renderer == null) return;
             _block ??= new MaterialPropertyBlock();
-            _block.SetColor(BaseColorId, Resolve(_token, _flavor));
+            _block.SetColor(BaseColorId, Resolve(_token, _color));
             if (_materialIndex < 0) renderer.SetPropertyBlock(_block);
             else renderer.SetPropertyBlock(_block, _materialIndex);
         }
 
-        public static Color Resolve(TintToken token, char flavor)
+        public static Color Resolve(TintToken token, TintFlavor flavor)
         {
             var f = DesignTokens.Flavor(flavor);
             return token switch

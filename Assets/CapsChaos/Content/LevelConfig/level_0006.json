@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0006",
+  "slots": 3,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B", "G"],
+  "stack": {
+    "cols": 8,
+    "rows": 7,
+    "layers": [
+      [
+        "...RO...",
+        "..OORB..",
+        ".BGGRBB.",
+        "ROGGRBBR",
+        ".BGGRRB.",
+        "..GOOO..",
+        "...OG..."
+      ]
+    ]
+  },
+  "lanes": [
+    ["O", "O", "B"],
+    ["G", "B", "R"],
+    ["R", "G"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Diamond", "difficulty": "easy", "solution": [2, 0, 1, 1, 2, 0, 0, 1] }
+}
