@@ -17,5 +17,9 @@ namespace Game.Application
 
         /// <summary>Every level in <c>Content/LevelConfig/</c> is loaded, validated and in the <c>LevelCatalog</c>.</summary>
         public static readonly BootCap LevelsLoaded = new("LevelsLoaded");
+
+        /// <summary>The UI palette is loaded and cached in the Root <c>UiPaletteProvider</c> (or boot fell back to the
+        /// DesignTokens defaults — the node is optional and always emits this cap).</summary>
+        public static readonly BootCap UiPaletteReady = new("UiPaletteReady");
     }
 }

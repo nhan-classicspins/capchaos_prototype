@@ -40,6 +40,7 @@ namespace Game.Presentation
         private readonly IRenderLayerRegistry _layers;
         private readonly ILocalizationService _loc;
         private readonly LevelCatalog _catalog;
+        private readonly UiPaletteProvider _palette;
         private readonly ILog _log;
 
         private readonly List<(LevelButtonView View, Action Handler)> _tiles = new List<(LevelButtonView, Action)>();
@@ -52,8 +53,9 @@ namespace Game.Presentation
         public event Action<int> LevelChosen;
 
         public LevelSelectWidget(LevelSelectView sceneView, IAssetService assets, IRenderLayerRegistry layers,
-            ILocalizationService loc, LevelCatalog catalog, ILog log = null)
+            ILocalizationService loc, LevelCatalog catalog, UiPaletteProvider palette, ILog log = null)
         {
+            _palette = palette;
             _view = sceneView ?? throw new ArgumentNullException(nameof(sceneView));
             _viewGo = sceneView.gameObject;
             _assets = assets;
@@ -93,6 +95,7 @@ namespace Game.Presentation
             var preview = _viewGo.transform.parent;
             _viewGo.transform.SetParent(_layers.GetHost(RenderLayers.Ui), false);
             _layers.Stamp(_viewGo, RenderLayers.Ui, sortingOrder: 10);
+            _palette.ApplyTo(_viewGo);
             if (preview != null && preview.childCount == 0 && preview.GetComponent<Canvas>() != null)
                 UnityEngine.Object.Destroy(preview.gameObject);
         }
@@ -103,6 +106,7 @@ namespace Game.Presentation
             var tile = UnityEngine.Object.Instantiate(_tilePrefab, _view.Grid, false).GetComponent<LevelButtonView>()
                        ?? throw new InvalidOperationException("[LevelSelectWidget] LevelButton prefab carries no LevelButtonView.");
             _layers.Stamp(tile.gameObject, RenderLayers.Ui, sortingOrder: 11);   // instantiated after the panel's Stamp
+            _palette.ApplyTo(tile.gameObject);                                  // …and after the panel got its palette
             tile.SetLabels(_loc.Get(LocKeys.LevelSelectNumber, index + 1), _loc.Get(DifficultyKey(level.Difficulty)));
             Action handler = () => LevelChosen?.Invoke(index);
             tile.Clicked += handler;

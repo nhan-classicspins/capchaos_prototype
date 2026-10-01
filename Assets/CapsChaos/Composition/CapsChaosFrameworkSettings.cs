@@ -8,6 +8,7 @@ using ClassicSpins.PrototypeFramework.Composition;
 using ClassicSpins.PrototypeFramework.Domain;
 using Game.Application;
 using Game.Infrastructure;
+using Game.Presentation;
 using ClassicSpins.PrototypeFramework.Infrastructure;
 using ClassicSpins.PrototypeFramework.Presentation;
 using Game.Gen;
@@ -70,6 +71,10 @@ namespace Game.Composition
             builder.Register<LevelCatalog>(Lifetime.Singleton);
             builder.Register<LevelConfigNode>(Lifetime.Singleton).As<IBootNode>();
 
+            // The UI palette: one instance for the whole session, cached in Root, loaded during Loading.
+            builder.Register<UiPaletteProvider>(Lifetime.Singleton).AsSelf();
+            builder.Register<UiPaletteNode>(Lifetime.Singleton).As<IBootNode>();
+
             // The boot-abort teardown, for real. A Required boot node failing makes BootFlow throw
             // BootAbortedException; it propagates out of BootstrapEntryPoint.StartAsync into VContainer's
             // entry-point dispatcher, which does NOT dispose the container — and RootLifetimeScope lives
@@ -106,7 +111,7 @@ namespace Game.Composition
             });
 
             // The AD-17 seam: swap the framework FirstScene node for the same node behind the
-            // TestWaitDone + LevelsLoaded edges, with the Loading-scene teardown appended. The load itself is untouched —
+            // TestWaitDone + LevelsLoaded + UiPaletteReady edges, with the Loading-scene teardown appended. The load itself is untouched —
             // it still runs the FirstSceneConfig delegate registered above.
             //
             // Deliberately ONLY SKU caps — never the framework's AdsReady / AnalyticsReady caps. The
@@ -125,7 +130,8 @@ namespace Game.Composition
                             resolver.TryResolve<ILog>(out var log) ? log : null),
                         resolver.Resolve<LoadingSceneHost>(),
                         GameBootCaps.TestWaitDone,
-                        GameBootCaps.LevelsLoaded)),
+                        GameBootCaps.LevelsLoaded,
+                        GameBootCaps.UiPaletteReady)),
                 Lifetime.Singleton);
         }
     }

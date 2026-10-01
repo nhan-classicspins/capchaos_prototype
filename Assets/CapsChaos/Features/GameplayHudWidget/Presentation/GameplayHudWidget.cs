@@ -20,6 +20,7 @@ namespace Game.Presentation
     public sealed class GameplayHudWidget : IDisposable
     {
         private readonly IRenderLayerRegistry _layers;
+        private readonly UiPaletteProvider _palette;
         private GameplayHudView _view;
         private GameObject _viewGo;
         private bool _attached, _disposed;
@@ -27,8 +28,9 @@ namespace Game.Presentation
         public event Action RetryRequested;
         public event Action HomeRequested;
 
-        public GameplayHudWidget(GameplayHudView sceneView, IRenderLayerRegistry layers)
+        public GameplayHudWidget(GameplayHudView sceneView, IRenderLayerRegistry layers, UiPaletteProvider palette)
         {
+            _palette = palette;
             _view = sceneView ?? throw new ArgumentNullException(nameof(sceneView));
             _viewGo = sceneView.gameObject;
             _layers = layers;
@@ -41,6 +43,7 @@ namespace Game.Presentation
             var preview = _viewGo.transform.parent;
             _viewGo.transform.SetParent(_layers.GetHost(RenderLayers.Ui), false);
             _layers.Stamp(_viewGo, RenderLayers.Ui, sortingOrder: 20);          // above the board's own Ui furniture
+            _palette.ApplyTo(_viewGo);
             if (preview != null && preview.childCount == 0 && preview.GetComponent<Canvas>() != null)
                 UnityEngine.Object.Destroy(preview.gameObject);
             _view.RetryClicked += OnRetry;

@@ -18,10 +18,13 @@ namespace Game.Views
         Yellow,
         Cyan,
         Brown,
+        White
     }
 
     /// <summary>
-    /// The SKU's single source of visual truth (rule 17). Every value here is transcribed from
+    /// The SKU's single source of visual truth (rule 17) — except the live uGUI colours, which the SKU owner moved
+    /// to the <c>UiPalette</c> asset (2026-10-01) so they can be tuned without a recompile; the UI colours below are
+    /// that palette's defaults. Every value here is transcribed from
     /// <c>docs/art-direction.md</c> §3 — that spec outranks this file; when they disagree, fix this
     /// file in the same change. Views index these tokens; nothing redeclares a colour.
     /// </summary>
@@ -128,6 +131,12 @@ namespace Game.Views
         public static readonly Color HudButtonRim    = Hex("2F6FA8");
         public static readonly Color HudButtonShadow = Hex("06192C");
         public static readonly Color TextOnFill = Hex("FFFFFF");
+        /// <summary>
+        /// Default text colour for a <see cref="TintFlavor"/> key (TextTint): <see cref="TintFlavor.None"/> is the
+        /// display white; a flavour reads as its Body colour. Defaults only — the live values are in
+        /// <c>Content/UI/UiPalette.asset</c> (see UiPalette).
+        /// </summary>
+        public static Color TextColor(TintFlavor flavor) => flavor == TintFlavor.None ? TextOnFill : Flavor(flavor).Body;
         /// <summary>A raycast-only surface (the board hit-catcher): receives pointer events, draws nothing.</summary>
         public static readonly Color Invisible  = new Color(0f, 0f, 0f, 0f);
 

@@ -91,7 +91,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4bf51c7ce118e42638543c6250cf027c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.UiTint
-  _token: 5
+  _token: 7
 --- !u!114 &6609950435941948242
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -311,8 +311,8 @@ GameObject:
   - component: {fileID: 8450013145341610870}
   - component: {fileID: 1981121348753684242}
   - component: {fileID: 2244051637422599674}
-  - component: {fileID: 5474167445227935555}
   - component: {fileID: 72494147580213804}
+  - component: {fileID: 4987894490113540289}
   m_Layer: 5
   m_Name: Title
   m_TagString: Untagged
@@ -377,7 +377,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 1, g: 1, b: 1, a: 1}
+  m_fontColor: {r: 1, g: 0, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -389,7 +389,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -400,7 +400,7 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 0
+  m_fontStyle: 1
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
@@ -439,19 +439,6 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
---- !u!114 &5474167445227935555
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7016372748803722455}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bf51c7ce118e42638543c6250cf027c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Game.Views::Game.Views.UiTint
-  _token: 4
 --- !u!114 &72494147580213804
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -466,6 +453,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: ClassicSpins.PrototypeFramework.Views::ClassicSpins.PrototypeFramework.Views.TextProxy
   _targets:
   - {fileID: 2244051637422599674}
+--- !u!114 &4987894490113540289
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7016372748803722455}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68fa0839675a5457a9f66f7025a17c59, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Views::Game.Views.TextTint
+  _flavor: 9
 --- !u!1001 &8564163567573504640
 PrefabInstance:
   m_ObjectHideFlags: 0

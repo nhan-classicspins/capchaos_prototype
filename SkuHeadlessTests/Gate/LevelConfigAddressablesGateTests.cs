@@ -59,6 +59,33 @@ namespace CapsChaos.SkuHeadlessTests.Gate
                 "non-prefab, non-scene entry on each codegen tick — keep it in the '" + ExpectedGroup + "' group.");
         }
 
+        /// <summary>The Root UiPaletteProvider loads the palette by this address; mirrored from UiPalette.Address.</summary>
+        [Test]
+        public void The_UI_palette_is_addressable_outside_the_registrar_pruned_groups()
+        {
+            const string paletteRelative = "Assets/CapsChaos/Content/UI/UiPalette.asset";
+            var guid = PrefabAddressablesGateTests.GuidOf(paletteRelative);
+            var mine = AllEntries().Where(e => string.Equals(e.Guid, guid, StringComparison.Ordinal)).ToArray();
+            Assert.That(mine, Is.Not.Empty,
+                paletteRelative + " is not addressable, so UiPaletteProvider finds nothing and the UI falls back to the " +
+                "DesignTokens defaults — custom colours silently stop applying.");
+            Assert.That(mine[0].Address, Is.EqualTo("UiPalette"));
+            Assert.That(RegistrarPrunedGroups, Does.Not.Contain(mine[0].Group),
+                "the palette entry is in '" + mine[0].Group + "', which PrefabAddressableRegistrar prunes of non-prefab entries.");
+        }
+
+        [Test]
+        public void No_prefab_references_the_palette_directly()
+        {
+            // the palette is pushed in at runtime; a serialized reference would copy it into every bundle
+            var guid = PrefabAddressablesGateTests.GuidOf("Assets/CapsChaos/Content/UI/UiPalette.asset");
+            var offenders = Directory.GetFiles(RepoLayout.Path("Assets", "CapsChaos"), "*.prefab", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(RepoLayout.Path("Assets", "CapsChaos"), "*.unity", SearchOption.AllDirectories))
+                .Where(f => File.ReadAllText(f).Contains(guid))
+                .ToArray();
+            Assert.That(offenders, Is.Empty, "these reference UiPalette.asset directly: " + string.Join(", ", offenders));
+        }
+
         [Test]
         public void No_level_file_has_its_own_entry_beside_the_folder_entry()
         {
