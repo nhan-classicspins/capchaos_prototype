@@ -35,11 +35,20 @@ namespace CapsChaos.SkuHeadlessTests.Gate
         private const string PrefabsMarker = "/Prefabs/";
         private const string SkuRoot = "Assets/CapsChaos";
 
-        private static readonly string[] GroupRelatives =
+        /// <summary>
+        /// Every group file the SKU ships — not just the registrar's Local / Remote. The SKU owner re-groups entries
+        /// by scene (GamePlay, Main, Shared, Levels, 2026-10-01), and the registrar never moves an entry back, so an
+        /// entry is valid in ANY group. Group files sit directly under AssetGroups/ (Schemas/ is not a group).
+        /// </summary>
+        private const string GroupsRelative = "Assets/AddressableAssetsData/AssetGroups";
+
+        private static IReadOnlyList<string> GroupFiles()
         {
-            "Assets/AddressableAssetsData/AssetGroups/Local.asset",
-            "Assets/AddressableAssetsData/AssetGroups/Remote.asset",
-        };
+            var dir = RepoLayout.Path(GroupsRelative.Split('/'));
+            return Directory.Exists(dir)
+                ? Directory.GetFiles(dir, "*.asset", SearchOption.TopDirectoryOnly).OrderBy(f => f, StringComparer.Ordinal).ToArray()
+                : Array.Empty<string>();
+        }
 
         private const string GeneratedKeysRelative = "Assets/CapsChaos/Presentation/Gen/AssetKeys.gen.cs";
 
@@ -96,11 +105,8 @@ namespace CapsChaos.SkuHeadlessTests.Gate
         {
             var pairs = new List<(string, string)>();
 
-            foreach (var relative in GroupRelatives)
+            foreach (var path in GroupFiles())
             {
-                var path = RepoLayout.Path(relative.Split('/'));
-                if (!File.Exists(path)) continue;
-
                 foreach (Match m in Regex.Matches(
                              File.ReadAllText(path),
                              "m_GUID: *([0-9a-fA-F]{32}) *\\r?\\n *m_Address: *(\\S+)"))
@@ -111,7 +117,7 @@ namespace CapsChaos.SkuHeadlessTests.Gate
 
             if (requireAny)
                 Assert.That(pairs, Is.Not.Empty,
-                    "no Addressables entries were parsed out of " + string.Join(" or ", GroupRelatives) +
+                    "no Addressables entries were parsed out of the group files under " + GroupsRelative +
                     "; either the groups are gone or their serialized shape changed.");
 
             return pairs;

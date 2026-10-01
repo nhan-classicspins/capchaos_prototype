@@ -15,13 +15,78 @@ MonoBehaviour:
   m_GroupName: GamePlay
   m_GUID: 5ab3aba00ae464b499efdee65d19d74d
   m_SerializeEntries:
+  - m_GUID: 092097be9cb464d7aaeb35e23d4eba8f
+    m_Address: ResultDialog
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 125554f58be684143b0045823c602908
+    m_Address: LevelSelectWidget
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 234dd53d5ecdc42df9439a40aaaeac18
+    m_Address: TrayLink
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 24d355cabedb3448dbb36b12f2a677b9
+    m_Address: Cap
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 50b8ffe7dc4454d42b116406190bc9f7
+    m_Address: Bottle
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7b80d9a9146c84dd199c6e41c1bfc1bd
+    m_Address: Box
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 802f9d2e2ae78430bbeaf71d297801b6
+    m_Address: TrayLock
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a3a76ad09999b46e08c4e7482c67c5b6
     m_Address: T_IconHome
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ab837317d39714f2886715210a46a101
+    m_Address: Slot
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b25e5979771014e02bda337dbd6c595f
+    m_Address: BottleHidden
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: bcd912b57bc2b4844b13ed04274509d5
     m_Address: Scenes/Gameplay
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce95cd7e6097041eca084f7c70a2492b
+    m_Address: Floor
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d8047a2c86d7f4c3ebe1134575370155
+    m_Address: GameplayHudWidget
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dc8ebe97e616b4daeb87c9b2c9f26ac6
+    m_Address: Lane
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f7358743191954ea099de6e6805fb49c
+    m_Address: CapTray
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
