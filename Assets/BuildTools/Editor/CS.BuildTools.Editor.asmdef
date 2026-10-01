@@ -1,0 +1,9 @@
+{
+  "name": "CS.BuildTools.Editor",
+  "rootNamespace": "ClassicSpins.BuildTools",
+  "references": [],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": true
+}

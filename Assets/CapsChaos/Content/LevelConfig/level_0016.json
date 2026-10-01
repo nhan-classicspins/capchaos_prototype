@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0016",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "BBRORR",
+        "BBROBO",
+        "RBRRBO",
+        "RBOROO"
+      ],
+      [
+        "......",
+        ".OROO.",
+        ".RROO.",
+        "......"
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "o", "R"],
+    ["O", "r", "o"],
+    ["R", "b"]
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Mystery Trays", "difficulty": "easy", "notes": "Teaches: a ? tray shows its colour when it reaches the front (R17). Hand-authored on level_0004's stack." }
+}

@@ -22,7 +22,10 @@ namespace Game.Domain
     public static class LevelJson
     {
         private static readonly HashSet<string> RootKeys = new HashSet<string>(StringComparer.Ordinal)
-            { "$schema", "formatVersion", "id", "slots", "trayCapacity", "colors", "stack", "lanes", "view", "meta" };
+            { "$schema", "formatVersion", "id", "slots", "trayCapacity", "colors", "stack", "lanes", "locks", "links", "view", "meta" };
+        private static readonly HashSet<string> LockKeys = new HashSet<string>(StringComparer.Ordinal) { "lane", "tray", "turns" };
+        private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
+        public const int MaxLockTurns = 99;
         private static readonly HashSet<string> StackKeys = new HashSet<string>(StringComparer.Ordinal) { "cols", "rows", "layers" };
         private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset", "stackScale" };
         private static readonly HashSet<string> MetaKeys = new HashSet<string>(StringComparer.Ordinal) { "name", "difficulty", "notes", "solution" };
@@ -61,7 +64,10 @@ namespace Game.Domain
             }
 
             StackDefinition stack = ParseStack(root, errors);
-            var lanes = ParseLanes(root, errors);
+            var hidden = new List<TrayRef>();
+            var lanes = ParseLanes(root, hidden, errors);
+            var locks = ParseLocks(root, errors);
+            var links = ParseLinks(root, errors);
 
             string preset = "default"; double scale = 1.0;
             if (root.TryGet("view", out var view))
@@ -113,7 +119,8 @@ namespace Game.Domain
             }
 
             if (errors.Count > 0 || id == null || stack == null || lanes == null) return new LevelParseResult(null, errors);
-            var level = new LevelDefinition(id, slots, cap, colors, stack, lanes, preset, scale, name, difficulty, notes, formatVersion, solution);
+            var level = new LevelDefinition(id, slots, cap, colors, stack, lanes, preset, scale, name, difficulty, notes, formatVersion, solution,
+                hidden, locks, links);
             return new LevelParseResult(level, errors);
         }
 
@@ -152,7 +159,7 @@ namespace Game.Domain
             return cols > 0 && rows > 0 && errors.Count == errorsBefore ? StackDefinition.FromRows(cols, rows, layers) : null;
         }
 
-        private static List<IReadOnlyList<CapColor>> ParseLanes(JsonValue root, List<string> errors)
+        private static List<IReadOnlyList<CapColor>> ParseLanes(JsonValue root, List<TrayRef> hidden, List<string> errors)
         {
             if (!root.TryGet("lanes", out var ln)) { errors.Add("$.lanes: required"); return null; }
             if (ln.Kind != JsonKind.Array) { errors.Add("$.lanes: must be an array"); return null; }
@@ -166,12 +173,64 @@ namespace Game.Domain
                 var trays = new List<CapColor>();
                 for (int t = 0; t < lane.Items.Count; t++)
                 {
-                    var c = ColorCode(lane.Items[t], $"$.lanes[{j}][{t}]", errors);
-                    if (c != CapColor.None) trays.Add(c);
+                    var c = TrayCode(lane.Items[t], $"$.lanes[{j}][{t}]", errors, out bool isHidden);
+                    if (c == CapColor.None) continue;
+                    if (isHidden) hidden.Add(new TrayRef(j, trays.Count));
+                    trays.Add(c);
                 }
                 lanes.Add(trays);
             }
             return lanes;
+        }
+
+        // locks / links are checked for SHAPE here; whether they point at a real tray is V7 (LevelValidator)
+        private static List<TrayLock> ParseLocks(JsonValue root, List<string> errors)
+        {
+            var locks = new List<TrayLock>();
+            if (!root.TryGet("locks", out var node)) return locks;
+            if (node.Kind != JsonKind.Array) { errors.Add("$.locks: must be an array"); return locks; }
+            for (int i = 0; i < node.Items.Count; i++)
+            {
+                var o = node.Items[i];
+                string path = $"$.locks[{i}]";
+                if (o.Kind != JsonKind.Object) { errors.Add(path + ": must be an object"); continue; }
+                Unknown(o, LockKeys, path, errors);
+                int lane = Int(o, "lane", path, errors, required: true, min: 0, max: 3, fallback: -1);
+                int tray = Int(o, "tray", path, errors, required: true, min: 0, max: 999, fallback: -1);
+                int turns = Int(o, "turns", path, errors, required: true, min: 1, max: MaxLockTurns, fallback: 0);
+                if (lane >= 0 && tray >= 0 && turns > 0) locks.Add(new TrayLock(new TrayRef(lane, tray), turns));
+            }
+            return locks;
+        }
+
+        private static List<TrayLink> ParseLinks(JsonValue root, List<string> errors)
+        {
+            var links = new List<TrayLink>();
+            if (!root.TryGet("links", out var node)) return links;
+            if (node.Kind != JsonKind.Array) { errors.Add("$.links: must be an array"); return links; }
+            for (int i = 0; i < node.Items.Count; i++)
+            {
+                var o = node.Items[i];
+                string path = $"$.links[{i}]";
+                if (o.Kind != JsonKind.Object) { errors.Add(path + ": must be an object"); continue; }
+                Unknown(o, LinkKeys, path, errors);
+                bool okA = Ref(o, "a", path, errors, out var a), okB = Ref(o, "b", path, errors, out var b);
+                if (okA && okB) links.Add(new TrayLink(a, b));
+            }
+            return links;
+        }
+
+        /// <summary><c>"a": [lane, tray]</c>.</summary>
+        private static bool Ref(JsonValue obj, string name, string path, List<string> errors, out TrayRef tray)
+        {
+            tray = default;
+            if (!obj.TryGet(name, out var v)) { errors.Add($"{path}.{name}: required"); return false; }
+            bool ok = v.Kind == JsonKind.Array && v.Items.Count == 2;
+            for (int k = 0; ok && k < 2; k++)
+                ok = v.Items[k].Kind == JsonKind.Number && v.Items[k].Number == Math.Floor(v.Items[k].Number) && v.Items[k].Number >= 0;
+            if (!ok) { errors.Add($"{path}.{name}: must be [lane, tray] (two non-negative integers)"); return false; }
+            tray = new TrayRef((int)v.Items[0].Number, (int)v.Items[1].Number);
+            return true;
         }
 
         // ── writer (generator output) — stable, diff-friendly layout: one stack row per line ──
@@ -199,8 +258,36 @@ namespace Game.Domain
             sb.Append("    ]\n  },\n");
             sb.Append("  \"lanes\": [\n");
             for (int j = 0; j < level.Lanes.Count; j++)
-                sb.Append("    [").Append(string.Join(", ", Map(level.Lanes[j], c => Q(CapColorCodes.ToCode(c).ToString())))).Append(j < level.Lanes.Count - 1 ? "],\n" : "]\n");
+            {
+                var codes = new List<string>();
+                for (int t = 0; t < level.Lanes[j].Count; t++)
+                {
+                    char c = CapColorCodes.ToCode(level.Lanes[j][t]);
+                    codes.Add(Q((level.IsHiddenTray(new TrayRef(j, t)) ? char.ToLowerInvariant(c) : c).ToString()));
+                }
+                sb.Append("    [").Append(string.Join(", ", codes)).Append(j < level.Lanes.Count - 1 ? "],\n" : "]\n");
+            }
             sb.Append("  ],\n");
+            if (level.Locks.Count > 0)
+            {
+                sb.Append("  \"locks\": [\n");
+                for (int i = 0; i < level.Locks.Count; i++)
+                {
+                    var l = level.Locks[i];
+                    sb.Append($"    {{ \"lane\": {l.Tray.Lane}, \"tray\": {l.Tray.Index}, \"turns\": {l.Turns} }}").Append(i < level.Locks.Count - 1 ? ",\n" : "\n");
+                }
+                sb.Append("  ],\n");
+            }
+            if (level.Links.Count > 0)
+            {
+                sb.Append("  \"links\": [\n");
+                for (int i = 0; i < level.Links.Count; i++)
+                {
+                    var l = level.Links[i];
+                    sb.Append($"    {{ \"a\": [{l.A.Lane}, {l.A.Index}], \"b\": [{l.B.Lane}, {l.B.Index}] }}").Append(i < level.Links.Count - 1 ? ",\n" : "\n");
+                }
+                sb.Append("  ],\n");
+            }
             sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)}, \"stackScale\": {level.StackScale.ToString("0.###", CultureInfo.InvariantCulture)} }}");
             var meta = new List<string>();
             if (level.Name != null) meta.Add($"\"name\": {Q(level.Name)}");
@@ -262,6 +349,19 @@ namespace Game.Domain
             if (!obj.TryGet(name, out var v)) { if (required) errors.Add($"{path}.{name}: required"); return null; }
             if (v.Kind != JsonKind.String) { errors.Add($"{path}.{name}: must be a string"); return null; }
             return v.String;
+        }
+
+        /// <summary>A lane tray: a colour code, lowercase = hidden (R17) — the stack's spelling.</summary>
+        private static CapColor TrayCode(JsonValue v, string path, List<string> errors, out bool hidden)
+        {
+            hidden = false;
+            if (v.Kind != JsonKind.String || v.String.Length != 1 || !CapColorCodes.TryParse(char.ToUpperInvariant(v.String[0]), out var color))
+            {
+                errors.Add($"{path}: must be one of \"R\",\"O\",\"B\",\"G\",\"P\",\"Y\",\"C\",\"N\" (lowercase = hidden tray)");
+                return CapColor.None;
+            }
+            hidden = char.IsLower(v.String[0]);
+            return color;
         }
 
         private static CapColor ColorCode(JsonValue v, string path, List<string> errors)

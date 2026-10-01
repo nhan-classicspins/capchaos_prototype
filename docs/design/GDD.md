@@ -178,7 +178,28 @@ Mã hex ở Art §3.
 - **R16 — Bất biến** Với mọi màu c: `số chai màu c = capacity × số khay màu c`. Level vi phạm bất biến
   **không được load** (§6.4).
 
-### 5.5 HUD
+### 5.5 Khay đặc biệt (thêm 2026-10-01)
+Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGame.Tap`; test: `SkuHeadlessTests/CapChaos/TrayModifierRulesTests.cs`.
+
+- **R17 — Khay ẩn** [GĐ] Khay và nắp **không lộ màu**: tô màu slate `Mystery` và in dấu **"?"** lên trên nắp. Khi khay
+  lên **đầu làn** thì lộ màu thật (fact `TrayRevealed`, khay nảy nhẹ). Khay ẩn nằm sẵn ở đầu làn lúc vào level thì
+  lộ màu ngay. Khay sau của một cặp nối cùng làn lộ màu cùng lúc với khay trước của cặp.
+- **R18 — Khay khoá** [GĐ] Có `n` lượt khoá, hiện bằng icon ổ khoá có số. **Chỉ đếm khi khay đang ở đầu làn**: mỗi
+  khay bay lên slot (từ làn khác) trừ 1, một cặp nối trừ 2. Lượt đưa khay khoá lên đầu làn thì không tính. Về 0 thì
+  ổ khoá bật mở và biến mất (fact `TrayLockTicked`, `Remaining = 0`). Tap khay đang khoá thì khay rung, luật không đổi.
+  Prefab ổ khoá là `Content/Art/Prefabs/TrayLock.prefab`, nội dung tạm do ArtGenerator vẽ, chủ SKU sẽ thay. Giữ
+  `TrayLockView` ở root khi thay nội dung.
+- **R19 — Khay nối** [GĐ] Hai khay nối bằng dây. Chỉ nối được **2 khay liền nhau trong cùng làn**, hoặc **2 khay
+  cùng vị trí ở 2 làn kề nhau**. Hai khay chỉ di chuyển **cùng nhau**:
+  - chưa sẵn sàng (một khay chưa ở đầu làn) mà tap vào khay nào của cặp thì **cả 2 khay cùng rung**;
+  - sẵn sàng thì tap vào khay nào của cặp cũng được: cả 2 bay lên slot, thứ tự theo file level (cùng làn: khay
+    trước trước; 2 làn: làn trái trước). Dây được tháo khi khay bay. **Cần 2 slot trống**, thiếu thì cả cặp rung.
+  - Cặp nối khác làn: các làn vẫn chạy độc lập, nên dây có thể nối chéo khi một làn chạy trước.
+  - Khay nối không được khoá (V7).
+- **Thua khi hết nước** Nếu còn slot trống mà không lần tap nào được chấp nhận (mọi khay đầu làn đang khoá, đang chờ
+  bạn nối, hoặc cặp nối thiếu slot) thì thua với lý do `NoMovesLeft`, vì chỉ có tap mới thay đổi được trạng thái.
+
+### 5.6 HUD
 - Restart: chơi lại level ngay, không hỏi xác nhận [GĐ].
 - Home: về màn Title [QS].
 
@@ -244,7 +265,9 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm, và 
 | `stack.layers[k]` | Lưới của tầng `k`; `layers[0]` là **tầng đất** |
 | `stack.layers[k][i]` | Một chuỗi dài `cols` ký tự; **`i = 0` là hàng xa nhất**, **`i = rows−1` là hàng trước** (gần người chơi) |
 | Ký tự | `.` = trống · **chữ HOA** = chai lộ màu · **chữ thường** = chai **ẩn** (cầu vồng), lộ màu khi chạm đất |
-| `lanes[j]` | Hàng đợi của băng chuyền `j` (trái → phải). Phần tử `[0]` là khay đầu làn |
+| `lanes[j]` | Hàng đợi của băng chuyền `j` (trái → phải). Phần tử `[0]` là khay đầu làn. **Chữ thường** = khay **ẩn** (R17) |
+| `locks` | (tuỳ chọn) `[{ "lane": 2, "tray": 1, "turns": 3 }]`: khay `lanes[2][1]` (chỉ số theo file) khoá 3 lượt (R18) |
+| `links` | (tuỳ chọn) `[{ "a": [0, 1], "b": [1, 1] }]`: nối khay `lanes[0][1]` với `lanes[1][1]` (R19) |
 | `view` | (tuỳ chọn) preset camera và scale khối chai, dùng khi khối chai quá to |
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
 | `meta.solution` | (tuỳ chọn) một chuỗi tap thắng (chỉ số làn), do LevelTool ghi; V6 chạy lại nó để chứng minh level giải được. Có thể dùng làm gợi ý (hint) sau này |
@@ -264,6 +287,7 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V3 | Không có chai ẩn ở tầng 0 | `hidden bottle on ground at (0,3)` |
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
+| V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
 | V6 | **Có lời giải**. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
 
 V6 là cửa CI: level không giải được thì không ship.
@@ -286,6 +310,7 @@ V6 là cửa CI: level không giải được thì không ship.
 - L13+: chai ẩn (giống video 2).
 
 **Seed levels của MVP:** 15 level, trong đó `level_0012` và `level_0013` tái dựng gần đúng từ hai video.
+`level_0016`–`level_0018` viết tay (không có trong spec của LevelTool), mỗi level dạy một loại khay đặc biệt: ẩn, khoá, nối (R17–R19). `generate` giữ các level viết tay ở cuối index.
 
 **Số slot là config của level** (`"slots"`, mặc định 3, cho phép 1–5):
 - Domain: `CapChaosGame.SlotCount`, dùng cho R6 (chọn slot) và R15 (xử thua).

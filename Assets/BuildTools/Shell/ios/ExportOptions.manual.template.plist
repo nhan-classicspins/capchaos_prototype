@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for xcodebuild -exportOptionsPlist.
+
+  archive_and_export.sh renders this into the build directory once per export
+  method, filling in the four double-underscore placeholders below from the
+  environment and from build-info.env. Nothing here is committed with a real team
+  id, bundle id or profile name, so the file stays valid for every project and
+  every signing identity. See BuildTools/README.md for which value goes where.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>__METHOD__</string>
+	<key>teamID</key>
+	<string>__TEAM_ID__</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>__BUNDLE_ID__</key>
+		<string>__PROFILE__</string>
+	</dict>
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>uploadSymbols</key>
+	<false/>
+	<!--
+	  Keeps xcodebuild from rewriting CFBundleVersion during an App Store export, which
+	  would leave the delivered IPA's build number disagreeing with the build number in
+	  its own file name and in build-info.env.
+	-->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>

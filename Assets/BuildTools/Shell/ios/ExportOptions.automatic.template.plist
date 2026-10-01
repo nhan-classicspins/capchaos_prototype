@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for xcodebuild -exportOptionsPlist under AUTOMATIC signing.
+
+  Deliberately has no provisioningProfiles dictionary: with signingStyle=automatic Xcode
+  resolves the profile itself, and listing profiles alongside it is contradictory. That is
+  the whole difference from ExportOptions.manual.template.plist -- which is why the two
+  live in separate files rather than one file with a conditional block.
+
+  archive_and_export.sh fills in the double-underscore placeholders. See BuildTools/README.md.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>__METHOD__</string>
+	<key>teamID</key>
+	<string>__TEAM_ID__</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>uploadSymbols</key>
+	<false/>
+	<!--
+	  Keeps xcodebuild from rewriting CFBundleVersion during an App Store export, which
+	  would leave the delivered IPA's build number disagreeing with the build number in
+	  its own file name and in build-info.env.
+	-->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>

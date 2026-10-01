@@ -22,6 +22,13 @@ namespace Game.Editor
         // adding Game.Views would be a spine change. The colour tint component is therefore attached
         // by type NAME; the colours themselves stay in Game.Views.DesignTokens.
         private const string TokenTintType = "Game.Views.TokenTint, Game.Views";
+        // same reason: the tray-modifier views and the text tint, plus TextMeshPro (not referenced either)
+        private const string TrayLockViewType = "Game.Views.TrayLockView, Game.Views";
+        private const string TrayLinkViewType = "Game.Views.TrayLinkView, Game.Views";
+        private const string TextTintType = "Game.Views.TextTint, Game.Views";
+        private const string TextMeshProType = "TMPro.TextMeshPro, Unity.TextMeshPro";
+        private const string CountFont = "Assets/CapsChaos/Fonts/LilitaOne-Regular Bitmap.asset";
+
 
         /// <summary>uGUI sprites (art §5): white 9-slice shapes the UiTint tokens colour.</summary>
         public const string UiSprites = "Assets/CapsChaos/Content/UI/Common/Sprites";
@@ -89,7 +96,11 @@ namespace Game.Editor
             var tRainbow = SaveTexture(ProceduralTextures.Rainbow(), TextureWrapMode.Repeat);
             var tBelt = SaveTexture(ProceduralTextures.BeltStripes(), TextureWrapMode.Repeat);
             var tCard = SaveTexture(ProceduralTextures.Cardboard(), TextureWrapMode.Repeat);
-            log.Append("textures 3 · ");
+            var tMystery = SaveTexture(ProceduralTextures.MysteryMark(), TextureWrapMode.Clamp);
+            var tShackle = SaveTexture(ProceduralTextures.LockShackle(), TextureWrapMode.Clamp);
+            var tLockBody = SaveTexture(ProceduralTextures.LockBody(), TextureWrapMode.Clamp);
+            var tRope = SaveTexture(ProceduralTextures.Rope(), TextureWrapMode.Repeat);
+            log.Append("textures 7 · ");
 
             // materials — white, tinted per instance by TokenTint (URP Lit, instancing on)
             var mPlastic = SaveMaterial("M_Plastic", null, 0.86f);
@@ -99,7 +110,13 @@ namespace Game.Editor
             var mTape = SaveMaterial("M_Tape", null, 0.55f);
             var mMatte = SaveMaterial("M_Matte", null, 0.25f);
             var mBelt = SaveMaterial("M_Belt", tBelt, 0.3f);
-            log.Append("materials 7 · ");
+            // tray modifiers: unlit, alpha-blended decals / lines, still white and token-tinted
+            var mMystery = SaveUnlitMaterial("M_MysteryMark", tMystery);
+            var mShackle = SaveUnlitMaterial("M_LockShackle", tShackle);
+            var mLockBody = SaveUnlitMaterial("M_LockBody", tLockBody);
+            var mRope = SaveUnlitMaterial("M_Rope", tRope);
+            var mRopeOutline = SaveUnlitMaterial("M_RopeOutline", null);
+            log.Append("materials 12 · ");
 
             // prefabs
             var tintType = Type.GetType(TokenTintType);
@@ -130,6 +147,12 @@ namespace Game.Editor
                     c.transform.localPosition = new Vector3(cells[i].x, ArtShapes.TrayHeight - 0.018f, cells[i].y);
                     c.transform.localScale = Vector3.one * ArtShapes.CapOnTrayScale;
                 }
+                // R17: the "?" printed over the caps of a hidden tray — off until the board shows the tray hidden
+                var mark = Child(go, "Mystery", new Vector3(0f, MarkY, 0f), Quaternion.Euler(90f, 0f, 0f));
+                mark.transform.localScale = Vector3.one * MarkSize;
+                Renderer(mark, Quad, mMystery).sortingOrder = 1;
+                Tint(mark, tintType, "MysteryMark");
+                mark.SetActive(false);
             });
             SavePrefab("Box", go =>
             {
@@ -154,10 +177,129 @@ namespace Game.Editor
                 Renderer(b, belt, mBelt); Tint(b, tintType, "LaneBelt");
             });
             SavePrefab("Floor", go => { Renderer(go, floor, mMatte); Tint(go, tintType, "Floor"); });
-            log.Append("prefabs 9 (Cap, Bottle, BottleHidden, CapTray, Box, Slot, Lane, Floor + nested caps)");
+            SavePrefab("TrayLock", go => BuildTrayLock(go, mShackle, mLockBody, tintType));
+            SavePrefab("TrayLink", go => BuildTrayLink(go, mRope, mRopeOutline, tintType));
+            log.Append("prefabs 11 (Cap, Bottle, BottleHidden, CapTray, Box, Slot, Lane, Floor, TrayLock, TrayLink + nested caps)");
 
             AssetDatabase.SaveAssets();
             return log.ToString();
+        }
+
+        // ── tray modifiers (GDD R17–R19) ─────────────────────────────────────────────────────────
+        private const float MarkY = 0.215f, MarkSize = 0.62f;     // just over the caps' tops (≈ 0.2)
+        private const float LockSize = 0.78f;                      // the padlock quad; the board places it (DesignTokens.Board.LockY)
+        /// <summary>Tilt that turns a quad from the board's up toward the level GamePlay camera (board tilt −60°, ADR-001 §5).</summary>
+        private const float FaceCamera = 60f;
+
+        private static Mesh Quad => Resources.GetBuiltinResource<Mesh>("Quad.fbx");
+
+        /// <summary>
+        /// The padlock on a locked tray (R18) — placeholder art the SKU owner will replace (2026-10-01): a steel shackle
+        /// and a charcoal body (two quads, one frame) with the remaining count printed on the body. The root carries
+        /// TrayLockView; keep it when replacing the content.
+        /// </summary>
+        private static void BuildTrayLock(GameObject go, Material shackle, Material body, Type tintType)
+        {
+            go.transform.localRotation = Quaternion.Euler(FaceCamera, 0f, 0f);
+            var sh = Child(go, "Shackle", Vector3.zero, Quaternion.identity);
+            sh.transform.localScale = Vector3.one * LockSize;
+            Renderer(sh, Quad, shackle).sortingOrder = 2;
+            Tint(sh, tintType, "LockShackle");
+            var bd = Child(go, "Body", new Vector3(0f, 0f, -0.002f), Quaternion.identity);   // quads face −Z: −Z is toward the camera
+            bd.transform.localScale = Vector3.one * LockSize;
+            Renderer(bd, Quad, body).sortingOrder = 3;
+            Tint(bd, tintType, "LockBody");
+
+            // the count, centred on the body (body centre is y −0.38 of the [−1, 1] frame → −0.19 × LockSize)
+            var count = Child(go, "Count", new Vector3(0f, -0.19f * LockSize, -0.004f), Quaternion.identity);
+            var text = AddText(count, "3", 3.4f, new Vector2(0.5f * LockSize, 0.36f * LockSize));
+            var r = count.GetComponent<MeshRenderer>();
+            if (r != null) r.sortingOrder = 4;
+
+            var viewType = Type.GetType(TrayLockViewType);
+            if (viewType == null) return;
+            var so = new SerializedObject(go.AddComponent(viewType));
+            so.FindProperty("_count").objectReferenceValue = text;
+            so.FindProperty("_shackle").objectReferenceValue = sh.transform;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>The rope between linked trays (R19): a hemp line over a darker, wider outline; TrayLinkView sets the points.</summary>
+        private static void BuildTrayLink(GameObject go, Material rope, Material outline, Type tintType)
+        {
+            Line(Child(go, "Outline", Vector3.zero, Quaternion.identity), outline, 0.15f, 5, tiled: false, tintType, "RopeOutline");
+            Line(Child(go, "Rope", Vector3.zero, Quaternion.identity), rope, 0.1f, 6, tiled: true, tintType, "Rope");
+            var viewType = Type.GetType(TrayLinkViewType);
+            if (viewType != null) go.AddComponent(viewType);
+        }
+
+        private static void Line(GameObject go, Material mat, float width, int order, bool tiled, Type tintType, string token)
+        {
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = mat;
+            lr.widthMultiplier = width;
+            lr.positionCount = 2;
+            lr.SetPositions(new[] { Vector3.zero, Vector3.right });
+            lr.useWorldSpace = true;
+            lr.alignment = LineAlignment.View;
+            lr.numCapVertices = 4;
+            lr.numCornerVertices = 2;
+            lr.textureMode = tiled ? LineTextureMode.Tile : LineTextureMode.Stretch;
+            if (tiled) lr.textureScale = new Vector2(10f, 1f);
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lr.receiveShadows = false;
+            lr.sortingOrder = order;
+            Tint(go, tintType, token);
+        }
+
+        /// <summary>A world-space TextMeshPro + TextTint keyed White (every text gets one), by type name — Game.Editor references neither.</summary>
+        private static UnityEngine.Object AddText(GameObject go, string preview, float fontSize, Vector2 size)
+        {
+            var tmpType = Type.GetType(TextMeshProType);
+            if (tmpType == null) return null;
+            go.AddComponent<RectTransform>().sizeDelta = size;
+            var text = go.AddComponent(tmpType);
+            void Set(string prop, object value) => tmpType.GetProperty(prop)?.SetValue(text, value);
+            Set("font", AssetDatabase.LoadAssetAtPath(CountFont, tmpType.GetProperty("font")!.PropertyType));
+            // the font's own material: at this size the outline-black one swallows the white face
+            Set("fontSize", fontSize);
+            var align = tmpType.GetProperty("alignment")!.PropertyType;
+            Set("alignment", Enum.Parse(align, "Center"));
+            Set("text", preview);
+            var tintText = Type.GetType(TextTintType);
+            if (tintText != null)
+            {
+                // key White: the palette's None text is black (SKU owner), unreadable on the charcoal lock body
+                var so = new SerializedObject(go.AddComponent(tintText));
+                var flavor = so.FindProperty("_flavor");
+                flavor.enumValueIndex = Array.IndexOf(flavor.enumNames, "White");
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            return text;
+        }
+
+        private static Material SaveUnlitMaterial(string name, Texture2D baseMap)
+        {
+            var path = $"{Materials}/{name}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            var shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (mat == null) { mat = new Material(shader) { name = name }; AssetDatabase.CreateAsset(mat, path); }
+            else mat.shader = shader;
+            mat.SetColor("_BaseColor", Color.white);
+            mat.SetTexture("_BaseMap", baseMap);
+            mat.SetTexture("_MainTex", baseMap);
+            // alpha-blended, both faces, no depth write — sorted by the renderers' sortingOrder
+            mat.SetFloat("_Surface", 1f);
+            mat.SetFloat("_Blend", 0f);
+            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetFloat("_ZWrite", 0f);
+            mat.SetFloat("_Cull", 0f);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            mat.enableInstancing = true;
+            EditorUtility.SetDirty(mat);
+            return mat;
         }
 
         // ── assets ───────────────────────────────────────────────────────────────────────────
@@ -217,11 +359,12 @@ namespace Game.Editor
         }
 
         // ── prefab helpers ───────────────────────────────────────────────────────────────────
-        private static void Renderer(GameObject go, Mesh mesh, params Material[] materials)
+        private static MeshRenderer Renderer(GameObject go, Mesh mesh, params Material[] materials)
         {
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
             r.sharedMaterials = materials;
+            return r;
         }
 
         private static GameObject Child(GameObject parent, string name, Vector3 pos, Quaternion rot)

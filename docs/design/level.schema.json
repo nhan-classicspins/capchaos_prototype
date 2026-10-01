@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://classicspins.local/capschaos/level.schema.json",
   "title": "Cap Chaos level",
-  "description": "One level, fully data-driven (GDD §6). Structural checks live here; semantic checks (floating bottles, hidden-on-ground, colour balance, solvability) are LevelValidator V2–V6.",
+  "description": "One level, fully data-driven (GDD §6). Structural checks live here; semantic checks (floating bottles, hidden-on-ground, colour balance, solvability, lock/link targets) are LevelValidator V2–V7.",
   "type": "object",
   "additionalProperties": false,
   "required": ["formatVersion", "id", "colors", "stack", "lanes"],
@@ -52,11 +52,38 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 4,
-      "description": "Conveyor queues left→right. Element [0] of each lane is the tappable front tray.",
+      "description": "Conveyor queues left→right. Element [0] of each lane is the tappable front tray. A lowercase code is a HIDDEN tray (R17): no colour until it reaches the front.",
       "items": {
         "type": "array",
         "minItems": 1,
-        "items": { "$ref": "#/$defs/colorCode" }
+        "items": { "$ref": "#/$defs/trayCode" }
+      }
+    },
+    "locks": {
+      "type": "array",
+      "description": "Locked trays (R18): not tappable until `turns` trays have flown to the slots while it stands at the front of its lane. V7: the tray exists, is locked once and is not linked.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lane", "tray", "turns"],
+        "properties": {
+          "lane": { "type": "integer", "minimum": 0, "maximum": 3 },
+          "tray": { "type": "integer", "minimum": 0, "description": "Index in lanes[lane] as authored." },
+          "turns": { "type": "integer", "minimum": 1, "maximum": 99 }
+        }
+      }
+    },
+    "links": {
+      "type": "array",
+      "description": "Linked tray pairs (R19): they fly to the slots together (2 free slots needed) or not at all. V7: two neighbours in one lane, or the same position of two neighbouring lanes; a tray is in at most one link.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["a", "b"],
+        "properties": {
+          "a": { "$ref": "#/$defs/trayRef" },
+          "b": { "$ref": "#/$defs/trayRef" }
+        }
       }
     },
     "view": {
@@ -87,6 +114,18 @@
       "type": "string",
       "enum": ["R", "O", "B", "G", "P", "Y", "C", "N"],
       "description": "R pink-red · O orange · B blue · G green · P purple · Y yellow · C cyan · N brown"
+    },
+    "trayCode": {
+      "type": "string",
+      "enum": ["R", "O", "B", "G", "P", "Y", "C", "N", "r", "o", "b", "g", "p", "y", "c", "n"],
+      "description": "A colour code; lowercase = hidden tray."
+    },
+    "trayRef": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "integer", "minimum": 0 },
+      "description": "[lane, tray] — tray is the index in lanes[lane] as authored."
     }
   }
 }

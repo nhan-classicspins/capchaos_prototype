@@ -16,6 +16,11 @@ namespace Game.Views
         LaneRail,
         LaneBelt,
         Tape,
+        MysteryMark,
+        LockBody,
+        LockShackle,
+        Rope,
+        RopeOutline,
     }
 
     /// <summary>
@@ -78,6 +83,11 @@ namespace Game.Views
                 TintToken.LaneRail    => DesignTokens.LaneRail,
                 TintToken.LaneBelt    => DesignTokens.LaneBeltA,
                 TintToken.Tape        => DesignTokens.Tape,
+                TintToken.MysteryMark => DesignTokens.MysteryMark,
+                TintToken.LockBody    => DesignTokens.LockBody,
+                TintToken.LockShackle => DesignTokens.LockShackle,
+                TintToken.Rope        => DesignTokens.Rope,
+                TintToken.RopeOutline => DesignTokens.RopeOutline,
                 _                     => Color.magenta,
             };
         }

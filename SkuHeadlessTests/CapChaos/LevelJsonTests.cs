@@ -67,10 +67,13 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var schema = JsonReader.Parse(File.ReadAllText(RepoLayout.Path("docs", "design", "level.schema.json")));
             schema.TryGet("$defs", out var defs); defs.TryGet("colorCode", out var cc); cc.TryGet("enum", out var en);
             Assert.That(string.Concat(en.Items.Select(i => i.String)), Is.EqualTo(CapColorCodes.Codes));
+            defs.TryGet("trayCode", out var tc); tc.TryGet("enum", out var ten);
+            Assert.That(string.Concat(ten.Items.Select(i => i.String)), Is.EqualTo(CapColorCodes.Codes + CapColorCodes.Codes.ToLowerInvariant()));
 
             schema.TryGet("properties", out var props);
             var withAll = Minimal.Replace("\"formatVersion\": 1,",
                 "\"$schema\": \"x\", \"formatVersion\": 1, \"slots\": 3, \"trayCapacity\": 4, " +
+                "\"locks\": [ { \"lane\": 0, \"tray\": 0, \"turns\": 2 } ], \"links\": [ { \"a\": [0, 0], \"b\": [1, 0] } ], " +
                 "\"view\": { \"cameraPreset\": \"tall\", \"stackScale\": 1.5 }, \"meta\": { \"name\": \"n\", \"difficulty\": \"easy\", \"notes\": \"x\" },");
             var parsed = JsonReader.Parse(withAll);
             Assert.That(parsed.Members.Select(m => m.Key).OrderBy(k => k), Is.EqualTo(props.Members.Select(m => m.Key).OrderBy(k => k)),

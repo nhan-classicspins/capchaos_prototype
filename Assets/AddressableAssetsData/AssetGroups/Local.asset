@@ -20,13 +20,13 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 1206cddfa8c864fc5b5093546b1c029e
-    m_Address: Scenes/Main
+  - m_GUID: 125554f58be684143b0045823c602908
+    m_Address: LevelSelectWidget
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 125554f58be684143b0045823c602908
-    m_Address: LevelSelectWidget
+  - m_GUID: 234dd53d5ecdc42df9439a40aaaeac18
+    m_Address: TrayLink
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -55,6 +55,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 802f9d2e2ae78430bbeaf71d297801b6
+    m_Address: TrayLock
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 9bfd4704106ae403bb81724453076fc4
     m_Address: PF/Blocker
     m_ReadOnly: 0
@@ -67,11 +72,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: b25e5979771014e02bda337dbd6c595f
     m_Address: BottleHidden
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: bcd912b57bc2b4844b13ed04274509d5
-    m_Address: Scenes/Gameplay
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

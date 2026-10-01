@@ -12,6 +12,8 @@ namespace Game.Views
     public sealed class BoardPrefabs
     {
         public GameObject Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor;
+        /// <summary>Tray modifiers (GDD R18, R19): the padlock on a locked tray, the rope between linked trays. Optional — without one, that modifier just does not draw.</summary>
+        public GameObject TrayLock, TrayLink;
     }
 
     /// <summary>
@@ -43,6 +45,9 @@ namespace Game.Views
         private GameObject[] _slotTray = Array.Empty<GameObject>();       // per visual slot
         private bool[] _slotLeaving = Array.Empty<bool>();                // per visual slot: a box is still on it
         private int _slotCount;
+        private readonly Dictionary<GameObject, TrayLockView> _locks = new Dictionary<GameObject, TrayLockView>();
+        private readonly List<TrayLinkView> _links = new List<TrayLinkView>();
+        private const string MysteryMarkChild = "Mystery";   // the "?" decal inside the CapTray prefab (ArtGenerator)
         private float _slotScale = 1f, _slotSpacing = DesignTokens.Board.ColumnSpacing;
 
         private static readonly int BaseMapSt = Shader.PropertyToID("_BaseMap_ST");
@@ -124,12 +129,51 @@ namespace Game.Views
         }
 
         /// <summary>Append a tray to the visible tail of <paramref name="lane"/>.</summary>
-        public void AddLaneTray(int lane, TintFlavor color)
+        public void AddLaneTray(int lane, TrayLook look)
         {
             var list = _lanes[lane];
             if (list.Count >= B.VisibleTraysPerLane) return;
-            var tray = TrayOnBelt(lane, list.Count, color);
+            var tray = TrayOnBelt(lane, list.Count, look);
             list.Add(tray);
+        }
+
+        /// <summary>Tie belt trays (laneA, indexA) and (laneB, indexB) with a rope (R19). It follows both until either
+        /// leaves the belt. Nothing happens if either is not on the belt or there is no rope prefab.</summary>
+        public void LinkTrays(int laneA, int indexA, int laneB, int indexB)
+        {
+            if (_p.TrayLink == null || !TryBeltTray(laneA, indexA, out var a) || !TryBeltTray(laneB, indexB, out var b)) return;
+            foreach (var l in _links) if (l != null && l.Joins(a.transform) && l.Joins(b.transform)) return;
+            var go = Spawn(_p.TrayLink, transform, Vector3.zero);
+            var view = go.GetComponent<TrayLinkView>() ?? go.AddComponent<TrayLinkView>();
+            view.Bind(a.transform, b.transform);
+            _links.Add(view);
+        }
+
+        /// <summary>A hidden tray on the belt turns out to be <paramref name="color"/> (R17): the "?" goes, the colour pops in.</summary>
+        public async UniTask RevealLaneTray(int lane, int index, TintFlavor color)
+        {
+            if (!TryBeltTray(lane, index, out var tray)) return;
+            ApplyLook(tray, new TrayLook(color));
+            var t = tray.transform;
+            var belt = _laneRoots[lane];
+            // the pop stops the moment the tray is tapped away — PlaceTray owns its scale from then on
+            await LMotion.Create(1.2f, 1f, M.TrayReveal).WithEase(Ease.OutBack)
+                .Bind(k => { if (t != null && t.parent == belt) t.localScale = Vector3.one * k; }).AddTo(tray).ToUniTask(destroyCancellationToken);
+        }
+
+        /// <summary>The lock on belt tray (lane, index) now reads <paramref name="label"/> (R18).</summary>
+        public UniTask SetTrayLock(int lane, int index, string label)
+        {
+            if (!TryBeltTray(lane, index, out var tray) || !_locks.TryGetValue(tray, out var lockView) || lockView == null) return UniTask.CompletedTask;
+            return lockView.PlayTickAsync(label, destroyCancellationToken);
+        }
+
+        /// <summary>The lock on belt tray (lane, index) opens and goes away (R18).</summary>
+        public UniTask UnlockTray(int lane, int index)
+        {
+            if (!TryBeltTray(lane, index, out var tray) || !_locks.TryGetValue(tray, out var lockView)) return UniTask.CompletedTask;
+            _locks.Remove(tray);
+            return lockView != null ? lockView.PlayUnlockAsync(destroyCancellationToken) : UniTask.CompletedTask;
         }
 
         // ── animations (the fact replay) ─────────────────────────────────────────────────────
@@ -147,6 +191,8 @@ namespace Game.Views
             list.RemoveAt(0);
             var hit = tray.GetComponent<Collider>();
             if (hit != null) hit.enabled = false;                     // off the belt: no longer tappable
+            ReleaseLinks(tray.transform);                             // R19: the link ends when the trays fly
+            if (_locks.TryGetValue(tray, out var lockView)) { _locks.Remove(tray); if (lockView != null) Destroy(lockView.gameObject); }
             tray.transform.SetParent(transform, true);
             var rec = new TrayRec { Go = tray };
             _trays[trayId] = rec;
@@ -161,14 +207,15 @@ namespace Game.Views
                     .Bind(k => { if (tt != null) tt.localScale = k; }).AddTo(tray).ToUniTask(destroyCancellationToken));
         }
 
-        /// <summary>The belt steps one tray forward; <paramref name="newTail"/> (None = nothing) slides in at the back.</summary>
-        public async UniTask AdvanceLane(int lane, TintFlavor newTail)
+        /// <summary>The belt steps forward to close the gap the trays that left opened; <paramref name="newTails"/> slide
+        /// in at the back, in order. One call per lane per tap, however many trays left it (a linked pair is two).</summary>
+        public async UniTask AdvanceLane(int lane, IReadOnlyList<TrayLook> newTails)
         {
             var list = _lanes[lane];
-            if (newTail != TintFlavor.None && list.Count < B.VisibleTraysPerLane)
+            foreach (var look in newTails)                             // each starts as far back as the belt moves
             {
-                var tray = TrayOnBelt(lane, list.Count + 1, newTail);
-                list.Add(tray);
+                if (list.Count >= B.VisibleTraysPerLane) break;
+                list.Add(TrayOnBelt(lane, list.Count + newTails.Count, look));
             }
             var moves = new List<UniTask>();
             for (int i = 0; i < list.Count; i++)
@@ -338,6 +385,17 @@ namespace Game.Views
             }
         }
 
+        /// <summary>How many slots are clear ON SCREEN (see <see cref="HasClearSlot"/>) — a linked pair needs two.</summary>
+        public int ClearSlotCount
+        {
+            get
+            {
+                int n = 0;
+                for (int v = 0; v < _slotCount; v++) if (VisualFree(v)) n++;
+                return n;
+            }
+        }
+
         // ── input support (BoardInputView) ───────────────────────────────────────────────────
         /// <summary>The lane a collider belongs to, or −1.</summary>
         /// <summary>Which belt tray a collider is: lane and position in the queue (0 = front). False if none.</summary>
@@ -377,14 +435,46 @@ namespace Game.Views
             return go;
         }
 
-        private GameObject TrayOnBelt(int lane, int index, TintFlavor color)
+        private GameObject TrayOnBelt(int lane, int index, TrayLook look)
         {
             var tray = Spawn(_p.CapTray, _laneRoots[lane], TrayOnLane(index));
-            Tint(tray, color);
+            ApplyLook(tray, look);
+            if (look.Locked && _p.TrayLock != null)
+            {
+                var lockGo = Spawn(_p.TrayLock, tray.transform, Vector3.up * B.LockY);
+                var lockView = lockGo.GetComponent<TrayLockView>();
+                if (lockView != null) lockView.SetCount(look.LockLabel);
+                _locks[tray] = lockView;
+            }
             var hit = tray.AddComponent<BoxCollider>();
             hit.size = B.TrayHitSize;
             hit.center = new Vector3(0f, B.TrayHitCenterY, 0f);
             return tray;
+        }
+
+        /// <summary>Flavour or the hidden "?" look (R17): tray and caps take the mystery slate and the mark shows.</summary>
+        private static void ApplyLook(GameObject tray, TrayLook look)
+        {
+            Tint(tray, look.Hidden ? TintFlavor.Mystery : look.Color);
+            var mark = tray.transform.Find(MysteryMarkChild);
+            if (mark != null) mark.gameObject.SetActive(look.Hidden);
+        }
+
+        private bool TryBeltTray(int lane, int index, out GameObject tray)
+        {
+            tray = lane >= 0 && lane < _lanes.Count && index >= 0 && index < _lanes[lane].Count ? _lanes[lane][index] : null;
+            return tray != null;
+        }
+
+        private void ReleaseLinks(Transform tray)
+        {
+            for (int i = _links.Count - 1; i >= 0; i--)
+            {
+                var l = _links[i];
+                if (l != null && !l.Joins(tray)) continue;
+                _links.RemoveAt(i);
+                if (l != null) l.ReleaseAsync(destroyCancellationToken).Forget();
+            }
         }
 
         private static void Tint(GameObject go, TintFlavor color)

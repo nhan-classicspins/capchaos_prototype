@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Game.Domain
 {
     /// <summary>
-    /// Semantic level checks V2–V5 (GDD §6.4). V1 (structure) is <see cref="LevelJson.Parse"/>; V6
+    /// Semantic level checks V2–V5 and V7 (GDD §6.4). V1 (structure) is <see cref="LevelJson.Parse"/>; V6
     /// (solvability) is <see cref="LevelSolver"/>. Every problem is reported, not just the first.
     /// </summary>
     public static class LevelValidator
@@ -47,7 +47,40 @@ namespace Game.Domain
                 else if (b != t * level.TrayCapacity)
                     errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} trays × {level.TrayCapacity} = {t * level.TrayCapacity}");
             }
+            ValidateTrayModifiers(level, errors);
             return errors;
+        }
+
+        /// <summary>V7: every lock / link names a real tray; a link joins two neighbours (same lane, consecutive — or
+        /// two neighbouring lanes, same position); a tray is in at most one link and is never both linked and locked.</summary>
+        private static void ValidateTrayModifiers(LevelDefinition level, List<string> errors)
+        {
+            bool Exists(TrayRef t) => t.Lane >= 0 && t.Lane < level.Lanes.Count && t.Index >= 0 && t.Index < level.Lanes[t.Lane].Count;
+
+            var locked = new HashSet<TrayRef>();
+            for (int i = 0; i < level.Locks.Count; i++)
+            {
+                var l = level.Locks[i];
+                if (!Exists(l.Tray)) errors.Add($"V7 locks[{i}]: {l.Tray} does not exist");
+                else if (!locked.Add(l.Tray)) errors.Add($"V7 locks[{i}]: {l.Tray} is locked twice");
+            }
+
+            var linked = new HashSet<TrayRef>();
+            for (int i = 0; i < level.Links.Count; i++)
+            {
+                var a = level.Links[i].A; var b = level.Links[i].B;
+                string where = $"V7 links[{i}]";
+                if (!Exists(a) || !Exists(b)) { errors.Add($"{where}: {(Exists(a) ? b : a)} does not exist"); continue; }
+                bool sameLane = a.Lane == b.Lane && System.Math.Abs(a.Index - b.Index) == 1;
+                bool sideBySide = System.Math.Abs(a.Lane - b.Lane) == 1 && a.Index == b.Index;
+                if (!sameLane && !sideBySide)
+                    errors.Add($"{where}: {a} and {b} are not neighbours (same lane one apart, or neighbouring lanes at the same position)");
+                foreach (var t in new[] { a, b })
+                {
+                    if (!linked.Add(t)) errors.Add($"{where}: {t} is already in another link");
+                    if (locked.Contains(t)) errors.Add($"{where}: {t} is locked — a linked tray can not also be locked");
+                }
+            }
         }
 
         // messages name colours by their level-file code, so an error points straight at the JSON

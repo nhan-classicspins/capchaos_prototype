@@ -13,3 +13,4 @@ win.next,NEXT,TIẾP
 lose.title,YOU CAN\nDO IT,CỐ LÊN\nNÀO
 lose.subtitle,Out of space!,Hết chỗ rồi!
 lose.restart,RESTART,CHƠI LẠI
+gameplay.lock_turns,{0},{0}

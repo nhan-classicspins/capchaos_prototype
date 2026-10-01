@@ -154,6 +154,100 @@ namespace Game.Editor
 
         private static float Cross(Vector2 p, Vector2 a, Vector2 b) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
 
+        // ── tray modifiers (GDD R17–R19): white fill + dark outline, tinted by a token like everything else ──
+        /// <summary>"?" for a hidden tray: a hooked arc, a short stem and a dot.</summary>
+        public static Texture2D MysteryMark(int size = 256)
+        {
+            const float w = 0.15f;
+            var c = new Vector2(0f, 0.32f);
+            return Outlined("T_MysteryMark", size, 0.09f, p => Mathf.Min(
+                Arc(p, c, 0.36f, -90f, 180f) - w,
+                Segment(p, new Vector2(0f, -0.04f), new Vector2(0f, -0.30f)) - w,
+                (p - new Vector2(0f, -0.66f)).magnitude - 0.16f));
+        }
+
+        /// <summary>Padlock shackle (R18): the upper half-ring and its two legs. Same frame as <see cref="LockBody"/> — the two quads overlap exactly.</summary>
+        public static Texture2D LockShackle(int size = 256)
+        {
+            const float r = 0.36f, w = 0.1f;
+            var c = new Vector2(0f, 0.2f);
+            return Outlined("T_LockShackle", size, 0.08f, p => Mathf.Min(
+                Arc(p, c, r, 0f, 180f) - w,
+                Mathf.Min(Segment(p, new Vector2(-r, 0.2f), new Vector2(-r, -0.1f)), Segment(p, new Vector2(r, 0.2f), new Vector2(r, -0.1f))) - w));
+        }
+
+        /// <summary>Padlock body (R18): a rounded block the count is printed on.</summary>
+        public static Texture2D LockBody(int size = 256)
+            => Outlined("T_LockBody", size, 0.08f, p => RoundedBox(p - new Vector2(0f, -0.38f), new Vector2(0.6f, 0.42f), 0.16f));
+
+        /// <summary>Rope (R19): twisted diagonal strands, darker towards both edges so the line reads round. U runs along the rope.</summary>
+        public static Texture2D Rope(int width = 64, int height = 16)
+        {
+            var tex = new Texture2D(width, height, TextureFormat.RGBA32, true) { name = "T_Rope" };
+            var px = new Color[width * height];
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    float u = (float)x / width, v = (y + 0.5f) / height;
+                    float strand = Mathf.Repeat(u * 2f + v * 0.5f, 1f);
+                    float g = Mathf.Lerp(0.78f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Abs(strand - 0.5f) * 2f));
+                    g *= Mathf.Lerp(0.72f, 1f, Mathf.Sin(v * Mathf.PI));
+                    px[y * width + x] = new Color(g, g, g, 1f);
+                }
+            tex.SetPixels(px); tex.Apply(true);
+            return tex;
+        }
+
+        // signed-distance rasteriser: unit square [-1, 1]², y up, 4 × 4 supersampling. d < 0 → white fill,
+        // 0 ≤ d < outline → dark outline, beyond → transparent.
+        private static Texture2D Outlined(string name, int size, float outline, System.Func<Vector2, float> sdf)
+        {
+            const float lineGrey = 0.18f;
+            const int ss = 4;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = name };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float grey = 0f, alpha = 0f;
+                    for (int sy = 0; sy < ss; sy++)
+                        for (int sx = 0; sx < ss; sx++)
+                        {
+                            var p = new Vector2((x + (sx + 0.5f) / ss) / size * 2f - 1f, (y + (sy + 0.5f) / ss) / size * 2f - 1f);
+                            float d = sdf(p);
+                            if (d < 0f) { grey += 1f; alpha += 1f; }
+                            else if (d < outline) { grey += lineGrey; alpha += 1f; }
+                        }
+                    float a = alpha / (ss * ss);
+                    float g = alpha > 0f ? grey / alpha : 1f;
+                    px[y * size + x] = new Color(g, g, g, a);
+                }
+            tex.SetPixels(px); tex.Apply(true);
+            return tex;
+        }
+
+        private static float Segment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+            return (p - (a + ab * t)).magnitude;
+        }
+
+        /// <summary>Distance to the arc of radius <paramref name="r"/> round <paramref name="c"/>, from <paramref name="fromDeg"/> CCW to <paramref name="toDeg"/>.</summary>
+        private static float Arc(Vector2 p, Vector2 c, float r, float fromDeg, float toDeg)
+        {
+            var q = p - c;
+            float ang = Mathf.Atan2(q.y, q.x) * Mathf.Rad2Deg;
+            if (Mathf.Repeat(ang - fromDeg, 360f) <= toDeg - fromDeg) return Mathf.Abs(q.magnitude - r);
+            return Mathf.Min((p - (c + Polar(r, fromDeg))).magnitude, (p - (c + Polar(r, toDeg))).magnitude);
+        }
+
+        private static float RoundedBox(Vector2 p, Vector2 half, float radius)
+        {
+            var q = new Vector2(Mathf.Abs(p.x) - half.x + radius, Mathf.Abs(p.y) - half.y + radius);
+            return new Vector2(Mathf.Max(q.x, 0f), Mathf.Max(q.y, 0f)).magnitude + Mathf.Min(Mathf.Max(q.x, q.y), 0f) - radius;
+        }
+
         /// <summary>Cardboard: light value noise + vertical fibres, greyscale around 0.9.</summary>
         public static Texture2D Cardboard(int size = 256)
         {

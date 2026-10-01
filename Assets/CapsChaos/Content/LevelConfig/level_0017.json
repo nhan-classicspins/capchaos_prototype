@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0017",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "BBRORR",
+        "BBROBO",
+        "RBRRBO",
+        "RBOROO"
+      ],
+      [
+        "......",
+        ".OROO.",
+        ".RROO.",
+        "......"
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "O", "R"],
+    ["O", "R", "O"],
+    ["R", "B"]
+  ],
+  "locks": [
+    { "lane": 0, "tray": 0, "turns": 1 },
+    { "lane": 2, "tray": 1, "turns": 2 }
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Under Lock", "difficulty": "easy", "notes": "Teaches: a locked tray opens after N trays fly to the slots while it waits at the front (R18). Hand-authored on level_0004's stack." }
+}

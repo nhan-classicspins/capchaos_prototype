@@ -143,6 +143,13 @@ Quy ước chung:
   - trên băng: 4 nắp nằm trong hốc;
   - trong slot: nắp đã bắn đi, các hốc giữ đáy chai ([`refs/05_deadlock.jpg`](design/refs/05_deadlock.jpg)).
 - **Poly:** ≤ 400 tris (không tính nắp).
+- **Khay đặc biệt** (GDD R17–R19, chủ SKU quyết 2026-10-01; màu chọn theo rule 17, token trong `DesignTokens`):
+  - **Ẩn:** khay và nắp tô flavor `Mystery` (slate `#5F6A8F` / nắp `#8792B8`), cộng decal **"?"** trắng viền tối
+    (`T_MysteryMark`, child `Mystery` trong `CapTray.prefab`) nằm phẳng trên nắp. Lộ màu thì đổi tint, tắt decal, khay nảy.
+  - **Khoá:** `TrayLock.prefab` có quai thép `#D4DBEA` + thân than `#2F3554` (2 quad cùng khung, nghiêng 60° về
+    camera), số lượt màu trắng (`TextTint` key `White`) in trên thân. Đây là nội dung tạm, chủ SKU sẽ thay.
+  - **Nối:** `TrayLink.prefab` là dây thừng `#EBD5A4`, có sọc xoắn (`T_Rope`) và viền nâu `#5A4630`, vắt vòng cung qua
+    nắp của 2 khay. Dây bám theo khay mỗi frame và mảnh dần rồi biến mất khi khay bay.
 
 ### 4.5 Box — thùng carton
 - Thùng cùng màu với khay [QS], có 4 nắp gập riêng, đặt pivot ở bản lề để animation gập được.
@@ -261,7 +268,7 @@ Chạy bằng **LitMotion**. Mọi thời lượng đọc từ config key (GDD �
 | Generator (menu **CapsChaos → Art → Generate 3D Assets**; headless: `Game.Editor.ArtGenerator.GenerateAll()`) | `Assets/CapsChaos/Editor/ArtGen/{ArtGenerator, ArtShapes, MeshBuilder, ProceduralTextures}.cs` |
 | Preview (menu **CapsChaos → Art → Render Preview**, render trong preview scene, không đụng scene đang mở) | `Assets/CapsChaos/Editor/ArtGen/ArtPreview.cs` · ảnh [`design/refs/11_art_mvp_layout.png`](design/refs/11_art_mvp_layout.png), [`12_art_mvp_closeup.png`](design/refs/12_art_mvp_closeup.png) |
 | Token + tint | `Assets/CapsChaos/Views/DesignTokens.cs`, `Assets/CapsChaos/Views/Art/TokenTint.cs` |
-| Output | `Content/Art/Meshes` (11), `Textures` (3), `Materials` (7), `Prefabs` (8: Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor) |
+| Output | `Content/Art/Meshes` (11), `Textures` (7), `Materials` (12), `Prefabs` (10: Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor, TrayLock, TrayLink) |
 
 **Quy ước kỹ thuật đã chốt khi làm:**
 - **Đơn vị:** 1 unit = chiều cao một chai. Mọi kích thước là hằng số trong `ArtShapes`, gồm `CellPitch 0.42`, `LanePitch 0.95` và `CapOnTrayScale 2`. Nắp nằm trên khay được phóng to 2 lần để trông đầy hốc như trong video; khi bay lên chai thì thu về kích thước 1.

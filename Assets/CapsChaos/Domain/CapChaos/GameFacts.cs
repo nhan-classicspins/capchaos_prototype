@@ -21,6 +21,22 @@ namespace Game.Domain
         public LaneAdvanced(int lane, int remaining) { Lane = lane; Remaining = remaining; }
     }
 
+    /// <summary>Hidden tray <see cref="Tray"/> (authored index) of <see cref="Lane"/> reached the front and turned out
+    /// to be <see cref="Color"/> (R17).</summary>
+    public sealed class TrayRevealed : GameFact
+    {
+        public int Lane { get; } public int Tray { get; } public CapColor Color { get; }
+        public TrayRevealed(int lane, int tray, CapColor color) { Lane = lane; Tray = tray; Color = color; }
+    }
+
+    /// <summary>The locked front tray of <see cref="Lane"/> counted a placement down; <see cref="Remaining"/> more
+    /// to go, 0 = it is unlocked (R18).</summary>
+    public sealed class TrayLockTicked : GameFact
+    {
+        public int Lane { get; } public int Tray { get; } public int Remaining { get; }
+        public TrayLockTicked(int lane, int tray, int remaining) { Lane = lane; Tray = tray; Remaining = remaining; }
+    }
+
     /// <summary>The ground bottle at (X, Z) flew to <see cref="Slot"/>'s tray (R10).</summary>
     public sealed class BottlePicked : GameFact
     {
@@ -63,7 +79,8 @@ namespace Game.Domain
     {
         /// <summary>R15: every slot holds a tray and no exposed bottle matches any of them.</summary>
         SlotsJammed,
-        /// <summary>Defensive: bottles remain but nothing can ever move (an unbalanced level; V4 prevents it).</summary>
+        /// <summary>A slot is free but no tap can ever be accepted again: every front tray is locked, waits for its
+        /// link partner, or needs more free slots than there are — or (defensive) an unbalanced level ran dry.</summary>
         NoMovesLeft,
     }
 

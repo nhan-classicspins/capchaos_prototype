@@ -78,6 +78,11 @@ namespace CapsChaos.LevelTool
                 Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {hidden,6} {bottles / spec.TrayCapacity,5} {gen.Level.Stack.LayerCount,6} {gen.Attempts,5}  " +
                                   string.Join(" ", gen.Level.Lanes.Select(l => l.Count)));
             }
+            int generated = ids.Count;
+            // hand-authored levels (not in the spec) keep their place at the end of the order, by id
+            if (Directory.Exists(outDir))
+                ids.AddRange(Directory.GetFiles(outDir, "level_*.json").Select(Path.GetFileNameWithoutExtension)
+                    .Where(id => !ids.Contains(id)).OrderBy(id => id, StringComparer.Ordinal));
             var index = new StringBuilder("{\n  \"order\": [\n");
             for (int i = 0; i < ids.Count; i++) index.Append("    \"").Append(ids[i]).Append(i < ids.Count - 1 ? "\",\n" : "\"\n");
             index.Append("  ]\n}\n");
@@ -88,7 +93,7 @@ namespace CapsChaos.LevelTool
                 foreach (var d in drift) Console.WriteLine("drift: " + d);
                 return Drift;
             }
-            Console.WriteLine(check ? "ok: generated levels are up to date" : $"wrote {ids.Count} levels + {IndexFile} to {outDir}");
+            Console.WriteLine(check ? "ok: generated levels are up to date" : $"wrote {generated} levels + {IndexFile} ({ids.Count - generated} hand-authored kept) to {outDir}");
             return Ok;
         }
 

@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../../docs/design/level.schema.json",
+  "formatVersion": 1,
+  "id": "level_0018",
+  "slots": 4,
+  "trayCapacity": 4,
+  "colors": ["R", "O", "B"],
+  "stack": {
+    "cols": 6,
+    "rows": 4,
+    "layers": [
+      [
+        "BBRORR",
+        "BBROBO",
+        "RBRRBO",
+        "RBOROO"
+      ],
+      [
+        "......",
+        ".OROO.",
+        ".RROO.",
+        "......"
+      ]
+    ]
+  },
+  "lanes": [
+    ["B", "O", "R"],
+    ["O", "R", "O"],
+    ["R", "B"]
+  ],
+  "links": [
+    { "a": [0, 1], "b": [1, 1] },
+    { "a": [2, 0], "b": [2, 1] }
+  ],
+  "view": { "cameraPreset": "default", "stackScale": 1 },
+  "meta": { "name": "Tied Together", "difficulty": "easy", "notes": "Teaches: linked trays fly together and need two free slots (R19). Hand-authored on level_0004's stack." }
+}

@@ -18,7 +18,10 @@ namespace Game.Views
         Yellow,
         Cyan,
         Brown,
-        White
+        White,
+        /// <summary>A hidden tray (GDD R17): tray and caps in the mystery slate instead of a flavour. View-only — the
+        /// rules have no such colour.</summary>
+        Mystery,
     }
 
     /// <summary>
@@ -68,15 +71,31 @@ namespace Game.Views
 
         private static readonly FlavorColors Missing = new("FF00FF", "FF00FF", "FF00FF");
 
+        /// <summary>Hidden tray (R17): a slate no flavour uses, dark enough to stand off the light belt; the white
+        /// "?" mark on top carries the meaning. Decided here (rule 17) — not in the art spec yet.</summary>
+        private static readonly FlavorColors MysteryColors = new("5F6A8F", "434C6E", "8792B8");
+
         /// <summary>The palette of <paramref name="flavor"/>; magenta for <see cref="TintFlavor.None"/> (a bug made visible).</summary>
         public static FlavorColors Flavor(TintFlavor flavor)
         {
+            if (flavor == TintFlavor.Mystery) return MysteryColors;
             int i = (int)flavor - 1;
             return i >= 0 && i < Flavors.Length ? Flavors[i] : Missing;
         }
 
         /// <summary>The frosted band on a bottle body is its Body lifted this far toward white (art §4.1).</summary>
         public const float BottleBandLift = 0.15f;
+
+        // ── Tray modifiers (GDD R17–R19) — decided here (rule 17), not in the art spec yet ─────
+        /// <summary>The "?" printed on a hidden tray.</summary>
+        public static readonly Color MysteryMark  = Hex("FFFFFF");
+        /// <summary>Lock (R18): a charcoal body that keeps the white count readable on any tray colour, under a
+        /// light steel shackle that keeps the icon's silhouette on the dark belt rail.</summary>
+        public static readonly Color LockBody     = Hex("2F3554");
+        public static readonly Color LockShackle  = Hex("D4DBEA");
+        /// <summary>Link (R19): a hemp rope with a dark-brown outline — a neutral no flavour or tray uses.</summary>
+        public static readonly Color Rope         = Hex("EBD5A4");
+        public static readonly Color RopeOutline  = Hex("5A4630");
 
         // ── Hidden bottle rainbow (art §4.2) — consumed by the rainbow material at runtime ────
         public const float RainbowScrollPerSecond = 0.15f;
@@ -108,6 +127,10 @@ namespace Game.Views
             public const float TrayHitCenterY = 0.12f;
             public const float TrayCellHalf = 0.21f, TrayCupY = 0.052f, CapOnNeckY = 0.925f, CapOnTrayScale = 2f;
             public const float BoxExitX = 3.5f, BoxExitY = 4.5f;
+            /// <summary>Tray-local heights over the caps' tops (≈ 0.2): the lock icon, the rope's ends; and how far
+            /// the rope arcs up between them.</summary>
+            public const float LockY = 0.42f, RopeY = 0.24f, RopeArc = 0.16f;
+            public const int RopeSegments = 14;
         }
 
         // ── Motion (GDD §2 timings measured off the reference video) ────────────────────────────
@@ -119,6 +142,8 @@ namespace Game.Views
             public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
             public const float BoxHold = 0.35f, BoxDrop = 0.25f, BoxFlaps = 0.25f, BoxExit = 0.40f;
             public const float RoundEndPause = 1.0f;
+            /// <summary>Tray modifiers: the hidden tray's colour pop, a lock's count pop, the unlock (shackle lift + vanish), the rope letting go.</summary>
+            public const float TrayReveal = 0.25f, LockTick = 0.2f, Unlock = 0.3f, LinkRelease = 0.15f;
         }
 
         // ── UI (art §3.3) ─────────────────────────────────────────────────────────────────────

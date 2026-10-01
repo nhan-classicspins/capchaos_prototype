@@ -52,6 +52,36 @@ namespace Game.Domain
         }
     }
 
+    /// <summary>A tray on a conveyor as authored: lane <see cref="Lane"/>, position <see cref="Index"/> in that lane's
+    /// queue (0 = the tray that starts at the front).</summary>
+    public readonly struct TrayRef : IEquatable<TrayRef>
+    {
+        public readonly int Lane, Index;
+        public TrayRef(int lane, int index) { Lane = lane; Index = index; }
+        public bool Equals(TrayRef o) => Lane == o.Lane && Index == o.Index;
+        public override bool Equals(object obj) => obj is TrayRef o && Equals(o);
+        public override int GetHashCode() => (Lane << 16) ^ Index;
+        public override string ToString() => $"lanes[{Lane}][{Index}]";
+    }
+
+    /// <summary>A locked tray (GDD R18): it can not be tapped until <see cref="Turns"/> trays have flown to the slots
+    /// while it stands at the front of its lane.</summary>
+    public sealed class TrayLock
+    {
+        public TrayRef Tray { get; }
+        public int Turns { get; }
+        public TrayLock(TrayRef tray, int turns) { Tray = tray; Turns = turns; }
+    }
+
+    /// <summary>Two linked trays (GDD R19): they leave the belt together or not at all. Either two neighbours in one
+    /// lane, or the trays at the same position of two neighbouring lanes.</summary>
+    public sealed class TrayLink
+    {
+        public TrayRef A { get; }
+        public TrayRef B { get; }
+        public TrayLink(TrayRef a, TrayRef b) { A = a; B = b; }
+    }
+
     /// <summary>One level, fully data-driven (GDD §6). Immutable; build it with <see cref="LevelJson.Parse"/>.</summary>
     public sealed class LevelDefinition
     {
@@ -74,13 +104,24 @@ namespace Game.Domain
         public string Notes { get; }
         /// <summary>Optional winning tap sequence (lane indices) — V6 replays it as proof of solvability.</summary>
         public IReadOnlyList<int> Solution { get; }
+        /// <summary>Hidden trays (GDD R17): tray and caps show no colour until the tray reaches the front of its lane.</summary>
+        public IReadOnlyCollection<TrayRef> HiddenTrays { get; }
+        public IReadOnlyList<TrayLock> Locks { get; }
+        public IReadOnlyList<TrayLink> Links { get; }
+
+        private readonly HashSet<TrayRef> _hidden;
 
         public LevelDefinition(string id, int slots, int trayCapacity, IReadOnlyList<CapColor> colors,
             StackDefinition stack, IReadOnlyList<IReadOnlyList<CapColor>> lanes,
             string cameraPreset = "default", double stackScale = 1.0,
             string name = null, string difficulty = null, string notes = null,
-            int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null)
+            int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null,
+            IEnumerable<TrayRef> hiddenTrays = null, IReadOnlyList<TrayLock> locks = null, IReadOnlyList<TrayLink> links = null)
         {
+            _hidden = hiddenTrays != null ? new HashSet<TrayRef>(hiddenTrays) : new HashSet<TrayRef>();
+            HiddenTrays = _hidden;
+            Locks = locks ?? Array.Empty<TrayLock>();
+            Links = links ?? Array.Empty<TrayLink>();
             Solution = solution;
             FormatVersion = formatVersion;
             Id = id ?? throw new ArgumentNullException(nameof(id));
@@ -90,6 +131,27 @@ namespace Game.Domain
             Lanes = lanes ?? throw new ArgumentNullException(nameof(lanes));
             CameraPreset = cameraPreset ?? "default"; StackScale = stackScale;
             Name = name; Difficulty = difficulty; Notes = notes;
+        }
+
+        public bool IsHiddenTray(TrayRef tray) => _hidden.Contains(tray);
+
+        /// <summary>How many placements <paramref name="tray"/> stays locked for at the front; 0 = not locked.</summary>
+        public int LockTurns(TrayRef tray)
+        {
+            foreach (var l in Locks) if (l.Tray.Equals(tray)) return l.Turns;
+            return 0;
+        }
+
+        /// <summary>The tray linked to <paramref name="tray"/>, if any.</summary>
+        public bool TryGetLinkPartner(TrayRef tray, out TrayRef partner)
+        {
+            foreach (var l in Links)
+            {
+                if (l.A.Equals(tray)) { partner = l.B; return true; }
+                if (l.B.Equals(tray)) { partner = l.A; return true; }
+            }
+            partner = default;
+            return false;
         }
     }
 }
