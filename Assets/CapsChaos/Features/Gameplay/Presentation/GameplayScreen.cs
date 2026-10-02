@@ -195,7 +195,8 @@ namespace Game.Presentation
             _board.BuildTable(_level.Slots, _level.ExtraSlots, _level.Lanes.Count);
 
             var belt = _game.Belt;
-            _board.BuildLoop(belt.Rows, belt.Width, belt.PickRows);
+            var (sx, sz, sr) = _level.Shape.Corners(belt.Rows, belt.PickRows);
+            _board.BuildLoop(belt.Rows, belt.Width, belt.PickRows, Floats(sx), Floats(sz), Floats(sr));
             for (int row = 0; row < belt.Rows; row++)
                 for (int k = 0; k < belt.Width; k++)
                     if (belt.At(row, k) != CapColor.None) _board.AddBeltBottle(row, k, belt.At(row, k).ToTint());
@@ -522,6 +523,13 @@ namespace Game.Presentation
             if (result.Reason == DialogCloseReason.BackButton) { GoHome(); return; }
             _log.Info($"[GameplayScreen] {(won ? "next" : "restart")} after {_level?.Id}.");
             StartRound(won ? _levelIndex + 1 : _levelIndex);
+        }
+
+        private static float[] Floats(double[] v)
+        {
+            var f = new float[v.Length];
+            for (int i = 0; i < v.Length; i++) f[i] = (float)v[i];
+            return f;
         }
 
         private static void SetLayer(Transform t, int layer)

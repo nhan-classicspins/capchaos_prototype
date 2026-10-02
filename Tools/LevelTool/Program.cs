@@ -241,6 +241,7 @@ namespace CapsChaos.LevelTool
                     Rows = (int)N(l, "rows", 24),
                     Width = (int)N(l, "width", LoopDefinition.DefaultWidth),
                     PickRows = (int)N(l, "pickRows", 5),
+                    Shape = LoopShape.Named(S(l, "shape") ?? LoopShape.Oval),
                 };
                 if (!l.TryGet("feeders", out var feeders)) throw new InvalidDataException($"{spec.Id}: 'feeders' missing");
                 foreach (var f in feeders.Items) spec.Feeders.Add(((int)N(f, "mergeAt", -1), (int)N(f, "bottles", 0)));

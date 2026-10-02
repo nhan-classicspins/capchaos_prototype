@@ -184,14 +184,15 @@ namespace Game.Views
             if (plus != null) Destroy(plus);
         }
 
-        /// <summary>The oval belt: <paramref name="rows"/> rows of <paramref name="width"/> bottles; the first
-        /// <paramref name="pickRows"/> track positions are the front straight in front of the slots.</summary>
-        public void BuildLoop(int rows, int width, int pickRows)
+        /// <summary>The belt loop: <paramref name="rows"/> rows of <paramref name="width"/> bottles; the first
+        /// <paramref name="pickRows"/> track positions are the pick zone on its front edge, in front of the slots. Its shape
+        /// is a rounded convex polygon: corners clockwise from above (corner 0 → 1 the front edge) with their radii.</summary>
+        public void BuildLoop(int rows, int width, int pickRows, IReadOnlyList<float> xs, IReadOnlyList<float> zs, IReadOnlyList<float> radii)
         {
             _loop = new GameObject("Loop").AddComponent<LoopBeltView>();
             _loop.transform.SetParent(transform, false);
             _stamp(_loop.gameObject);
-            _loop.Build(rows, width, pickRows, _p.Bottle, _p.Lane, _stamp);
+            _loop.Build(rows, width, pickRows, xs, zs, radii, _p.Bottle, _p.Lane, _stamp);
         }
 
         /// <summary>A feeder joining the oval at track position <paramref name="mergeAt"/>; <paramref name="tracks"/>[k] is

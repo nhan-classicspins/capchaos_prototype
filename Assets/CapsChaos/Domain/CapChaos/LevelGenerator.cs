@@ -20,6 +20,8 @@ namespace Game.Domain
         public int Rows { get; set; } = 24;
         public int Width { get; set; } = LoopDefinition.DefaultWidth;
         public int PickRows { get; set; } = 5;
+        /// <summary>How the loop is drawn (presentation only — the generator never reads it).</summary>
+        public LoopShape Shape { get; set; } = LoopShape.Default;
         /// <summary>Per feeder: where it joins the oval and how many bottles it carries. The belt starts filled from
         /// the feeders (no authored initial rows).</summary>
         public List<(int mergeAt, int bottles)> Feeders { get; set; } = new List<(int, int)>();
@@ -68,7 +70,7 @@ namespace Game.Domain
                 foreach (var l in lanes) laneViews.Add(l);
                 var colors = new List<CapColor>(spec.Colors);
                 var level = new LevelDefinition(spec.Id, spec.Slots, spec.TrayCapacity, colors, loop, laneViews,
-                    name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution, extraSlots: spec.ExtraSlots);
+                    name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution, extraSlots: spec.ExtraSlots, loopShape: spec.Shape);
                 return new GeneratedLevel(level, solution, attempt);
             }
             throw new InvalidOperationException($"{spec.Id}: no valid level in {maxAttempts} attempts — relax the spec");

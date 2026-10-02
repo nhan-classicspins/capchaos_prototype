@@ -112,10 +112,11 @@ namespace Game.Views
             public const float ViewDistance = 1000f, TiltDegrees = -60f, FocusZ = 1.2f, ViewHeight = 11.6f;
             /// <summary>The safe rect's width / height (1080 × 1920).</summary>
             public const float SafeAspect = 1080f / 1920f;
-            /// <summary>Oval belt (GDD R1–R4), loop-local units before the fit: a row every LoopRowPitch along a straight,
-            /// LoopTrackSpacing between the bottles of a row (a bottle is 0.38 across). On a bend the INNER track keeps rows
-            /// at least LoopInnerPitch apart (so bottles never overlap there) and leaves a hole of at least LoopMinHole.</summary>
-            public const float LoopRowPitch = 0.44f, LoopTrackSpacing = 0.42f, LoopInnerPitch = 0.40f, LoopMinHole = 0.45f;
+            /// <summary>The belt loop (GDD R1–R4), loop-local units before the fit: rows stand evenly round it, at least
+            /// LoopRowPitch apart; LoopTrackSpacing between the bottles of a row (a bottle is 0.38 across). At the tightest
+            /// corner the INNER track keeps rows at least LoopInnerPitch apart (under 0.38: a little overlap there is
+            /// accepted — product owner, 2026-10-02) and leaves a hole of at least LoopMinHole.</summary>
+            public const float LoopRowPitch = 0.44f, LoopTrackSpacing = 0.42f, LoopInnerPitch = 0.30f, LoopMinHole = 0.45f;
             public const float LoopBeltMargin = 0.12f, LoopBeltTop = 0.03f;
             public const float LoopRailWidth = 0.1f, LoopRailHeight = 0.16f;
             /// <summary>Mesh segments per row of path — enough that the bends read round.</summary>
@@ -125,15 +126,12 @@ namespace Game.Views
             /// <summary>The front edge of the belt (board z) and the box the whole oval shrinks to fit (board units).</summary>
             public const float LoopFrontZ = 2.6f;
             /// The oval is always centred across the board.</summary>
-            public const float LoopMaxWidth = 4.0f, LoopMaxDepth = 5.55f;
-            /// <summary>The oval stands this many times as deep as a plain stadium of the same rows: each bend gets an
-            /// upright straight between its two quarter circles.</summary>
-            public const float LoopDepthStretch = 1.5f;
+            public const float LoopMaxWidth = 4.0f, LoopMaxDepth = 3.7f;
             /// <summary>A feeder queue (an on-ramp merging into the oval) — how many rows of it are drawn. Where it comes in
             /// (board units): from the top edge it starts FeederSwing beyond a belt's width out from the merge point and
-            /// FeederTopLead upstream of it; from the left edge it starts FeederSideDrop below the merge point.</summary>
+            /// FeederTopLead upstream of it (a left-bend feeder is the mirror image of a right-side one).</summary>
             public const int FeederVisibleRows = 12;
-            public const float FeederSwing = 0.3f, FeederTopLead = 0.6f, FeederSideDrop = 0.35f;
+            public const float FeederSwing = 0.3f, FeederTopLead = 0.6f;
             /// <summary>How long (board units) a queue runs along the oval's tangent as it lands on it.</summary>
             public const float FeederMergeRun = 0.5f;
             /// <summary>Queues sharing the top edge stand as evenly spread columns; the outer ones keep this clear of the
@@ -186,7 +184,7 @@ namespace Game.Views
             /// waits up to BottleJoinDelayMax, takes BottleJoinRamp to reach its pace — BottleJoinSpeed board units/s,
             /// ± BottleJoinSpeedSpread of it, well above the belt's own ~0.75 — and chases the spot as it moves.
             /// BottleJoinMax is the safety cap after which it simply snaps.</summary>
-            public const float BottleJoinSpeed = 2.2f, BottleJoinSpeedSpread = 0.25f, BottleJoinDelayMax = 0.12f;
+            public const float BottleJoinSpeed = 4.4f, BottleJoinSpeedSpread = 0.25f, BottleJoinDelayMax = 0.12f;
             public const float BottleJoinRamp = 0.08f, BottleJoinMax = 1.5f;
             /// <summary>Bottles picked in one belt step leave one after another, this far apart.</summary>
             public const float PickStagger = 0.04f;

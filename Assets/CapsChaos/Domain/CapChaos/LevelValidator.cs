@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Game.Domain
 {
     /// <summary>
-    /// Semantic level checks V4, V5, V7 and V8 (GDD §6.4). V1 (structure) is <see cref="LevelJson.Parse"/>; V6
+    /// Semantic level checks V4, V5, V7, V8 and V9 (GDD §6.4). V1 (structure) is <see cref="LevelJson.Parse"/>; V6
     /// (solvability) is <see cref="LevelSolver"/>. Every problem is reported, not just the first.
     /// </summary>
     public static class LevelValidator
@@ -48,6 +48,8 @@ namespace Game.Domain
                     errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} trays × {level.TrayCapacity} = {t * level.TrayCapacity}");
             }
             ValidateLoop(lp, errors);
+            var shape = level.Shape;
+            if (shape.Preset == null) errors.AddRange(LoopShape.Check(shape.Xs, shape.Zs, shape.Radii, "V9 view.loopShape"));
             ValidateTrayModifiers(level, errors);
             return errors;
         }

@@ -137,9 +137,9 @@ chat 2026-10-02; mô hình dưới đây là bản chuyển sang chai.
   (sửa 2026-10-02): hàng đầu chỉ bước lên khi hàng oval đi ngang điểm nhập **trống ở mọi track nó cần**; không bao giờ nhập
   lẻ từng chai. Generator tô **mỗi hàng một màu** (số chai mỗi hàng chờ là bội của `width`). Về hình ảnh, hàng chờ là
   một **làn nhập** (on-ramp) đi xuống từ mép trên và rẽ vào oval tại điểm nhập. Để các hàng chờ thành cột trái → giữa → phải
-  theo đúng thứ tự trên băng (B = số hàng mỗi khúc cua): **trái** `mergeAt = pickRows + B − 1` (đầu cạnh sau; có hàng giữa thì
-  sớm hơn 1–2 hàng), **giữa** `2·pickRows + B − 1` (cuối cạnh sau), **phải** `rows − B/2` (giữa khúc cua phải). Nhập thấp hơn
-  ở khúc cua trái thì hàng chờ đi vào từ mép trái. Hàng chờ
+  theo đúng thứ tự trên băng (B = số hàng mỗi khúc cua): **phải** `rows − B/2` (khúc cua phải), **trái** là ảnh gương của nó
+  `rows + pickRows − mergeAt(phải) − 2` (khúc cua trái, vẽ đối xứng gương với hàng phải), **giữa** `2·pickRows + B − 1`
+  (cuối cạnh sau). Hàng chờ
   **đứng yên** khi hàng đi ngang điểm nhập còn chai ở track nó cần; khi một hàng đủ trống chạy tới, cả hàng đầu bước lên
   oval và hàng chờ tiến 1 nấc. Nhiều hàng chờ xét theo thứ tự khai báo.
   - Không khai `loop.initial` ⇒ oval **bắt đầu trống**: mọi chai nằm trong hàng chờ và nhập vào khi oval chạy (sửa
@@ -306,7 +306,7 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | `colors` | Tập số màu dùng trong level; mọi màu trong `loop` và `lanes` phải thuộc tập này |
 | `loop.rows` | Số hàng quanh oval, 8–64 |
 | `loop.width` | (tuỳ chọn, mặc định 4) số chai mỗi hàng, 1–6 |
-| `loop.pickRows` | Số hàng của vùng lấy (cạnh trước). V8: `rows ≥ 2 × pickRows + 6`. Hình oval suy ra từ `rows` và `pickRows`: hai cạnh thẳng dài `pickRows` hàng, phần còn lại là hai khúc cua |
+| `loop.pickRows` | Số hàng của vùng lấy (giữa cạnh trước). V8: `rows ≥ 2 × pickRows + 6`. Với preset `oval`, cạnh thẳng dài đúng `pickRows` hàng; với hình khác, vùng lấy có thể tràn qua góc nếu cạnh trước ngắn hơn |
 | `loop.feeders[f].mergeAt` | Vị trí hàng chờ nhập vào oval. V8: ngoài vùng lấy, mỗi vị trí một hàng chờ |
 | `loop.feeders[f].bottles` | Hàng chờ, chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`) |
 | `loop.initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |
@@ -315,7 +315,7 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | `lanes[j][t].hidden` | (tuỳ chọn, mặc định `false`) khay **ẩn** (R17) |
 | `lanes[j][t].lockTurns` | (tuỳ chọn) khay **khoá** `n` lượt, 1–99 (R18) |
 | `links` | (tuỳ chọn) cặp khay **nối** (R19): `{ "a": { "lane": 0, "tray": 1 }, "b": { "lane": 1, "tray": 1 } }`, `tray` là chỉ số trong `lanes[lane]` |
-| `view` | (tuỳ chọn) preset camera |
+| `view` | (tuỳ chọn) preset camera; `loopShape`: hình vòng băng — `"oval"` (mặc định), `"circle"`, `"triangle"`, hoặc `{ "points": [[x, z], …], "radius": r \| [r, …] }` (đa giác lồi bo góc, các đỉnh theo chiều kim đồng hồ nhìn từ trên, cạnh đỉnh 0 → 1 là cạnh trước). Chỉ để vẽ, luật không đọc |
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
 | `meta.solution` | (tuỳ chọn) chuỗi tap thắng (chỉ số làn), do LevelTool ghi. V6 chạy lại theo kiểu "tap rồi chờ bàn đứng yên" để chứng minh level giải được |
 
@@ -334,6 +334,7 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
 | V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
 | V8 | Oval: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau; hàng chờ có ít nhất 1 chai | `V8 loop.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
+| V9 | `view.loopShape` tự khai: ≥ 3 đỉnh, theo chiều kim đồng hồ, lồi; cạnh đầu là cạnh trước (nằm ngang, thấp nhất, phải → trái); bán kính > 0 và hai góc kề nhau không bo quá chiều dài cạnh giữa chúng | `$.view.loopShape.radius: corners 0 and 1 are rounded more than their edge (4) allows` |
 | V6 | **Có lời giải**. Người chơi giả định "tap rồi chờ bàn đứng yên" (`CapChaosGame.Settle`) — mọi chuỗi thắng của người chơi đó cũng là chuỗi thắng thật. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
 
 V6 là cửa CI: level không giải được thì không ship.

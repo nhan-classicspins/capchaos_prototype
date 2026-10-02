@@ -100,6 +100,8 @@ namespace Game.Domain
         /// <summary><c>Lanes[j][0]</c> is the tappable front tray of conveyor j.</summary>
         public IReadOnlyList<IReadOnlyList<CapColor>> Lanes { get; }
         public string CameraPreset { get; }
+        /// <summary>How the loop is drawn (presentation only; <see cref="LoopShape.Default"/> = the oval).</summary>
+        public LoopShape Shape { get; }
         public string Name { get; }
         public string Difficulty { get; }
         public string Notes { get; }
@@ -118,8 +120,9 @@ namespace Game.Domain
             string name = null, string difficulty = null, string notes = null,
             int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null,
             IEnumerable<TrayRef> hiddenTrays = null, IReadOnlyList<TrayLock> locks = null, IReadOnlyList<TrayLink> links = null,
-            int extraSlots = 0)
+            int extraSlots = 0, LoopShape loopShape = null)
         {
+            Shape = loopShape ?? LoopShape.Default;
             ExtraSlots = extraSlots;
             _hidden = hiddenTrays != null ? new HashSet<TrayRef>(hiddenTrays) : new HashSet<TrayRef>();
             HiddenTrays = _hidden;

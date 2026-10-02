@@ -44,7 +44,8 @@ namespace Game.Domain
         private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "hidden", "lockTurns" };
         private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
         private static readonly HashSet<string> RefKeys = new HashSet<string>(StringComparer.Ordinal) { "lane", "tray" };
-        private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset" };
+        private static readonly HashSet<string> ShapeKeys = new HashSet<string>(StringComparer.Ordinal) { "points", "radius" };
+        private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset", "loopShape" };
         private static readonly HashSet<string> MetaKeys = new HashSet<string>(StringComparer.Ordinal) { "name", "difficulty", "notes", "solution" };
         private static readonly string[] CameraPresets = { "default", "tall", "wide" };
         private static readonly string[] Difficulties = { "tutorial", "easy", "medium", "hard", "breather" };
@@ -81,6 +82,7 @@ namespace Game.Domain
             var content = ReadContent(root, errors);
             var lanes = content.Lanes;
             string preset = "default";
+            LoopShape shape = null;
             if (root.TryGet("view", out var view))
             {
                 if (view.Kind != JsonKind.Object) errors.Add("$.view: must be an object");
@@ -89,6 +91,7 @@ namespace Game.Domain
                     Unknown(view, ViewKeys, "$.view", errors);
                     var p = Str(view, "cameraPreset", "$.view", errors, required: false);
                     if (p != null) { if (Array.IndexOf(CameraPresets, p) < 0) errors.Add($"$.view.cameraPreset: '{p}' not in [default, tall, wide]"); else preset = p; }
+                    if (view.TryGet("loopShape", out var ls)) shape = ReadShape(ls, errors);
                 }
             }
 
@@ -126,9 +129,59 @@ namespace Game.Domain
 
             if (errors.Count > 0 || id == null || content.Loop == null || lanes == null) return new LevelParseResult(null, errors);
             var level = new LevelDefinition(id, slots, cap, content.Colors, content.Loop, lanes, preset, name, difficulty, notes,
-                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra);
+                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, shape);
             return new LevelParseResult(level, errors);
         }
+
+        /// <summary><c>view.loopShape</c>: a preset name, or <c>{ "points": [[x, z], …], "radius": r | [r, …] }</c> (V9).</summary>
+        private static LoopShape ReadShape(JsonValue v, List<string> errors)
+        {
+            const string path = "$.view.loopShape";
+            if (v.Kind == JsonKind.String)
+            {
+                if (Array.IndexOf(LoopShape.Presets, v.String) >= 0) return LoopShape.Named(v.String);
+                errors.Add($"{path}: '{v.String}' not in [{string.Join(", ", LoopShape.Presets)}]");
+                return null;
+            }
+            if (v.Kind != JsonKind.Object) { errors.Add($"{path}: a preset name or {{ points, radius }}"); return null; }
+            Unknown(v, ShapeKeys, path, errors);
+            var xs = new List<double>(); var zs = new List<double>(); var radii = new List<double>();
+            if (!v.TryGet("points", out var pts) || pts.Kind != JsonKind.Array) { errors.Add($"{path}.points: required, an array of [x, z]"); return null; }
+            for (int i = 0; i < pts.Items.Count; i++)
+            {
+                var pt = pts.Items[i];
+                if (pt.Kind != JsonKind.Array || pt.Items.Count != 2 || pt.Items[0].Kind != JsonKind.Number || pt.Items[1].Kind != JsonKind.Number)
+                { errors.Add($"{path}.points[{i}]: must be [x, z]"); return null; }
+                xs.Add(pt.Items[0].Number); zs.Add(pt.Items[1].Number);
+            }
+            if (!v.TryGet("radius", out var rad)) { errors.Add($"{path}.radius: required, a number or one per corner"); return null; }
+            if (rad.Kind == JsonKind.Number) foreach (var _ in xs) radii.Add(rad.Number);
+            else if (rad.Kind == JsonKind.Array)
+            {
+                foreach (var r in rad.Items)
+                {
+                    if (r.Kind != JsonKind.Number) { errors.Add($"{path}.radius: numbers only"); return null; }
+                    radii.Add(r.Number);
+                }
+            }
+            else { errors.Add($"{path}.radius: a number or one per corner"); return null; }
+            var problems = LoopShape.Check(xs, zs, radii, path);
+            if (problems.Count > 0) { errors.AddRange(problems); return null; }
+            return LoopShape.Custom(xs, zs, radii);
+        }
+
+        private static string WriteShape(LoopShape shape)
+        {
+            if (shape.Preset != null) return Q(shape.Preset);
+            var pts = new List<string>();
+            for (int i = 0; i < shape.Xs.Count; i++) pts.Add($"[{Num(shape.Xs[i])}, {Num(shape.Zs[i])}]");
+            var radii = new List<string>();
+            bool same = true;
+            for (int i = 0; i < shape.Radii.Count; i++) { radii.Add(Num(shape.Radii[i])); same &= shape.Radii[i] == shape.Radii[0]; }
+            return $"{{ \"points\": [{string.Join(", ", pts)}], \"radius\": {(same ? radii[0] : "[" + string.Join(", ", radii) + "]")} }}";
+        }
+
+        private static string Num(double d) => d.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
 
         // ── content ───────────────────────────────────────────────────────────────────────────
         private static LevelContent ReadContent(JsonValue root, List<string> errors)
@@ -367,7 +420,8 @@ namespace Game.Domain
                 }
                 sb.Append("  ],\n");
             }
-            sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)} }}");
+            sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)}")
+              .Append(level.Shape.IsDefault ? "" : ", \"loopShape\": " + WriteShape(level.Shape)).Append(" }");
             var meta = new List<string>();
             if (level.Name != null) meta.Add($"\"name\": {Q(level.Name)}");
             if (level.Difficulty != null) meta.Add($"\"difficulty\": {Q(level.Difficulty)}");

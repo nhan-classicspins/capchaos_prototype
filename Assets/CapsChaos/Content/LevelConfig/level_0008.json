@@ -31,7 +31,7 @@
         2, 2, 2, 2,
         2, 2, 2, 2
       ] },
-      { "mergeAt": 11, "bottles": [
+      { "mergeAt": 7, "bottles": [
         2, 2, 2, 2,
         4, 4, 4, 4,
         1, 1, 1, 1,
@@ -50,9 +50,9 @@
     ]
   },
   "lanes": [
-    [{ "color": 4 }, { "color": 5 }, { "color": 1 }, { "color": 2 }, { "color": 2 }, { "color": 3 }, { "color": 3 }, { "color": 4 }, { "color": 4 }, { "color": 1 }, { "color": 3 }],
-    [{ "color": 3 }, { "color": 1 }, { "color": 4 }, { "color": 1 }, { "color": 5 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 5 }],
-    [{ "color": 5 }, { "color": 1 }, { "color": 2 }, { "color": 2 }, { "color": 3 }, { "color": 1 }, { "color": 5 }, { "color": 5 }, { "color": 2 }, { "color": 1 }]
+    [{ "color": 3 }, { "color": 5 }, { "color": 4 }, { "color": 2 }, { "color": 2 }, { "color": 3 }, { "color": 3 }, { "color": 4 }, { "color": 4 }, { "color": 1 }, { "color": 3 }],
+    [{ "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 1 }, { "color": 5 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 5 }],
+    [{ "color": 1 }, { "color": 1 }, { "color": 2 }, { "color": 2 }, { "color": 3 }, { "color": 1 }, { "color": 5 }, { "color": 5 }, { "color": 2 }, { "color": 1 }]
   ],
   "view": { "cameraPreset": "default" },
   "meta": { "name": "Wide Loop", "difficulty": "medium", "solution": [0, 1, 2, 0, 0, 2, 1, 2, 0, 2, 1, 2, 1, 1, 0, 0, 1, 0, 2, 2, 1, 0, 2, 0, 2, 1, 0, 1, 0, 1, 1, 2] }

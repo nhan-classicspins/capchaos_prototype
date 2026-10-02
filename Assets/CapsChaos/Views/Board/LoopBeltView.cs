@@ -7,16 +7,16 @@ using M = Game.Views.DesignTokens.Motion;
 namespace Game.Views
 {
     /// <summary>
-    /// The oval conveyor and its feeder queues (GDD R1–R4, art §4.2b). Humble view: it is told the belt's size, which
-    /// bottle stands on which (row, track), and the belt's PHASE (rows travelled, fractional) — it never sees a rule.
-    /// A row's place on the oval is <c>(row + phase) mod rows</c> track positions from the start of the front straight
-    /// (the pick zone, nearest the slots); the belt runs clockwise seen from above, right→left along the front.
-    /// <para>Shape: two straights of <c>pickRows</c> rows at <see cref="DesignTokens.Board.LoopRowPitch"/>, and two
-    /// bends sharing the other rows — each a quarter circle, an upright straight, a quarter circle, so the oval stands
-    /// <see cref="DesignTokens.Board.LoopDepthStretch"/> times as deep as a plain stadium. A bend's circle is never
-    /// tighter than its INNER track allows — rows there stay a bottle apart (<see cref="DesignTokens.Board.LoopInnerPitch"/>)
-    /// — so a short loop gets roomier bends and its outer track simply spreads. The whole loop then shrinks to fit
-    /// <c>LoopMaxWidth × LoopMaxDepth</c>.</para>
+    /// The belt loop and its feeder queues (GDD R1–R4, art §4.2b). Humble view: it is told the belt's size and SHAPE,
+    /// which bottle stands on which (row, track), and the belt's PHASE (rows travelled, fractional) — it never sees a rule.
+    /// A row's place on the loop is <c>(row + phase) mod rows</c> track positions from the start of the pick zone (on the
+    /// front edge, nearest the slots); the belt runs clockwise seen from above, right→left along the front.
+    /// <para>Shape: a rounded convex polygon (<see cref="LoopPath"/>, level <c>view.loopShape</c>). Rows stand EVENLY
+    /// round it: the shape is scaled so its length is <c>rows</c> pitches, the pitch never under
+    /// <see cref="DesignTokens.Board.LoopRowPitch"/>, and large enough that at the tightest corner the INNER track's
+    /// rows stay <see cref="DesignTokens.Board.LoopInnerPitch"/> apart (a little overlap is fine) round a hole of at least
+    /// <see cref="DesignTokens.Board.LoopMinHole"/>. The pick zone is centred on the front edge. The whole loop then
+    /// shrinks to fit <c>LoopMaxWidth × LoopMaxDepth</c>.</para>
     /// <para>A feeder is an on-ramp: a belt that comes in from off-screen and merges into the oval, tangent to it, a
     /// little past its merge row; the oval's outer rail opens where the two belts' rails meet and the ramp's outer rail
     /// runs on into it. The queue's head waits where the two belts first touch; a joining bottle slides across onto its
@@ -29,9 +29,9 @@ namespace Game.Views
     public sealed class LoopBeltView : MonoBehaviour
     {
         private int _rows, _width;
-        private float _pick, _bendRows;            // rows on a straight, rows on a bend
-        private float _straight, _radius;           // loop-local units (before the fit scale)
-        private float _side, _bendLength;           // each bend's straight upright stretch; a bend's centre-line length
+        private float _pick;                        // rows in the pick zone
+        private LoopPath _path;                     // loop-local units (before the fit scale)
+        private float _pitch, _origin;              // path length per row; where along the path track position 0 is
         private float _fit;                         // loop-local → board units
         private Transform _belt, _bottles;
         private Action<GameObject> _stamp;
@@ -49,6 +49,9 @@ namespace Game.Views
         private sealed class Feeder
         {
             public int MergeAt;
+            /// <summary>+1, or −1 for a mirrored (left-bend) feeder: its "outward" is the mirror of the right side's, so
+            /// tracks and rails swap sides along the curve's own (tangent, outward) frame.</summary>
+            public float Side = 1f;
             public Vector3[] Curve;                                    // the queue's centre line, far end → merged into the oval
             public float Head;                                         // arc length of the head row (where the belts first touch)
             public float[] CurveLength;                                // cumulative arc length per curve point
@@ -67,31 +70,33 @@ namespace Game.Views
         private Material _beltMat, _railMat;
         private Vector2[] _beltProfile;
 
-        /// <summary>Rows round the oval, bottles per row, rows in the pick zone; materials from the straight lane prefab.</summary>
-        public void Build(int rows, int width, int pickRows, GameObject bottlePrefab, GameObject lanePrefab, Action<GameObject> stamp)
+        /// <summary>Rows round the loop, bottles per row, rows in the pick zone; the shape's corners (clockwise from above,
+        /// corner 0 → 1 the front edge) and their rounding radii; materials from the straight lane prefab.</summary>
+        public void Build(int rows, int width, int pickRows, IReadOnlyList<float> xs, IReadOnlyList<float> zs, IReadOnlyList<float> radii,
+            GameObject bottlePrefab, GameObject lanePrefab, Action<GameObject> stamp)
         {
             _rows = rows; _width = width;
             _stamp = stamp ?? (_ => { });
             _bottlePrefab = bottlePrefab;
             _spots = new GameObject[rows * width];
             _pick = pickRows;
-            _bendRows = (rows - 2f * pickRows) * 0.5f;
-            _straight = pickRows * B.LoopRowPitch;
-            float fromRows = _bendRows * B.LoopRowPitch / Mathf.PI;                        // centre line at the row pitch
+            // scale the shape: rows evenly round it at no less than the row pitch; at the tightest corner the inner track
+            // keeps its rows LoopInnerPitch apart, round a hole of at least LoopMinHole
             float innerTrack = (width - 1) * 0.5f * B.LoopTrackSpacing;                    // the inner track's distance in
-            float fromInner = _bendRows * B.LoopInnerPitch / Mathf.PI + innerTrack;        // inner track a bottle apart
-            _radius = Mathf.Max(fromRows, fromInner, innerTrack + B.LoopMinHole);
+            var unit = new LoopPath(xs, zs, radii, 1f);
+            float scale = Mathf.Max(rows * B.LoopRowPitch / unit.Length,
+                (rows * B.LoopInnerPitch + unit.Length * innerTrack / unit.MinRadius) / unit.Length,
+                (innerTrack + B.LoopMinHole) / unit.MinRadius);
+            _path = new LoopPath(xs, zs, radii, scale);
+            _pitch = _path.Length / rows;
+            _origin = (_path.FrontLength - pickRows * _pitch) * 0.5f;                       // the pick zone centred on the front edge
 
-            // deeper than a plain stadium: each bend is a quarter circle, an upright straight, a quarter circle — so the
-            // oval stands LoopDepthStretch times as deep, and its bend rows only spread out (never closer on the inside)
-            float beltHalf = BeltHalfWidth, edge = _radius + beltHalf + B.LoopRailWidth;
-            _side = (B.LoopDepthStretch - 1f) * 2f * edge;
-            _bendLength = Mathf.PI * _radius + _side;
-            float depth = 2f * edge + _side;
-            float fit = Mathf.Min(1f, B.LoopMaxWidth / (_straight + 2f * edge), B.LoopMaxDepth / depth);
+            float beltHalf = BeltHalfWidth, edge = beltHalf + B.LoopRailWidth;
+            float wide = _path.Max.x - _path.Min.x + 2f * edge, deep = _path.Max.y - _path.Min.y + 2f * edge;
+            float fit = Mathf.Min(1f, B.LoopMaxWidth / wide, B.LoopMaxDepth / deep);
             _fit = fit;
             transform.localScale = Vector3.one * fit;
-            transform.localPosition = new Vector3(0f, 0f, B.LoopFrontZ + depth * 0.5f * fit);   // centred; the front edge sits on LoopFrontZ
+            transform.localPosition = new Vector3(0f, 0f, B.LoopFrontZ + (edge - _path.Min.y) * fit);   // centred; the front edge sits on LoopFrontZ
 
             _beltMat = Material(lanePrefab, "Belt");
             _railMat = Material(lanePrefab, "Rail");
@@ -135,7 +140,7 @@ namespace Game.Views
         {
             // the queues that come down from the top stand as evenly spread columns, left to right in belt order
             var fromTop = new List<Feeder>();
-            foreach (var f in _feeders) if (!FromLeft(EndPos(f))) fromTop.Add(f);
+            foreach (var f in _feeders) fromTop.Add(f);
             fromTop.Sort((a, b) => Mathf.Repeat(EndPos(a), _rows).CompareTo(Mathf.Repeat(EndPos(b), _rows)));
             float edge = B.ViewHeight * B.SafeAspect * 0.5f - BeltHalfWidth * _fit - B.FeederEdgeMargin;
             foreach (var f in _feeders)
@@ -150,8 +155,12 @@ namespace Game.Views
 
         private float EndPos(Feeder f) => f.MergeAt + 0.5f + B.FeederMergeRows;
 
-        /// <summary>The belt runs UP the left side: a queue merging low on the left bend cannot come down from above.</summary>
-        private bool FromLeft(float endPos) => Mathf.Repeat(endPos, _rows) < _pick + LeftBendFromTop * _bendRows;   // the front straight never feeds (V8)
+        /// <summary>A feeder merging on the left side (of a symmetric shape) is drawn as the mirror image of a right-side
+        /// one (art §4.2b).</summary>
+        private bool Mirrored(float endPos) => _path.Symmetric && Path(endPos).outward.x < -MirrorSide;
+
+        /// <summary>The track position mirrored left↔right (a symmetric shape with the pick zone centred on its front).</summary>
+        private float MirrorPos(float pos) => Mathf.Repeat(_rows + _pick - pos, _rows);
 
         private void BuildFeeder(Feeder f, float? column)
         {
@@ -175,19 +184,27 @@ namespace Game.Views
             for (float arc = 0f; arc < total; arc += RailProbeStep)
             {
                 var (rp, _, rn) = CurveAt(f, arc);
-                if (OffCentreLine(rp - rn * half) < half - RailProbeStep) { innerEnd = arc; break; }
+                if (OffCentreLine(rp - rn * (half * f.Side)) < half - RailProbeStep) { innerEnd = arc; break; }
             }
             float outerEnd = total;
             for (float arc = f.Head; arc < total; arc += RailProbeStep)
             {
                 var (rp, _, rn) = CurveAt(f, arc);
-                if (InSlidePath(f, join, rp + rn * half)) { outerEnd = Mathf.Max(f.Head, arc - rail); break; }
+                if (InSlidePath(f, join, rp + rn * (half * f.Side))) { outerEnd = Mathf.Max(f.Head, arc - rail); break; }
             }
-            float gapFrom = endPos, gapTo = outerEnd < total ? endPos + B.FeederLandRows : endPos;
-            for (float pos = endPos; pos > join - 8f; pos -= RailProbeStep)
+            // the covered stretch lies upstream of the merge on the right side, downstream of it on a mirrored feeder
+            float gapFrom = endPos, gapTo = endPos;
+            for (float pos = endPos - CoverSearchRows; pos < endPos + CoverSearchRows; pos += RailProbeStep)
             {
                 var (op, _, on) = Path(pos);
-                if (OffCurve(f, op + on * half) < half - RailProbeStep) gapFrom = pos;
+                if (OffCurve(f, op + on * half) >= half - RailProbeStep) continue;
+                gapFrom = Mathf.Min(gapFrom, pos);
+                gapTo = Mathf.Max(gapTo, pos);
+            }
+            if (outerEnd < total)
+            {
+                if (f.Side > 0f) gapTo = Mathf.Max(gapTo, endPos + B.FeederLandRows);
+                else gapFrom = Mathf.Min(gapFrom, endPos - B.FeederLandRows);          // the mirror image of it
             }
             _railGaps.Add(new Vector2(gapFrom, gapTo));
 
@@ -198,8 +215,8 @@ namespace Game.Views
                 segmentLength: B.LoopMeshStep);
             belt.transform.SetSiblingIndex(0);
             f.Belt = belt.GetComponent<Renderer>();
-            Strip("RailOuter", belt.transform, Along, 0f, outerEnd, _railMat, RailProfile(half), TintToken.LaneRail, 0f, segmentLength: B.LoopMeshStep);
-            Strip("RailInner", belt.transform, Along, 0f, innerEnd, _railMat, RailProfile(-half), TintToken.LaneRail, 0f, segmentLength: B.LoopMeshStep);
+            Strip("RailOuter", belt.transform, Along, 0f, outerEnd, _railMat, RailProfile(half * f.Side), TintToken.LaneRail, 0f, segmentLength: B.LoopMeshStep);
+            Strip("RailInner", belt.transform, Along, 0f, innerEnd, _railMat, RailProfile(-half * f.Side), TintToken.LaneRail, 0f, segmentLength: B.LoopMeshStep);
         }
 
         /// <summary>Whether a rail at <paramref name="p"/> would stand in the way of a head bottle sliding to its spot on
@@ -211,7 +228,7 @@ namespace Game.Views
             float clear = B.LoopRailWidth * 0.5f + B.BottleRadius;
             for (int k = 0; k < _width; k++)
             {
-                Vector3 a = hp + hn * Across(k), ab = op + on * Across(k) - a;
+                Vector3 a = hp + hn * (Across(k) * f.Side), ab = op + on * Across(k) - a;
                 float u = Mathf.Clamp01(Vector3.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-8f));
                 if ((a + ab * u - p).magnitude < clear) return true;
             }
@@ -238,11 +255,14 @@ namespace Game.Views
         /// The queue's centre line, ending merged into the oval at <paramref name="endPos"/>. It starts off-screen and runs
         /// in straight, then a cubic curve turns it onto the oval, landing tangent to the belt over a short run (a junction
         /// mouth about a belt wide — the rails open over it). It comes down from the top edge, upstream of the merge and out
-        /// to the oval's outer side — unless it merges low on the left bend (the belt climbs there), where it comes in from
-        /// the left edge. Screen edges are the safe rect's (board units).
+        /// to the oval's outer side. A feeder merging on the left bend is the exact mirror image of a right-side one at the
+        /// mirrored position (it meets a belt climbing that side: the product owner's call, for symmetry). Screen edges are
+        /// the safe rect's (board units).
         /// </summary>
         private void BuildRamp(Feeder f, float endPos, float? column)
         {
+            bool mirrored = Mirrored(endPos);
+            if (mirrored) { endPos = MirrorPos(endPos); column = -column; f.Side = -1f; }
             var (m, t, n) = Path(endPos);
             var centre = transform.localPosition;
             Vector3 ToLocal(Vector3 board) => (board - centre) / _fit;
@@ -251,19 +271,10 @@ namespace Game.Views
             float halfW = B.ViewHeight * B.SafeAspect * 0.5f;
             float topZ = B.FocusZ + B.ViewHeight * 0.5f / Mathf.Sin(-B.TiltDegrees * Mathf.Deg2Rad);
             float beltB = BeltHalfWidth * _fit;                                         // the queue's half width, board units
-            Vector3 dir, entry;
-            if (FromLeft(endPos))
-            {
-                dir = Vector3.right;
-                entry = new Vector3(-halfW - beltB, 0f, mb.z - B.FeederSideDrop);
-            }
-            else
-            {
-                dir = Vector3.back;
-                // its own column when it shares the top edge; alone, it comes down upstream of the merge, out to the side
-                float x = column ?? mb.x + (n.x * (2f * beltB + B.FeederSwing) - t.x * B.FeederTopLead);
-                entry = new Vector3(Mathf.Clamp(x, -halfW + beltB, halfW - beltB), 0f, topZ + beltB);
-            }
+            var dir = Vector3.back;
+            // its own column when it shares the top edge; alone, it comes down upstream of the merge, out to the side
+            float x = column ?? mb.x + (n.x * (2f * beltB + B.FeederSwing) - t.x * B.FeederTopLead);
+            var entry = new Vector3(Mathf.Clamp(x, -halfW + beltB, halfW - beltB), 0f, topZ + beltB);
             var p0 = ToLocal(entry);
             float reach = (m - p0).magnitude;
             var p1 = p0 + dir * reach * 0.5f;
@@ -278,6 +289,7 @@ namespace Game.Views
                 float u = (float)i / samples, v = 1f - u;
                 pts.Add(v * v * v * p0 + 3f * v * v * u * p1 + 3f * v * u * u * p2 + u * u * u * m);
             }
+            if (mirrored) for (int i = 0; i < pts.Count; i++) pts[i] = new Vector3(-pts[i].x, pts[i].y, pts[i].z);
             f.Curve = pts.ToArray();
             f.CurveLength = new float[f.Curve.Length];
             for (int i = 1; i < f.Curve.Length; i++) f.CurveLength[i] = f.CurveLength[i - 1] + (f.Curve[i] - f.Curve[i - 1]).magnitude;
@@ -357,45 +369,9 @@ namespace Game.Views
         // ── geometry ────────────────────────────────────────────────────────────────────────
         private float BeltHalfWidth => _width * B.LoopTrackSpacing * 0.5f + B.LoopBeltMargin;
 
-        /// <summary>
-        /// The centre line at track position <paramref name="pos"/> (rows, wraps): point, direction of travel, outward
-        /// normal (loop-local, y = 0). Front straight (−z side) right→left, left bend, back straight left→right, right bend.
-        /// </summary>
-        private (Vector3 p, Vector3 tangent, Vector3 outward) Path(float pos)
-        {
-            pos = Mathf.Repeat(pos, _rows);
-            float h = _straight * 0.5f, z = _radius + _side * 0.5f;
-            if (pos < _pick)
-                return (new Vector3(h - pos * B.LoopRowPitch, 0f, -z), Vector3.left, Vector3.back);
-            pos -= _pick;
-            if (pos < _bendRows) return Bend(pos / _bendRows * _bendLength, -1f);
-            pos -= _bendRows;
-            if (pos < _pick)
-                return (new Vector3(-h + pos * B.LoopRowPitch, 0f, z), Vector3.right, Vector3.forward);
-            pos -= _pick;
-            return Bend(pos / _bendRows * _bendLength, 1f);
-        }
-
-        /// <summary>A bend at <paramref name="s"/> along its centre line: a quarter circle, the upright straight, a quarter
-        /// circle. <paramref name="side"/> −1 = the left bend (climbing from the front), +1 = the right bend (descending).</summary>
-        private (Vector3 p, Vector3 tangent, Vector3 outward) Bend(float s, float side)
-        {
-            float h = _straight * 0.5f, r = _radius, half = _side * 0.5f, quarter = Mathf.PI * 0.5f * r;
-            float a, cz;                                            // the angle from the bend's start; the arc's centre z
-            if (s < quarter) { a = s / r; cz = -half; }
-            else if (s < quarter + _side)
-            {
-                float u = s - quarter;
-                return side < 0f
-                    ? (new Vector3(-h - r, 0f, -half + u), Vector3.forward, Vector3.left)
-                    : (new Vector3(h + r, 0f, half - u), Vector3.back, Vector3.right);
-            }
-            else { a = Mathf.PI * 0.5f + (s - quarter - _side) / r; cz = half; }
-            float sin = Mathf.Sin(a), cos = Mathf.Cos(a);
-            return side < 0f
-                ? (new Vector3(-h - r * sin, 0f, cz - r * cos), new Vector3(-cos, 0f, sin), new Vector3(-sin, 0f, -cos))
-                : (new Vector3(h + r * sin, 0f, -cz + r * cos), new Vector3(cos, 0f, -sin), new Vector3(sin, 0f, cos));
-        }
+        /// <summary>The centre line at track position <paramref name="pos"/> (rows, wraps): point, direction of travel,
+        /// outward normal (loop-local, y = 0).</summary>
+        private (Vector3 p, Vector3 tangent, Vector3 outward) Path(float pos) => _path.At(_origin + Mathf.Repeat(pos, _rows) * _pitch);
 
         /// <summary>Track k's offset along the outward normal: track 0 outermost, the last track innermost.</summary>
         private float Across(int track) => ((_width - 1) * 0.5f - track) * B.LoopTrackSpacing;
@@ -439,18 +415,13 @@ namespace Game.Views
         }
 
         private const float RailProbeStep = 0.02f;
-        /// <summary>Past this share of the left bend the belt heads right enough for a queue to come down onto it.</summary>
-        private const float LeftBendFromTop = 0.85f;
+        /// <summary>A merge counts as on the left side when the outward normal points this far left.</summary>
+        private const float MirrorSide = 0.3f;
+        /// <summary>How far either side of a merge (rows) the oval's outer rail is checked for a feeder covering it.</summary>
+        private const float CoverSearchRows = 10f;
 
-        /// <summary>How far <paramref name="p"/> is from the oval's centre line.</summary>
-        private float OffCentreLine(Vector3 p)
-        {
-            // the centre line is the rectangle (±h, ±side/2) grown by the radius
-            float h = _straight * 0.5f, half = _side * 0.5f;
-            float dx = Mathf.Abs(p.x) - h, dz = Mathf.Abs(p.z) - half;
-            if (dx <= 0f && dz <= 0f) return _radius - Mathf.Max(dx, dz);
-            return Mathf.Abs(new Vector2(Mathf.Max(dx, 0f), Mathf.Max(dz, 0f)).magnitude - _radius);
-        }
+        /// <summary>How far <paramref name="p"/> is from the loop's centre line.</summary>
+        private float OffCentreLine(Vector3 p) => _path.Distance(p);
 
         /// <summary>How far <paramref name="p"/> is from the feeder's centre line.</summary>
         private static float OffCurve(Feeder f, Vector3 p)
@@ -484,7 +455,8 @@ namespace Game.Views
             for (int i = f.Curve.Length - 1; i > 0; i--)
             {
                 var c = f.Curve[i];
-                float d = (Path(NearestPosition(c, near - 8f, near + B.FeederMergeRows + 1f)).p - c).magnitude;
+                // both sides of the merge: a mirrored feeder runs alongside the oval downstream of it
+                float d = (Path(NearestPosition(c, near - CoverSearchRows, near + CoverSearchRows)).p - c).magnitude;
                 if (d >= offset) return f.CurveLength[i];
             }
             return 0f;
@@ -499,7 +471,7 @@ namespace Game.Views
                 {
                     if (list[d] == null) continue;
                     var (p, _, n) = CurveAt(f, f.Head - (d + f.Shift[k]) * B.LoopRowPitch);
-                    list[d].transform.localPosition = p + n * Across(k) + Vector3.up * B.LoopBeltTop;
+                    list[d].transform.localPosition = p + n * (Across(k) * f.Side) + Vector3.up * B.LoopBeltTop;
                 }
             }
         }

@@ -123,15 +123,18 @@ Chai ẩn đã bỏ cùng khối chai (GDD D3, D6). Prefab `BottleHidden`, `M_Ra
   theo pha băng, 1 chu kỳ sọc = 1 hàng chai), **gờ hai bên** dùng `M_Matte` + token `LaneRail`. Cùng vật liệu với băng
   khay, nên cả bàn đọc như một dây chuyền.
 - Chai đứng **hàng 4**, khoảng cách 0,40 ngang × 0,42 dọc (chai rộng 0,38): đông như đám đông trong video tham chiếu.
-- Hình oval = hai cạnh thẳng dài bằng vùng lấy + hai khúc cua; mỗi khúc cua = ¼ tròn + đoạn thẳng đứng + ¼ tròn, để oval
-  sâu gấp `LoopDepthStretch` (1,5) lần một hình sân vận động cùng số hàng; hàng chai ở khúc cua chỉ giãn ra. Khúc cua không bao giờ hẹp hơn mức track trong
-  cùng cho phép (`LoopInnerPitch`, `LoopMinHole`), nên chai ở mép trong không chồng lên nhau; track ngoài thì giãn ra. Cả
-  oval co cho vừa khung `LoopMaxWidth × LoopMaxDepth` và luôn **nằm giữa** theo chiều ngang.
+- **Hình vòng băng** (2026-10-02) là một **đa giác lồi bo góc** (`LoopPath`), khai trong level `view.loopShape`: preset
+  `oval` (mặc định), `circle`, `triangle` (đỉnh hướng lên, như ảnh tham chiếu), hoặc tự khai các đỉnh + bán kính bo. Các
+  hàng chai **cách đều** trên cả vòng: hình được scale để chu vi = `rows` × bước hàng; bước hàng không dưới `LoopRowPitch`,
+  và đủ lớn để ở góc gắt nhất track trong vẫn cách `LoopInnerPitch` (0,30 < chai 0,38: chồng nhẹ ở mép trong là chấp nhận
+  được — product owner) quanh một lỗ tối thiểu `LoopMinHole`. Vùng lấy nằm giữa cạnh trước. Cả vòng co cho vừa khung
+  `LoopMaxWidth × LoopMaxDepth` và luôn **nằm giữa** theo chiều ngang.
 - Hàng chờ là một **làn nhập**: đi vào từ ngoài màn hình (thẳng), rồi một đường cong Bézier rẽ vào oval và hạ tiếp tuyến
   với băng qua một đoạn ngắn (`FeederMergeRun`), tạo thành một miệng nhập. Các hàng chờ xếp thành **cột đi xuống từ mép
   trên**, trái → phải đúng thứ tự trên băng: từ 2 hàng trở lên thì chia **đều và đối xứng** trên bề ngang safe rect (cách mép
-  `FeederEdgeMargin`); chỉ 1 hàng thì đi xuống ngay phía trên điểm nhập (`FeederSwing`, `FeederTopLead`). Hàng nhập ở nửa dưới
-  khúc cua trái (băng đang đi lên) thì đi vào từ mép trái (`FeederSideDrop`). Gờ mở theo hình học thật: gờ trong của hàng
+  `FeederEdgeMargin`); chỉ 1 hàng thì đi xuống ngay phía trên điểm nhập (`FeederSwing`, `FeederTopLead`). Hàng nhập ở khúc
+  cua trái được vẽ là **ảnh gương** của hàng nhập ở vị trí đối xứng bên khúc cua phải: đi dọc cạnh trái và hợp vào cạnh
+  trái (băng ở đó đi lên, tức hợp ngược chiều; product owner chọn đối xứng, 2026-10-02). Gờ mở theo hình học thật: gờ trong của hàng
   chờ dừng ở chỗ chạm mặt oval; gờ ngoài của hàng chờ dừng trước đường trượt của chai từ đầu hàng xuống oval; gờ ngoài của
   oval mở trên đoạn mặt hàng chờ phủ lên, và (khi gờ hàng chờ bị cắt) tới quá điểm nhập `FeederLandRows` hàng, để không gờ
   nào chắn chỗ thả chai.

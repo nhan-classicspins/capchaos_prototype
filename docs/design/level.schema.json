@@ -88,7 +88,28 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "cameraPreset": { "type": "string", "enum": ["default", "tall", "wide"], "default": "default" }
+        "cameraPreset": { "type": "string", "enum": ["default", "tall", "wide"], "default": "default" },
+        "loopShape": {
+          "description": "How the belt loop is drawn (presentation only; the rules never read it). A preset, or a rounded convex polygon: corners [x, z] clockwise seen from above, corner 0 → 1 the front edge (level, lowest, right → left, in front of the slots), each rounded by its radius (V9). Absent = oval.",
+          "default": "oval",
+          "oneOf": [
+            { "type": "string", "enum": ["oval", "circle", "triangle"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["points", "radius"],
+              "properties": {
+                "points": { "type": "array", "minItems": 3, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } },
+                "radius": {
+                  "oneOf": [
+                    { "type": "number", "exclusiveMinimum": 0 },
+                    { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 } }
+                  ]
+                }
+              }
+            }
+          ]
+        }
       }
     },
     "meta": {
