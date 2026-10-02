@@ -129,7 +129,8 @@ Chai ẩn đã bỏ cùng khối chai (GDD D3, D6). Prefab `BottleHidden`, `M_Ra
   và đủ lớn để ở góc gắt nhất track trong vẫn cách `LoopInnerPitch` (0,30 < chai 0,38: chồng nhẹ ở mép trong là chấp nhận
   được — product owner) quanh một lỗ tối thiểu `LoopMinHole`. Vùng lấy nằm giữa cạnh trước. Cả vòng co cho vừa khung
   `LoopMaxWidth × LoopMaxDepth` và luôn **nằm giữa** theo chiều ngang.
-- Hàng chờ là một **làn nhập**: đi vào từ ngoài màn hình (thẳng), rồi một đường cong Bézier rẽ vào oval và hạ tiếp tuyến
+- Hàng chờ là một **làn nhập**: `mergeAt` là lối vào, chỗ đầu hàng đứng; làn hạ xuống oval cách đó `FeederEntryRows` hàng
+  (hạ nguồn; bên trái là ảnh gương nên ngược lại). Làn đi vào từ ngoài màn hình (thẳng), rồi một đường cong Bézier rẽ vào oval và hạ tiếp tuyến
   với băng qua một đoạn ngắn (`FeederMergeRun`), tạo thành một miệng nhập. Các hàng chờ xếp thành **cột đi xuống từ mép
   trên**, trái → phải đúng thứ tự trên băng: từ 2 hàng trở lên thì chia **đều và đối xứng** trên bề ngang safe rect (cách mép
   `FeederEdgeMargin`); chỉ 1 hàng thì đi xuống ngay phía trên điểm nhập (`FeederSwing`, `FeederTopLead`). Hàng nhập ở khúc

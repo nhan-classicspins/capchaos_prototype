@@ -50,7 +50,7 @@ namespace Game.Domain
         private static readonly string[] CameraPresets = { "default", "tall", "wide" };
         private static readonly string[] Difficulties = { "tutorial", "easy", "medium", "hard", "breather" };
         public const int MaxLockTurns = 99;
-        public const int MinRows = 8, MaxRows = 64, MaxWidth = 6, MaxFeeders = 4;
+        public const int MinRows = 8, MaxRows = 64, MaxWidth = 6, MaxFeeders = 2;
         private const int MaxColorId = 8;
 
         public static LevelParseResult Parse(string json)

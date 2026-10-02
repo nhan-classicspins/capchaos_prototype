@@ -11,8 +11,10 @@ namespace Game.Domain
     /// (the front straight, in front of the slots); positions grow in the direction of travel.
     /// <para>A picked bottle leaves an empty spot that travels with the belt (R3). Feeders (R4) are queues of bottles
     /// that join the oval at a fixed position, ROW BY ROW: bottle <c>i</c> of a feeder stands in queue row
-    /// <c>i / Width</c> on track <c>i % Width</c>, and the front queue row steps onto the belt row passing the merge
-    /// point only when that row is empty on every track it needs — whole rows join, never single bottles.</para>
+    /// <c>i / Width</c> on track <c>i % Width</c>, and the front queue row steps onto a belt row only when that row is
+    /// empty on every track it needs — whole rows join, never single bottles. The merge position is the queue's
+    /// ENTRANCE: the row taken is the free one nearest to it, within <see cref="FeedReach"/> rows either way (the one at
+    /// the entrance first, then the one about to arrive before the one just gone by), never one in the pick zone.</para>
     /// </summary>
     public sealed class LoopBelt
     {
@@ -154,14 +156,17 @@ namespace Game.Domain
             return c;
         }
 
-        /// <summary>R4: a feeder whose front queue row fits the belt row passing its merge point puts that whole queue row
-        /// on it; feeders in order.</summary>
+        /// <summary>How far (rows) either side of its entrance a feeder looks for a free belt row.</summary>
+        public const int FeedReach = 2;
+
+        /// <summary>R4: a feeder puts its whole front queue row on the free belt row nearest its entrance (within
+        /// <see cref="FeedReach"/>); feeders in order, one row each per step.</summary>
         public void Feed(List<GameFact> facts)
         {
             for (int f = 0; f < _feeders.Length; f++)
             {
-                int row = RowAt(_mergeAt[f]);
-                if (!FrontRowFits(f, row)) continue;
+                int row = NearestFreeRow(f);
+                if (row < 0) continue;
                 int q = _feederRow[f]++;
                 for (int k = 0; k < Width; k++)
                 {
@@ -172,6 +177,21 @@ namespace Game.Domain
                     facts?.Add(new BottleFed(f, k, row, c));
                 }
             }
+        }
+
+        /// <summary>The belt row nearest feeder <paramref name="f"/>'s entrance that its front queue row fits: the one at
+        /// the entrance, then −1, +1, −2, +2 … (upstream first: it is about to pass); −1 if none.</summary>
+        private int NearestFreeRow(int f)
+        {
+            for (int d = 0; d <= 2 * FeedReach; d++)
+            {
+                int offset = (d + 1) / 2 * (d % 2 == 1 ? -1 : 1);
+                int pos = ((_mergeAt[f] + offset) % Rows + Rows) % Rows;
+                if (InPickZone(pos)) continue;
+                int row = RowAt(pos);
+                if (FrontRowFits(f, row)) return row;
+            }
+            return -1;
         }
 
         public void AppendKey(StringBuilder sb)

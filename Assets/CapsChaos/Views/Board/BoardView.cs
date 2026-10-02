@@ -199,6 +199,9 @@ namespace Game.Views
         /// the queue on track k, head first.</summary>
         public void AddFeeder(int mergeAt, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks) => _loop.AddFeeder(mergeAt, tracks);
 
+        /// <summary>Editor gizmos only: how far either side of its entrance a feeder looks for a free row (R4).</summary>
+        public void SetFeedReach(int rows) => _loop.SetFeedReach(rows);
+
         /// <summary>Close the oval once every feeder is added: lay out the feeders, then its outer rail, open where each joins.</summary>
         public void FinishLoop() => _loop.Finish();
 

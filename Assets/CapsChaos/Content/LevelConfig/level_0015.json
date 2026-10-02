@@ -11,7 +11,7 @@
     "width": 4,
     "pickRows": 6,
     "feeders": [
-      { "mergeAt": 27, "bottles": [
+      { "mergeAt": 24, "bottles": [
         3, 3, 3, 3,
         1, 1, 1, 1,
         1, 1, 1, 1,
@@ -31,28 +31,26 @@
         1, 1, 1, 1,
         1, 1, 1, 1,
         6, 6, 6, 6,
-        6, 6, 6, 6
-      ] },
-      { "mergeAt": 21, "bottles": [
+        6, 6, 6, 6,
         6, 6, 6, 6,
         3, 3, 3, 3,
         5, 5, 5, 5,
         5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        8, 8, 8, 8,
-        8, 8, 8, 8,
-        8, 8, 8, 8,
-        6, 6, 6, 6,
-        6, 6, 6, 6,
-        6, 6, 6, 6,
-        8, 8, 8, 8,
-        8, 8, 8, 8,
-        8, 8, 8, 8
+        5, 5, 5, 5
       ] },
-      { "mergeAt": 9, "bottles": [
+      { "mergeAt": 12, "bottles": [
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        8, 8, 8, 8,
+        8, 8, 8, 8,
+        8, 8, 8, 8,
+        6, 6, 6, 6,
+        6, 6, 6, 6,
+        6, 6, 6, 6,
+        8, 8, 8, 8,
+        8, 8, 8, 8,
+        8, 8, 8, 8,
         3, 3, 3, 3,
         3, 3, 3, 3,
         7, 7, 7, 7,
@@ -70,10 +68,10 @@
     ]
   },
   "lanes": [
-    [{ "color": 6 }, { "color": 8 }, { "color": 7 }, { "color": 6 }, { "color": 3 }, { "color": 5 }, { "color": 7 }, { "color": 6 }, { "color": 6 }, { "color": 1 }, { "color": 6 }, { "color": 2 }, { "color": 7 }, { "color": 1 }, { "color": 1 }, { "color": 2 }, { "color": 2 }],
-    [{ "color": 5 }, { "color": 3 }, { "color": 8 }, { "color": 7 }, { "color": 7 }, { "color": 4 }, { "color": 3 }, { "color": 4 }, { "color": 1 }, { "color": 8 }, { "color": 6 }, { "color": 1 }, { "color": 5 }, { "color": 4 }, { "color": 8 }, { "color": 1 }],
-    [{ "color": 3 }, { "color": 5 }, { "color": 4 }, { "color": 7 }, { "color": 3 }, { "color": 2 }, { "color": 2 }, { "color": 8 }, { "color": 3 }, { "color": 2 }, { "color": 5 }, { "color": 2 }, { "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 8 }, { "color": 4 }]
+    [{ "color": 6 }, { "color": 4 }, { "color": 7 }, { "color": 6 }, { "color": 3 }, { "color": 5 }, { "color": 7 }, { "color": 6 }, { "color": 6 }, { "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 2 }, { "color": 2 }, { "color": 6 }, { "color": 5 }, { "color": 1 }],
+    [{ "color": 8 }, { "color": 3 }, { "color": 8 }, { "color": 7 }, { "color": 7 }, { "color": 4 }, { "color": 3 }, { "color": 4 }, { "color": 1 }, { "color": 1 }, { "color": 5 }, { "color": 8 }, { "color": 2 }, { "color": 8 }, { "color": 6 }, { "color": 3 }],
+    [{ "color": 4 }, { "color": 2 }, { "color": 2 }, { "color": 1 }, { "color": 3 }, { "color": 1 }, { "color": 2 }, { "color": 8 }, { "color": 3 }, { "color": 7 }, { "color": 2 }, { "color": 5 }, { "color": 4 }, { "color": 5 }, { "color": 8 }, { "color": 1 }, { "color": 7 }]
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "Rainbow Chaos", "difficulty": "hard", "solution": [2, 1, 0, 0, 1, 0, 2, 1, 0, 2, 2, 2, 1, 2, 0, 0, 1, 2, 1, 1, 1, 0, 2, 0, 1, 0, 2, 0, 0, 1, 2, 1, 1, 2, 0, 1, 0, 2, 2, 0, 2, 1, 0, 2, 2, 0, 1, 0, 1, 2] }
+  "meta": { "name": "Rainbow Chaos", "difficulty": "hard", "solution": [2, 1, 0, 0, 1, 0, 2, 1, 0, 2, 2, 2, 1, 2, 0, 0, 1, 2, 1, 1, 1, 0, 2, 0, 1, 0, 2, 2, 1, 1, 0, 1, 2, 0, 1, 0, 2, 2, 0, 2, 2, 0, 1, 2, 0, 0, 1, 0, 2, 1] }
 }

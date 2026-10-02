@@ -36,8 +36,8 @@
         "pickRows": { "type": "integer", "minimum": 1, "description": "Rows of the pick zone, track positions 0..pickRows-1. V8: rows ≥ 2 × pickRows + 6." },
         "feeders": {
           "type": "array",
-          "maxItems": 4,
-          "description": "Queues of bottles that join the oval (R4), a whole queue row at a time: the front row steps on only when the belt row passing the merge point is empty on every track it needs.",
+          "maxItems": 2,
+          "description": "At most 2 queues of bottles that join the loop (R4), a whole queue row at a time: mergeAt is the queue's entrance, and its front row steps onto the free belt row nearest it (within 2 rows either way, outside the pick zone) that is empty on every track it needs.",
           "items": {
             "type": "object",
             "additionalProperties": false,

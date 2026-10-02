@@ -153,7 +153,14 @@ namespace Game.Views
             BuildOuterRail();
         }
 
-        private float EndPos(Feeder f) => f.MergeAt + 0.5f + B.FeederMergeRows;
+        /// <summary>Where its ramp lands on the loop: the merge position is the queue's ENTRANCE (its head row stands
+        /// there, R4 feeds the free row nearest it), and the ramp lands FeederEntryRows further on — downstream for a
+        /// right-side feeder, upstream for a mirrored one (its mirror image).</summary>
+        private float EndPos(Feeder f)
+        {
+            float entrance = f.MergeAt + 0.5f;
+            return entrance + B.FeederMergeRows + (Mirrored(entrance) ? -B.FeederEntryRows : B.FeederEntryRows);
+        }
 
         /// <summary>A feeder merging on the left side (of a symmetric shape) is drawn as the mirror image of a right-side
         /// one (art §4.2b).</summary>
@@ -562,6 +569,55 @@ namespace Game.Views
             go.AddComponent<TokenTint>().SetToken(token);
             _stamp(go);
             return go;
+        }
+
+        private int _feedReach;
+
+        /// <summary>Gizmos only: the rows either side of an entrance a feeder looks at (R4's FeedReach).</summary>
+        public void SetFeedReach(int rows) => _feedReach = rows;
+
+        /// <summary>
+        /// Scene-view markers per feeder (art §4.2b): the ENTRANCE (its merge position — the rules feed the free row
+        /// nearest it), the rows it looks at either side, where its head row stands on its ramp, and where the ramp lands
+        /// on the loop. Editor only; the game view never shows them.
+        /// </summary>
+        private void OnDrawGizmos()
+        {
+            if (_path == null) return;
+            var g = DesignTokens.Gizmo.Marker;
+            var up = Vector3.up * DesignTokens.Gizmo.Lift;
+            Gizmos.matrix = transform.localToWorldMatrix;
+            for (int i = 0; i < _feeders.Count; i++)
+            {
+                var f = _feeders[i];
+                float entrance = f.MergeAt + 0.5f;
+                Gizmos.color = DesignTokens.Gizmo.Reach;
+                for (float s = entrance - _feedReach; s < entrance + _feedReach; s += 0.1f)
+                    Gizmos.DrawLine(Path(s).p + up, Path(s + 0.1f).p + up);
+                for (int d = -_feedReach; d <= _feedReach; d++) Gizmos.DrawWireSphere(Path(entrance + d).p + up, g * 0.4f);
+                Gizmos.color = DesignTokens.Gizmo.Entrance;
+                var e = Path(entrance).p + up;
+                Gizmos.DrawSphere(e, g);
+                Gizmos.DrawLine(Path(entrance).p, e);
+                Gizmos.color = DesignTokens.Gizmo.Land;
+                float land = EndPos(f);
+                Gizmos.DrawWireSphere(Path(land).p + up, g);
+                Vector3 h = default;
+                if (f.Curve != null)
+                {
+                    Gizmos.color = DesignTokens.Gizmo.Head;
+                    h = CurveAt(f, f.Head).p + up;
+                    Gizmos.DrawWireCube(h, Vector3.one * g * 1.6f);
+                    Gizmos.DrawLine(h, e);
+                }
+#if UNITY_EDITOR
+                var m = transform.localToWorldMatrix;
+                UnityEditor.Handles.Label(m.MultiplyPoint3x4(e), $"F{i} entrance {f.MergeAt} (±{_feedReach})");
+                UnityEditor.Handles.Label(m.MultiplyPoint3x4(Path(land).p + up), $"F{i} lands {land:0.#}");
+                if (f.Curve != null) UnityEditor.Handles.Label(m.MultiplyPoint3x4(h), $"F{i} head");
+#endif
+            }
+            Gizmos.matrix = Matrix4x4.identity;
         }
 
         private void OnDestroy()

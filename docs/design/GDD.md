@@ -132,16 +132,16 @@ chat 2026-10-02; mô hình dưới đây là bản chuyển sang chai.
   slot**. Chỉ chai đang nằm trong vùng này mới bay vào khay. Chai cùng màu ở chỗ khác phải đợi oval quay tới.
 - **R3 — Ô trống chạy theo băng** Chai bị lấy để lại **ô trống**; không có chai nào dồn lên lấp. Ô trống chạy theo
   oval cho tới khi được hàng chờ lấp (R4).
-- **R4 — Hàng chờ (feeder)** Mỗi level có 0–4 hàng chờ, mỗi cái nhập vào oval tại vị trí `mergeAt` (ngoài vùng lấy).
-  Chai trong hàng chờ xếp theo hàng: chai thứ `i` đứng ở hàng `i / width`, track `i % width`. Hàng chờ **nhập nguyên hàng**
-  (sửa 2026-10-02): hàng đầu chỉ bước lên khi hàng oval đi ngang điểm nhập **trống ở mọi track nó cần**; không bao giờ nhập
-  lẻ từng chai. Generator tô **mỗi hàng một màu** (số chai mỗi hàng chờ là bội của `width`). Về hình ảnh, hàng chờ là
-  một **làn nhập** (on-ramp) đi xuống từ mép trên và rẽ vào oval tại điểm nhập. Để các hàng chờ thành cột trái → giữa → phải
-  theo đúng thứ tự trên băng (B = số hàng mỗi khúc cua): **phải** `rows − B/2` (khúc cua phải), **trái** là ảnh gương của nó
-  `rows + pickRows − mergeAt(phải) − 2` (khúc cua trái, vẽ đối xứng gương với hàng phải), **giữa** `2·pickRows + B − 1`
-  (cuối cạnh sau). Hàng chờ
-  **đứng yên** khi hàng đi ngang điểm nhập còn chai ở track nó cần; khi một hàng đủ trống chạy tới, cả hàng đầu bước lên
-  oval và hàng chờ tiến 1 nấc. Nhiều hàng chờ xét theo thứ tự khai báo.
+- **R4 — Hàng chờ (feeder)** Mỗi level có **0–2** hàng chờ (sửa 2026-10-02). `mergeAt` là **lối vào** của hàng chờ (chỗ
+  đầu hàng đứng), ngoài vùng lấy. Chai trong hàng chờ xếp theo hàng: chai thứ `i` đứng ở hàng `i / width`, track
+  `i % width`. Hàng chờ **nhập nguyên hàng**: hàng đầu bước lên **hàng oval trống gần lối vào nhất** — xét lần lượt vị trí
+  `mergeAt`, `−1`, `+1`, `−2`, `+2` (`FeedReach` = 2; ưu tiên hàng sắp tới trước hàng vừa qua; bỏ qua vị trí trong vùng
+  lấy) — hàng đó phải **trống ở mọi track nó cần**; không bao giờ nhập lẻ từng chai. Mỗi bước mỗi hàng chờ nhập tối đa 1
+  hàng; nhiều hàng chờ xét theo thứ tự khai báo. Generator tô **mỗi hàng một màu** (số chai mỗi hàng chờ là bội của
+  `width`). Về hình ảnh, hàng chờ là một **làn nhập** đi xuống từ mép trên; làn hạ xuống oval cách lối vào
+  `FeederEntryRows` (3) hàng về phía hạ nguồn. Vị trí nên dùng (B = số hàng mỗi khúc cua): **phải** `rows − B/2 − 3`,
+  **trái** là ảnh gương `rows + pickRows − mergeAt(phải) − 2` (vẽ đối xứng gương với hàng phải). Không có hàng nào vừa thì
+  hàng chờ đứng yên.
   - Không khai `loop.initial` ⇒ oval **bắt đầu trống**: mọi chai nằm trong hàng chờ và nhập vào khi oval chạy (sửa
     2026-10-02, trước đây oval được đổ đầy trước khi vào ván).
   - Mọi chai đều lộ màu. **Không còn chai ẩn** (D3).

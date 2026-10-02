@@ -56,17 +56,30 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
-        public void R4_a_feeder_puts_a_whole_row_on_a_belt_row_that_is_empty_on_every_track_it_needs()
+        public void R4_a_feeder_puts_a_whole_row_on_the_free_belt_row_nearest_its_entrance()
         {
-            // a full belt except row 3 (one hole) and row 2 (empty); the feeder joins at position 6
+            // a full belt except row 3 (one hole) and row 2 (empty); the feeder's entrance is position 6 (looks at 4..8)
             var g = new CapChaosGame(Level(
                 new[] { "YY", "YY", "..", "Y.", "YY", "YY", "YY", "YY" }, new[] { "Y" }, colors: "ROY",
                 feeders: new[] { "RROO" }, mergeAt: new[] { 6 }, capacity: 1));
-            Assert.That(Trace(Steps(g, 3)), Is.Empty, "rows 5, 4 pass full and row 3 has room on one track only: no whole row fits");
+            Assert.That(Trace(g.Step()), Is.Empty, "positions 4..7 hold rows 3..6: none has room on both tracks (8 = the pick zone)");
             Assert.That(Trace(g.Step()), Is.EqualTo("feed(F0.0->2:R) feed(F0.1->2:R)"),
-                "row 2 reaches position 6 empty: the feeder's front row steps on whole");
+                "row 2 reaches position 4, two before the entrance: the front queue row steps on whole");
             Assert.That(g.Belt.FeederRemaining(0, 0), Is.EqualTo(1));
             Assert.That(g.Belt.FeederAt(0, 1, 0), Is.EqualTo(CapColor.Orange), "the next queue row moved up");
+        }
+
+        [Test]
+        public void R4_the_row_at_the_entrance_wins_then_the_one_about_to_arrive()
+        {
+            // rows 1..3 empty; after one step they stand at positions 2..4 round an entrance at 3
+            var at = new CapChaosGame(Level(new[] { "YY", "..", "..", "..", "YY", "YY", "YY", "YY" }, new[] { "Y" }, colors: "RY",
+                feeders: new[] { "RR" }, mergeAt: new[] { 3 }, capacity: 1));
+            Assert.That(Trace(at.Step()), Is.EqualTo("feed(F0.0->2:R) feed(F0.1->2:R)"), "row 2 is at the entrance itself");
+            // only rows 1 and 3 empty: position 2 (upstream, about to pass) beats position 4 (just gone by)
+            var near = new CapChaosGame(Level(new[] { "YY", "..", "YY", "..", "YY", "YY", "YY", "YY" }, new[] { "Y" }, colors: "RY",
+                feeders: new[] { "RR" }, mergeAt: new[] { 3 }, capacity: 1));
+            Assert.That(Trace(near.Step()), Is.EqualTo("feed(F0.0->1:R) feed(F0.1->1:R)"));
         }
 
         [Test]

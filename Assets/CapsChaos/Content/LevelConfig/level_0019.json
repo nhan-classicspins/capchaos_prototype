@@ -11,7 +11,7 @@
     "width": 4,
     "pickRows": 6,
     "feeders": [
-      { "mergeAt": 27, "bottles": [
+      { "mergeAt": 24, "bottles": [
         3, 3, 3, 3,
         6, 6, 6, 6,
         6, 6, 6, 6,
@@ -45,25 +45,25 @@
         6, 6, 6, 6,
         6, 6, 6, 6,
         6, 6, 6, 6,
-        5, 5, 5, 5
+        5, 5, 5, 5,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        5, 5, 5, 5,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        7, 7, 7, 7,
+        7, 7, 7, 7
       ] },
-      { "mergeAt": 21, "bottles": [
-        1, 1, 1, 1,
-        1, 1, 1, 1,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        5, 5, 5, 5,
-        4, 4, 4, 4,
-        4, 4, 4, 4,
-        4, 4, 4, 4,
-        1, 1, 1, 1,
-        1, 1, 1, 1,
-        1, 1, 1, 1,
-        7, 7, 7, 7,
-        7, 7, 7, 7,
+      { "mergeAt": 12, "bottles": [
         7, 7, 7, 7,
         7, 7, 7, 7,
         1, 1, 1, 1,
@@ -80,9 +80,7 @@
         4, 4, 4, 4,
         4, 4, 4, 4,
         4, 4, 4, 4,
-        8, 8, 8, 8
-      ] },
-      { "mergeAt": 9, "bottles": [
+        8, 8, 8, 8,
         8, 8, 8, 8,
         8, 8, 8, 8,
         8, 8, 8, 8,
@@ -120,10 +118,10 @@
     ]
   },
   "lanes": [
-    [{ "color": 2 }, { "color": 7 }, { "color": 3 }, { "color": 3 }, { "color": 4 }, { "color": 5 }, { "color": 1 }, { "color": 2 }, { "color": 6 }, { "color": 7 }, { "color": 1 }, { "color": 3 }, { "color": 5 }, { "color": 4 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 2 }, { "color": 5 }, { "color": 3 }, { "color": 5 }, { "color": 5 }, { "color": 4 }, { "color": 6 }, { "color": 8 }, { "color": 3 }, { "color": 7 }, { "color": 2 }, { "color": 8 }, { "color": 7 }, { "color": 3 }, { "color": 6 }, { "color": 1 }, { "color": 6 }],
-    [{ "color": 5 }, { "color": 8 }, { "color": 8 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 6 }, { "color": 3 }, { "color": 2 }, { "color": 7 }, { "color": 1 }, { "color": 6 }, { "color": 4 }, { "color": 2 }, { "color": 4 }, { "color": 8 }, { "color": 1 }, { "color": 7 }, { "color": 4 }, { "color": 2 }, { "color": 1 }, { "color": 6 }, { "color": 8 }, { "color": 7 }, { "color": 6 }, { "color": 1 }, { "color": 3 }, { "color": 4 }, { "color": 1 }, { "color": 7 }, { "color": 1 }, { "color": 3 }, { "color": 5 }, { "color": 2 }],
-    [{ "color": 8 }, { "color": 4 }, { "color": 5 }, { "color": 5 }, { "color": 5 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 1 }, { "color": 7 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 7 }, { "color": 6 }, { "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 7 }, { "color": 6 }, { "color": 8 }, { "color": 8 }, { "color": 6 }, { "color": 6 }, { "color": 8 }, { "color": 5 }, { "color": 4 }, { "color": 4 }, { "color": 8 }, { "color": 8 }, { "color": 7 }, { "color": 2 }]
+    [{ "color": 2 }, { "color": 7 }, { "color": 4 }, { "color": 2 }, { "color": 4 }, { "color": 5 }, { "color": 1 }, { "color": 3 }, { "color": 6 }, { "color": 3 }, { "color": 1 }, { "color": 3 }, { "color": 5 }, { "color": 8 }, { "color": 4 }, { "color": 2 }, { "color": 6 }, { "color": 2 }, { "color": 5 }, { "color": 3 }, { "color": 5 }, { "color": 5 }, { "color": 4 }, { "color": 6 }, { "color": 4 }, { "color": 3 }, { "color": 7 }, { "color": 2 }, { "color": 8 }, { "color": 5 }, { "color": 8 }, { "color": 3 }, { "color": 7 }, { "color": 2 }],
+    [{ "color": 5 }, { "color": 8 }, { "color": 8 }, { "color": 1 }, { "color": 7 }, { "color": 2 }, { "color": 6 }, { "color": 3 }, { "color": 2 }, { "color": 7 }, { "color": 3 }, { "color": 6 }, { "color": 2 }, { "color": 2 }, { "color": 8 }, { "color": 8 }, { "color": 8 }, { "color": 7 }, { "color": 4 }, { "color": 2 }, { "color": 1 }, { "color": 6 }, { "color": 1 }, { "color": 7 }, { "color": 1 }, { "color": 1 }, { "color": 8 }, { "color": 3 }, { "color": 6 }, { "color": 1 }, { "color": 5 }, { "color": 3 }, { "color": 4 }, { "color": 1 }],
+    [{ "color": 8 }, { "color": 4 }, { "color": 5 }, { "color": 1 }, { "color": 5 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 7 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 7 }, { "color": 6 }, { "color": 5 }, { "color": 1 }, { "color": 6 }, { "color": 6 }, { "color": 6 }, { "color": 4 }, { "color": 8 }, { "color": 7 }, { "color": 6 }, { "color": 4 }, { "color": 5 }, { "color": 4 }, { "color": 4 }, { "color": 7 }, { "color": 8 }, { "color": 7 }, { "color": 1 }]
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "Hundred Rows", "difficulty": "hard", "notes": "100 queue rows (400 bottles) across three feeders.", "solution": [2, 0, 1, 2, 2, 0, 1, 1, 2, 1, 0, 0, 1, 2, 0, 0, 2, 1, 2, 0, 0, 2, 1, 0, 1, 0, 1, 1, 2, 1, 2, 2, 2, 0, 2, 1, 1, 0, 0, 1, 2, 1, 0, 2, 1, 0, 2, 1, 0, 2, 1, 0, 0, 2, 2, 0, 2, 0, 1, 1, 0, 1, 0, 2, 0, 1, 1, 2, 2, 1, 1, 0, 2, 0, 0, 2, 2, 1, 0, 1, 0, 1, 2, 2, 2, 2, 1, 1, 0, 1, 0, 1, 0, 0, 2, 0, 2, 1, 1, 0] }
+  "meta": { "name": "Hundred Rows", "difficulty": "hard", "notes": "100 queue rows (400 bottles) across two feeders.", "solution": [2, 0, 1, 2, 2, 0, 1, 1, 2, 1, 0, 0, 1, 2, 0, 0, 2, 1, 2, 0, 0, 2, 1, 0, 1, 0, 1, 1, 2, 1, 2, 2, 2, 0, 2, 1, 1, 0, 0, 1, 2, 1, 0, 2, 1, 0, 2, 1, 0, 2, 1, 0, 0, 2, 2, 0, 2, 0, 1, 1, 0, 1, 0, 2, 0, 1, 1, 2, 2, 1, 1, 0, 2, 0, 0, 2, 2, 1, 0, 1, 0, 1, 2, 2, 1, 2, 1, 0, 0, 1, 2, 0, 0, 2, 2, 0, 1, 1, 1, 0] }
 }

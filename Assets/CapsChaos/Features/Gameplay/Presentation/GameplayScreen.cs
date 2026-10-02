@@ -197,6 +197,7 @@ namespace Game.Presentation
             var belt = _game.Belt;
             var (sx, sz, sr) = _level.Shape.Corners(belt.Rows, belt.PickRows);
             _board.BuildLoop(belt.Rows, belt.Width, belt.PickRows, Floats(sx), Floats(sz), Floats(sr));
+            _board.SetFeedReach(LoopBelt.FeedReach);
             for (int row = 0; row < belt.Rows; row++)
                 for (int k = 0; k < belt.Width; k++)
                     if (belt.At(row, k) != CapColor.None) _board.AddBeltBottle(row, k, belt.At(row, k).ToTint());

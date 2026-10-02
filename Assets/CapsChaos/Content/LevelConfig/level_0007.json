@@ -11,7 +11,7 @@
     "width": 4,
     "pickRows": 6,
     "feeders": [
-      { "mergeAt": 21, "bottles": [
+      { "mergeAt": 18, "bottles": [
         5, 5, 5, 5,
         5, 5, 5, 5,
         5, 5, 5, 5,

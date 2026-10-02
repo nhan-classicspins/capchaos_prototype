@@ -11,7 +11,7 @@
     "width": 4,
     "pickRows": 5,
     "feeders": [
-      { "mergeAt": 18, "bottles": [
+      { "mergeAt": 15, "bottles": [
         1, 1, 1, 1,
         4, 4, 4, 4,
         4, 4, 4, 4,
@@ -23,7 +23,7 @@
         3, 3, 3, 3,
         3, 3, 3, 3
       ] },
-      { "mergeAt": 5, "bottles": [
+      { "mergeAt": 8, "bottles": [
         3, 3, 3, 3,
         1, 1, 1, 1,
         1, 1, 1, 1,
@@ -43,9 +43,9 @@
     ]
   },
   "lanes": [
-    [{ "color": 2 }, { "color": 1 }, { "color": 5 }, { "color": 5 }, { "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 3 }, { "color": 1 }],
+    [{ "color": 2 }, { "color": 4 }, { "color": 5 }, { "color": 5 }, { "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 3 }, { "color": 1 }],
     [{ "color": 5 }, { "color": 3 }, { "color": 1 }, { "color": 2 }, { "color": 4 }, { "color": 3 }, { "color": 5 }, { "color": 2 }],
-    [{ "color": 4 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 1 }, { "color": 2 }]
+    [{ "color": 1 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 1 }, { "color": 2 }]
   ],
   "view": { "cameraPreset": "default" },
   "meta": { "name": "Side Entrance", "difficulty": "medium", "solution": [2, 0, 1, 0, 2, 0, 1, 2, 0, 1, 2, 2, 0, 1, 1, 0, 0, 1, 1, 2, 1, 0, 2, 0, 2] }

@@ -144,6 +144,9 @@ namespace Game.Views
             public const float BottleRadius = 0.19f;
             /// <summary>Rows past the merge row where the queue has fully merged into the oval (tangent to it).</summary>
             public const float FeederMergeRows = 0.5f;
+            /// <summary>Rows between a queue's entrance (its merge position, where its head row stands) and where its ramp
+            /// lands on the loop — how far a ramp converges before it has fully merged.</summary>
+            public const float FeederEntryRows = 1f;
             /// <summary>The queue's belt sits this much under the oval's, so the oval's wins where they overlap.</summary>
             public const float FeederBeltSink = 0.006f;
             public const float ColumnSpacing = 1.12f;      // slot / lane spacing along X
@@ -173,6 +176,14 @@ namespace Game.Views
         }
 
         // ── Motion (GDD §2 timings measured off the reference video) ────────────────────────────
+        /// <summary>Scene-view gizmos (editor only, never in the game view): the feeders' merge points (art §4.2b).</summary>
+        public static class Gizmo
+        {
+            public static readonly Color Entrance = Hex("FFD400"), Reach = Hex("00D1FF"), Head = Hex("3DFF6E"), Land = Hex("FF3DD8");
+            /// <summary>Marker sizes and how far above the belt they float (loop-local units).</summary>
+            public const float Marker = 0.22f, Lift = 0.35f;
+        }
+
         public static class Motion
         {
             public const float TrayToSlot = 0.20f, LaneAdvance = 0.20f;
