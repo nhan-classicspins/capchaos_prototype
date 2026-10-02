@@ -83,92 +83,46 @@ namespace Game.Editor
             foreach (var d in new[] { Meshes, Textures, Materials, Prefabs }) EnsureFolder(d);
 
             // meshes
-            var bottle = SaveMesh(ArtShapes.Bottle());
-            var cap = SaveMesh(ArtShapes.Cap());
-            var tray = SaveMesh(ArtShapes.CapTray());
-            var boxBody = SaveMesh(ArtShapes.BoxBody());
-            var flapLong = SaveMesh(ArtShapes.BoxFlap("BoxFlapLong", ArtShapes.BoxWidth - 0.01f, ArtShapes.BoxDepth * 0.5f));
-            var flapShort = SaveMesh(ArtShapes.BoxFlap("BoxFlapShort", ArtShapes.BoxDepth - 0.05f, ArtShapes.BoxWidth * 0.5f - 0.01f));
-            var tape = SaveMesh(ArtShapes.Tape());
             var slot = SaveMesh(ArtShapes.Slot());
             var rail = SaveMesh(ArtShapes.LaneRail());
             var belt = SaveMesh(ArtShapes.LaneBelt());
             var floor = SaveMesh(ArtShapes.Floor());
-            log.Append("meshes 11 · ");
+            log.Append("meshes 4 · ");
+            // gone (2026-10-02): the screw cap, the bottle (the belt carries the Items_NN prefabs), the cap tray (the
+            // authored Container_S replaces it) and the carton (a full container closes its own lid) — delete leftovers
+            // through the AssetDatabase so their Addressables entries go with them
+            foreach (var stale in new[]
+                     {
+                         Prefabs + "/Cap.prefab", Meshes + "/Cap.asset", Prefabs + "/Bottle.prefab", Meshes + "/Bottle.asset",
+                         Materials + "/M_PlasticFrosted.mat", Prefabs + "/CapTray.prefab", Meshes + "/CapTray.asset",
+                         Prefabs + "/Box.prefab", Meshes + "/BoxBody.asset", Meshes + "/BoxFlapLong.asset",
+                         Meshes + "/BoxFlapShort.asset", Meshes + "/BoxTape.asset", Materials + "/M_Plastic.mat",
+                         Materials + "/M_Cardboard.mat", Materials + "/M_Tape.mat", Materials + "/M_MysteryMark.mat",
+                         Textures + "/T_Cardboard.png", Textures + "/T_MysteryMark.png",
+                     })
+                if (AssetDatabase.LoadMainAssetAtPath(stale) != null && AssetDatabase.DeleteAsset(stale)) log.Append("deleted ").Append(stale).Append(" · ");
 
             // textures
             var tBelt = SaveTexture(ProceduralTextures.BeltStripes(), TextureWrapMode.Repeat);
-            var tCard = SaveTexture(ProceduralTextures.Cardboard(), TextureWrapMode.Repeat);
-            var tMystery = SaveTexture(ProceduralTextures.MysteryMark(), TextureWrapMode.Clamp);
             var tShackle = SaveTexture(ProceduralTextures.LockShackle(), TextureWrapMode.Clamp);
             var tLockBody = SaveTexture(ProceduralTextures.LockBody(), TextureWrapMode.Clamp);
             var tRope = SaveTexture(ProceduralTextures.Rope(), TextureWrapMode.Repeat);
-            log.Append("textures 7 · ");
+            log.Append("textures 4 · ");
 
             // materials — white, tinted per instance by TokenTint (URP Lit, instancing on)
-            var mPlastic = SaveMaterial("M_Plastic", null, 0.86f);
-            var mFrosted = SaveMaterial("M_PlasticFrosted", null, 0.35f);
-            var mCard = SaveMaterial("M_Cardboard", tCard, 0.15f);
-            var mTape = SaveMaterial("M_Tape", null, 0.55f);
             var mMatte = SaveMaterial("M_Matte", null, 0.25f);
             var mBelt = SaveMaterial("M_Belt", tBelt, 0.3f);
             // tray modifiers: unlit, alpha-blended decals / lines, still white and token-tinted
-            var mMystery = SaveUnlitMaterial("M_MysteryMark", tMystery);
             var mShackle = SaveUnlitMaterial("M_LockShackle", tShackle);
             var mLockBody = SaveUnlitMaterial("M_LockBody", tLockBody);
             var mRope = SaveUnlitMaterial("M_Rope", tRope);
             var mRopeOutline = SaveUnlitMaterial("M_RopeOutline", null);
-            log.Append("materials 12 · ");
+            log.Append("materials 6 · ");
 
             // prefabs
             var tintType = Type.GetType(TokenTintType);
             if (tintType == null) log.Append("WARNING TokenTint not found — prefabs saved untinted · ");
 
-            var pCap = SavePrefab("Cap", go =>
-            {
-                Renderer(go, cap, mPlastic);
-                Tint(go, tintType, "FlavorCap");
-            });
-            SavePrefab("Bottle", go =>
-            {
-                Renderer(go, bottle, mPlastic, mFrosted);
-                Tint(go, tintType, "FlavorBody", materialIndex: 0);
-                Tint(go, tintType, "FlavorBand", materialIndex: 1);
-            });
-            SavePrefab("CapTray", go =>
-            {
-                Renderer(go, tray, mPlastic);
-                Tint(go, tintType, "FlavorBody");
-                var cells = ArtShapes.CellCentres();
-                for (int i = 0; i < cells.Length; i++)
-                {
-                    var c = (GameObject)PrefabUtility.InstantiatePrefab(pCap);
-                    c.name = "Cap_" + i;
-                    c.transform.SetParent(go.transform, false);
-                    c.transform.localPosition = new Vector3(cells[i].x, ArtShapes.TrayHeight - 0.018f, cells[i].y);
-                    c.transform.localScale = Vector3.one * ArtShapes.CapOnTrayScale;
-                }
-                // R17: the "?" printed over the caps of a hidden tray — off until the board shows the tray hidden
-                var mark = Child(go, "Mystery", new Vector3(0f, MarkY, 0f), Quaternion.Euler(90f, 0f, 0f));
-                mark.transform.localScale = Vector3.one * MarkSize;
-                Renderer(mark, Quad, mMystery).sortingOrder = 1;
-                Tint(mark, tintType, "MysteryMark");
-                mark.SetActive(false);
-            });
-            SavePrefab("Box", go =>
-            {
-                var body = Child(go, "Body", Vector3.zero, Quaternion.identity);
-                Renderer(body, boxBody, mCard); Tint(body, tintType, "FlavorBody");
-                float W = ArtShapes.BoxWidth, D = ArtShapes.BoxDepth, H = ArtShapes.BoxHeight, t = ArtShapes.BoxWall;
-                // every pivot's local +Z points INTO the box (see Flap for the open / closed poses)
-                Flap(go, "Flap_Left", new Vector3(-W * 0.5f + t, H, 0), 90f, flapShort, mCard, tintType);
-                Flap(go, "Flap_Right", new Vector3(W * 0.5f - t, H, 0), -90f, flapShort, mCard, tintType);
-                Flap(go, "Flap_Front", new Vector3(0, H + t, D * 0.5f - t), 180f, flapLong, mCard, tintType);
-                Flap(go, "Flap_Back", new Vector3(0, H + t, -D * 0.5f + t), 0f, flapLong, mCard, tintType);
-                var tp = Child(go, "Tape", new Vector3(0, H + 2 * t, 0), Quaternion.identity);
-                Renderer(tp, tape, mTape); Tint(tp, tintType, "Tape");
-                tp.SetActive(false);                                  // shown after the flaps close
-            });
             SavePrefab("Slot", go => { Renderer(go, slot, mMatte); Tint(go, tintType, "SlotEmpty"); });
             SavePrefab("Lane", go =>
             {
@@ -180,14 +134,13 @@ namespace Game.Editor
             SavePrefab("Floor", go => { Renderer(go, floor, mMatte); Tint(go, tintType, "Floor"); });
             SavePrefab("TrayLock", go => BuildTrayLock(go, mShackle, mLockBody, tintType));
             SavePrefab("TrayLink", go => BuildTrayLink(go, mRope, mRopeOutline, tintType));
-            log.Append("prefabs 10 (Cap, Bottle, CapTray, Box, Slot, Lane, Floor, TrayLock, TrayLink + nested caps)");
+            log.Append("prefabs 5 (Slot, Lane, Floor, TrayLock, TrayLink)");
 
             AssetDatabase.SaveAssets();
             return log.ToString();
         }
 
         // ── tray modifiers (GDD R17–R19) ─────────────────────────────────────────────────────────
-        private const float MarkY = 0.215f, MarkSize = 0.62f;     // just over the caps' tops (≈ 0.2)
         private const float LockSize = 0.78f;                      // the padlock quad; the board places it (DesignTokens.Board.LockY)
         /// <summary>Tilt that turns a quad from the board's up toward the level GamePlay camera (board tilt −60°, ADR-001 §5).</summary>
         private const float FaceCamera = 60f;
@@ -374,18 +327,6 @@ namespace Game.Editor
             c.transform.SetParent(parent.transform, false);
             c.transform.localPosition = pos; c.transform.localRotation = rot;
             return c;
-        }
-
-        /// <summary>Open pose: the flap leans OUTWARD this far past vertical [QS video 1, 18.0 s].</summary>
-        public const float FlapOpenLean = -35f;
-
-        private static void Flap(GameObject box, string name, Vector3 hinge, float yaw, Mesh mesh, Material mat, Type tintType)
-        {
-            // pivot yaw aims local +Z into the box; closed = Euler(0, yaw, 0) * Euler(90, 0, 0)
-            var pivot = Child(box, name, hinge, Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(FlapOpenLean, 0f, 0f));
-            var leaf = Child(pivot, "Leaf", new Vector3(0, 0, ArtShapes.BoxWall * 0.5f), Quaternion.identity);
-            Renderer(leaf, mesh, mat);
-            Tint(leaf, tintType, "FlavorBody");
         }
 
         private static void Tint(GameObject go, Type tintType, string token, int materialIndex = -1)

@@ -81,6 +81,8 @@ namespace Game.Composition
             // The UI palette: one instance for the whole session, cached in Root, loaded during Loading.
             builder.Register<UiPaletteProvider>(Lifetime.Singleton).AsSelf();
             builder.Register<UiPaletteNode>(Lifetime.Singleton).As<IBootNode>();
+            // The containers' materials: one asset for the whole session, cached in Root, loaded by the first round.
+            builder.Register<ContainerPaletteProvider>(Lifetime.Singleton).AsSelf();
 
             // The boot-abort teardown, for real. A Required boot node failing makes BootFlow throw
             // BootAbortedException; it propagates out of BootstrapEntryPoint.StartAsync into VContainer's

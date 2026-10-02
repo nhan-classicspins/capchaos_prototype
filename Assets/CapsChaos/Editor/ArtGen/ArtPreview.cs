@@ -113,24 +113,11 @@ namespace Game.Editor
             SetToken(band, "SlotBand");
             for (int i = -1; i <= 1; i++) Place(scene, "Slot", new Vector3(i * laneX, 0.02f, slotZ), Quaternion.identity, Vector3.one);
 
-            // slot 0: pink tray filling (2 bottles capped), slot 1: orange box sealed, slot 2: blue box open
-            var tray = Place(scene, "CapTray", new Vector3(-laneX, 0.05f, slotZ), Quaternion.identity, Vector3.one, "Red");
-            var cells = ArtShapes.CellCentres();
-            for (int c = 0; c < 2; c++)
-            {
-                tray.transform.Find("Cap_" + c).gameObject.SetActive(false);
-                var pos = tray.transform.position + new Vector3(cells[c].x, ArtShapes.TrayHeight - 0.018f, cells[c].y);
-                Place(scene, "Bottle", pos, Quaternion.identity, Vector3.one, "Red");
-                Place(scene, "Cap", pos + Vector3.up * 0.925f, Quaternion.identity, Vector3.one, "Red");
-            }
-            var sealedBox = Place(scene, "Box", new Vector3(0, 0.05f, slotZ), Quaternion.identity, Vector3.one, "Orange");
-            foreach (var f in new[] { "Flap_Left", "Flap_Right", "Flap_Front", "Flap_Back" })
-            {
-                var p = sealedBox.transform.Find(f);
-                p.localRotation = p.localRotation * Quaternion.Euler(90f - ArtGenerator.FlapOpenLean, 0f, 0f);
-            }
-            sealedBox.transform.Find("Tape").gameObject.SetActive(true);
-            Place(scene, "Box", new Vector3(laneX, 0.05f, slotZ), Quaternion.identity, Vector3.one, "Blue");
+            // slot 0: red container filling (2 items in), slot 1: orange container closed, slot 2: blue container empty
+            var filling = PlaceContainer(scene, 'R', new Vector3(-laneX, 0.05f, slotZ), lidOn: false);
+            foreach (var a in Anchors(filling, 2)) PlaceItem(scene, 'R', a, Quaternion.identity, ItemInTray);
+            PlaceContainer(scene, 'O', new Vector3(0, 0.05f, slotZ), lidOn: true);
+            PlaceContainer(scene, 'B', new Vector3(laneX, 0.05f, slotZ), lidOn: false);
 
             // ── 3 conveyor lanes ──
             string[] lanes = { "BOGRY", "RGBOC", "GRPOB" };
@@ -139,8 +126,7 @@ namespace Game.Editor
                 float x = (l - 1) * laneX, z0 = 0.62f;
                 Place(scene, "Lane", new Vector3(x, 0f, z0), Quaternion.identity, Vector3.one);
                 for (int t = 0; t < lanes[l].Length; t++)
-                    Place(scene, "CapTray", new Vector3(x, 0.01f, z0 - 0.5f - t * ArtShapes.LanePitch),
-                        Quaternion.identity, Vector3.one, FlavorOf(lanes[l][t]));
+                    PlaceContainer(scene, lanes[l][t], new Vector3(x, 0.01f, z0 - 0.5f - t * ArtShapes.LanePitch), lidOn: false);
             }
 
             // ── oval belt: rows of 4 bottles round a stadium (the runtime loop's geometry, BoardView/LoopBeltView) ──
@@ -161,8 +147,7 @@ namespace Game.Editor
                 for (int k = 0; k < width; k++)
                 {
                     var local = p + o * ((k - (width - 1) * 0.5f) * trackSpacing);
-                    Place(scene, "Bottle", centre + local * fit, Quaternion.Euler(0f, (r * 7 + k) * 37f, 0f), Vector3.one * fit,
-                        FlavorOf(blocks[r]));
+                    PlaceItem(scene, blocks[r], centre + local * fit, Quaternion.Euler(0f, (r * 7 + k) * 37f, 0f), fit);
                 }
             }
         }
@@ -177,6 +162,64 @@ namespace Game.Editor
             if (flavor != null) SetFlavor(go, flavor);
             return go;
         }
+
+        /// <summary>The item of colour <paramref name="code"/> (the Items_NN prefab GameplayScreen draws for it), scaled like
+        /// the board does: widest footprint <see cref="ItemSize"/> × <paramref name="scale"/>, standing on <paramref name="pos"/>.</summary>
+        private static GameObject PlaceItem(Scene scene, char code, Vector3 pos, Quaternion rot, float scale)
+        {
+            var go = Place(scene, "Items/" + ItemPrefabs[FlavorCodes.IndexOf(code)], pos, rot, Vector3.one);
+            FitOnto(go, pos, ItemSize * scale);
+            return go;
+        }
+
+        /// <summary>The container of colour <paramref name="code"/>, scaled like the board does (widest footprint
+        /// <see cref="ContainerSize"/>), standing on <paramref name="pos"/>, in its colour's material; lid on or off.</summary>
+        private static GameObject PlaceContainer(Scene scene, char code, Vector3 pos, bool lidOn)
+        {
+            var go = Place(scene, "Containers/Container_S", pos, Quaternion.identity, Vector3.one);
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(ContainerMaterials + "M_Container_" + AssetNumbers[FlavorCodes.IndexOf(code)] + ".mat");
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                if (mat != null && (r.name == "Box" || r.name == "BoxLid")) r.sharedMaterial = mat;
+                if (r.name == "BoxLid") r.gameObject.SetActive(lidOn);
+            }
+            FitOnto(go, pos, ContainerSize);
+            return go;
+        }
+
+        /// <summary>The first <paramref name="count"/> item anchors of a placed container, in world space.</summary>
+        private static Vector3[] Anchors(GameObject container, int count)
+        {
+            var list = new System.Collections.Generic.List<Transform>();
+            foreach (var t in container.GetComponentsInChildren<Transform>(true))
+                if (t.parent != null && t.parent.name == "CardAnchors") list.Add(t);
+            list.Sort((a, b) => a.localPosition.z != b.localPosition.z ? a.localPosition.z.CompareTo(b.localPosition.z) : a.localPosition.x.CompareTo(b.localPosition.x));
+            var pts = new Vector3[Mathf.Min(count, list.Count)];
+            for (int i = 0; i < pts.Length; i++) pts[i] = list[i].position;
+            return pts;
+        }
+
+        /// <summary>Scale <paramref name="go"/> about its pivot to <paramref name="size"/> across, centred over and standing on <paramref name="pos"/>.</summary>
+        private static void FitOnto(GameObject go, Vector3 pos, float size)
+        {
+            var b = new Bounds();
+            bool any = false;
+            foreach (var r in go.GetComponentsInChildren<Renderer>())
+                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+            if (!any) return;
+            float k = size / Mathf.Max(Mathf.Max(b.size.x, b.size.z), 1e-5f);
+            go.transform.localScale = go.transform.localScale * k;
+            var centre = pos + (b.center - pos) * k;
+            float bottom = pos.y + (b.min.y - pos.y) * k;
+            go.transform.position = pos + new Vector3(pos.x - centre.x, pos.y - bottom, pos.z - centre.z);
+        }
+
+        // Mirrors GameplayScreen's colour → asset number table (Items_NN / M_Container_NN) and DesignTokens.Board's
+        // ItemSize, ContainerSize and ItemInTray (Game.Editor sees neither).
+        private static readonly string[] AssetNumbers = { "01", "06", "02", "03", "07", "04", "08", "05" };
+        private static readonly string[] ItemPrefabs = { "Items_01", "Items_06", "Items_02", "Items_03", "Items_07", "Items_04", "Items_08", "Items_05" };
+        private const string ContainerMaterials = "Assets/CapsChaos/Content/Art/Materials/Containers/";
+        private const float ItemSize = 0.38f, ContainerSize = 0.9f, ItemInTray = 0.85f;
 
         // TokenTint lives in Game.Views, which Game.Editor may not reference (pinned graph) — drive it
         // through its serialized fields; OnValidate repaints.

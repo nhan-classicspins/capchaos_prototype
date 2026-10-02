@@ -43,6 +43,7 @@ namespace Game.Presentation
         private readonly IDialogService _dialogs;
         private readonly ILocalizationService _loc;
         private readonly UiPaletteProvider _palette;
+        private readonly ContainerPaletteProvider _containerPalette;
         private readonly BeltClock _clock;
         private readonly IGameplayGateControl _gate;
         private readonly IWalletService _wallet;
@@ -77,8 +78,9 @@ namespace Game.Presentation
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
             IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, BeltClock clock,
             IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, IUserData userData,
-            IWorldViewport viewport, ILog log = null)
+            IWorldViewport viewport, ContainerPaletteProvider containerPalette, ILog log = null)
         {
+            _containerPalette = containerPalette;
             _viewport = viewport;
             _wallet = wallet;
             _ads = ads;
@@ -101,10 +103,22 @@ namespace Game.Presentation
 
         public override async UniTask OnLoadAsync(CancellationToken ct)
         {
-            _prefabs.Bottle = await Hold(AssetKeys.Bottle, ct);
-            _prefabs.Cap = await Hold(AssetKeys.Cap, ct);
-            _prefabs.CapTray = await Hold(AssetKeys.CapTray, ct);
-            _prefabs.Box = await Hold(AssetKeys.Box, ct);
+            // the item of each colour, in CapColor order (R O B G P Y C N) — matched by the colour of its texture
+            _prefabs.Items = new[]
+            {
+                await Hold(AssetKeys.Items.Items_01, ct),   // Red     #E8314D
+                await Hold(AssetKeys.Items.Items_06, ct),   // Orange  #F97610
+                await Hold(AssetKeys.Items.Items_02, ct),   // Blue    #2977F7
+                await Hold(AssetKeys.Items.Items_03, ct),   // Green   #64E917
+                await Hold(AssetKeys.Items.Items_07, ct),   // Purple  #9141D8
+                await Hold(AssetKeys.Items.Items_04, ct),   // Yellow  #FBC40F
+                await Hold(AssetKeys.Items.Items_08, ct),   // Cyan    #1AD1ED
+                await Hold(AssetKeys.Items.Items_05, ct),   // "Brown" (code N) is drawn pink: #FE79C0
+            };
+            _prefabs.Container = await Hold(AssetKeys.Containers.Container_S, ct);
+            _prefabs.ContainerPalette = await _containerPalette.LoadAsync(ct);
+            if (_prefabs.ContainerPalette == null)
+                _log?.Warn($"[Gameplay] no addressable '{ContainerPalette.Address}' — containers keep their authored material");
             _prefabs.Slot = await Hold(AssetKeys.Slot, ct);
             _prefabs.Lane = await Hold(AssetKeys.Lane, ct);
             _prefabs.Floor = await Hold(AssetKeys.Floor, ct);
@@ -378,7 +392,7 @@ namespace Game.Presentation
                         _board.FeedBottle(d.Feeder, d.Track, d.Row);
                         break;
                     case TrayPacked k:
-                        _packs.Add(_board.PackTray(_trayInSlot[k.Slot], k.Color.ToTint()).Preserve());
+                        _packs.Add(_board.PackTray(_trayInSlot[k.Slot]).Preserve());
                         break;
                     case SlotsRanOut _:
                         OfferSlotAsync(rescue: true, _roundCts.Token).Forget();

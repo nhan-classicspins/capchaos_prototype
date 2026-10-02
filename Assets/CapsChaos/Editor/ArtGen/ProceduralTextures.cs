@@ -147,17 +147,6 @@ namespace Game.Editor
         private static float Cross(Vector2 p, Vector2 a, Vector2 b) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
 
         // ── tray modifiers (GDD R17–R19): white fill + dark outline, tinted by a token like everything else ──
-        /// <summary>"?" for a hidden tray: a hooked arc, a short stem and a dot.</summary>
-        public static Texture2D MysteryMark(int size = 256)
-        {
-            const float w = 0.15f;
-            var c = new Vector2(0f, 0.32f);
-            return Outlined("T_MysteryMark", size, 0.09f, p => Mathf.Min(
-                Arc(p, c, 0.36f, -90f, 180f) - w,
-                Segment(p, new Vector2(0f, -0.04f), new Vector2(0f, -0.30f)) - w,
-                (p - new Vector2(0f, -0.66f)).magnitude - 0.16f));
-        }
-
         /// <summary>Padlock shackle (R18): the upper half-ring and its two legs. Same frame as <see cref="LockBody"/> — the two quads overlap exactly.</summary>
         public static Texture2D LockShackle(int size = 256)
         {
@@ -238,23 +227,6 @@ namespace Game.Editor
         {
             var q = new Vector2(Mathf.Abs(p.x) - half.x + radius, Mathf.Abs(p.y) - half.y + radius);
             return new Vector2(Mathf.Max(q.x, 0f), Mathf.Max(q.y, 0f)).magnitude + Mathf.Min(Mathf.Max(q.x, q.y), 0f) - radius;
-        }
-
-        /// <summary>Cardboard: light value noise + vertical fibres, greyscale around 0.9.</summary>
-        public static Texture2D Cardboard(int size = 256)
-        {
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "T_Cardboard" };
-            var px = new Color[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float n = Mathf.PerlinNoise(x * 0.05f + 11.3f, y * 0.05f + 7.1f) * 0.06f
-                            + Mathf.PerlinNoise(x * 0.9f + 3.7f, y * 0.02f) * 0.05f;
-                    float g = 0.87f + n;
-                    px[y * size + x] = new Color(g, g, g, 1f);
-                }
-            tex.SetPixels(px); tex.Apply(true);
-            return tex;
         }
     }
 }

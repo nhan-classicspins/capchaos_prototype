@@ -15,6 +15,11 @@ MonoBehaviour:
   m_GroupName: Shared
   m_GUID: 6216f085f97704d5cae70fbd171f953c
   m_SerializeEntries:
+  - m_GUID: 0dbdfce30517f44c489e4c48c8d0dd43
+    m_Address: ContainerPalette
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 280332feff88f45359338acc44505a31
     m_Address: Fonts/LilitaOne-Regular Bitmap
     m_ReadOnly: 0

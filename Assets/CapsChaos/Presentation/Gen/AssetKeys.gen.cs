@@ -10,10 +10,23 @@ namespace Game.Presentation
     /// <summary>Typed AssetKey<GameObject> VALUES for the SKU, DERIVED from the Prefabs/ scan (Story 2.4, FR-043/044) — no hand manifest. Nested static classes mirror the folder layout under Prefabs/; the address (the logical key) is independent of Addressables group/bundle packing, so a post-pilot repack changes zero call sites. Codegen-owned; never hand-edit.</summary>
     public static class AssetKeys
     {
-        public static readonly AssetKey<GameObject> Bottle            = new("Bottle");
-        public static readonly AssetKey<GameObject> Box               = new("Box");
-        public static readonly AssetKey<GameObject> Cap               = new("Cap");
-        public static readonly AssetKey<GameObject> CapTray           = new("CapTray");
+        public static class Containers
+        {
+            public static readonly AssetKey<GameObject> Container_S    = new("Containers/Container_S");
+            public static readonly AssetKey<GameObject> IceCube_S      = new("Containers/IceCube_S");
+            public static readonly AssetKey<GameObject> RainbowCover_S = new("Containers/RainbowCover_S");
+        }
+        public static class Items
+        {
+            public static readonly AssetKey<GameObject> Items_01 = new("Items/Items_01");
+            public static readonly AssetKey<GameObject> Items_02 = new("Items/Items_02");
+            public static readonly AssetKey<GameObject> Items_03 = new("Items/Items_03");
+            public static readonly AssetKey<GameObject> Items_04 = new("Items/Items_04");
+            public static readonly AssetKey<GameObject> Items_05 = new("Items/Items_05");
+            public static readonly AssetKey<GameObject> Items_06 = new("Items/Items_06");
+            public static readonly AssetKey<GameObject> Items_07 = new("Items/Items_07");
+            public static readonly AssetKey<GameObject> Items_08 = new("Items/Items_08");
+        }
         public static readonly AssetKey<GameObject> Floor             = new("Floor");
         public static readonly AssetKey<GameObject> GameplayHudWidget = new("GameplayHudWidget");
         public static readonly AssetKey<GameObject> Lane              = new("Lane");

@@ -11,7 +11,13 @@ namespace Game.Views
     /// <summary>The generated prop prefabs (art-direction §9.1) the board is built from.</summary>
     public sealed class BoardPrefabs
     {
-        public GameObject Bottle, Cap, CapTray, Box, Slot, Lane, Floor;
+        /// <summary>The tray model (<c>Container_S</c>, with a <see cref="ContainerView"/>).</summary>
+        public GameObject Container;
+        /// <summary>The containers' shared materials (one asset for the session).</summary>
+        public ContainerPalette ContainerPalette;
+        public GameObject Slot, Lane, Floor;
+        /// <summary>The item drawn for each colour on the belt and in the trays: <c>Items[flavour − 1]</c>.</summary>
+        public GameObject[] Items;
         /// <summary>Tray modifiers (GDD R18, R19): the padlock on a locked tray, the rope between linked trays. Optional — without one, that modifier just does not draw.</summary>
         public GameObject TrayLock, TrayLink;
     }
@@ -50,7 +56,9 @@ namespace Game.Views
         private int _slotCount;
         private readonly Dictionary<GameObject, TrayLockView> _locks = new Dictionary<GameObject, TrayLockView>();
         private readonly List<TrayLinkView> _links = new List<TrayLinkView>();
-        private const string MysteryMarkChild = "Mystery";   // the "?" decal inside the CapTray prefab (ArtGenerator)
+        // per tray on screen: its model's view and the look it was last given (so an unlock or a reveal keeps the rest)
+        private readonly Dictionary<GameObject, ContainerView> _containers = new Dictionary<GameObject, ContainerView>();
+        private readonly Dictionary<GameObject, TrayLook> _looks = new Dictionary<GameObject, TrayLook>();
         private float _slotScale = 1f, _slotSpacing = DesignTokens.Board.ColumnSpacing;
 
         private static readonly int BaseMapSt = Shader.PropertyToID("_BaseMap_ST");
@@ -118,6 +126,7 @@ namespace Game.Views
             {
                 // the belt itself is NOT tappable — each tray on it carries its own hit box (TrayOnBelt)
                 var lane = Spawn(_p.Lane, transform, new Vector3(ColumnX(j, laneCount), 0f, B.LaneFrontZ));
+                lane.transform.localScale = Vector3.one * B.LaneScale;
                 _laneRoots.Add(lane.transform);
                 var belt = lane.transform.Find("Belt");
                 _belts.Add(belt != null ? belt.GetComponent<Renderer>() : null);
@@ -192,7 +201,7 @@ namespace Game.Views
             _loop = new GameObject("Loop").AddComponent<LoopBeltView>();
             _loop.transform.SetParent(transform, false);
             _stamp(_loop.gameObject);
-            _loop.Build(rows, width, pickRows, xs, zs, radii, _p.Bottle, _p.Lane, _stamp);
+            _loop.Build(rows, width, pickRows, xs, zs, radii, _p.Items, _p.Lane, _stamp);
         }
 
         /// <summary>A feeder joining the oval at track position <paramref name="mergeAt"/>; <paramref name="tracks"/>[k] is
@@ -240,7 +249,7 @@ namespace Game.Views
         public async UniTask RevealLaneTray(int lane, int index, TintFlavor color)
         {
             if (!TryBeltTray(lane, index, out var tray)) return;
-            ApplyLook(tray, new TrayLook(color));
+            ApplyLook(tray, new TrayLook(color, false, _looks.TryGetValue(tray, out var was) ? was.LockLabel : null));
             var t = tray.transform;
             var belt = _laneRoots[lane];
             // the pop stops the moment the tray is tapped away — PlaceTray owns its scale from then on
@@ -260,6 +269,7 @@ namespace Game.Views
         {
             if (!TryBeltTray(lane, index, out var tray) || !_locks.TryGetValue(tray, out var lockView)) return UniTask.CompletedTask;
             _locks.Remove(tray);
+            if (_looks.TryGetValue(tray, out var look)) ApplyLook(tray, new TrayLook(look.Color, look.Hidden));   // its own colour again
             return lockView != null ? lockView.PlayUnlockAsync(destroyCancellationToken) : UniTask.CompletedTask;
         }
 
@@ -330,40 +340,40 @@ namespace Game.Views
         {
             var t = bottle.transform;
             t.SetParent(transform, true);                                           // off the belt: it stops riding it
+            // collected: the item goes under its cell's anchor (the container's ItemAnchors) and flies to it; with no
+            // anchor, to the cell's place on the tray root. Looked up NOW — a tray filled by this very pick starts packing
+            // at once, while this item may still wait out its stagger
+            var anchor = _containers.TryGetValue(tray, out var view) && view != null ? view.Anchor(cell) : null;
             if (delay > 0f) await UniTask.Delay(TimeSpan.FromSeconds(delay), cancellationToken: destroyCancellationToken);
             if (t == null || tray == null) return;
-            t.SetParent(tray.transform, true);
+            var parent = anchor != null ? anchor : tray.transform;
+            t.SetParent(parent, true);
             var from = t.localPosition;
-            var to = CellOnTray(cell);
+            var to = anchor != null ? Vector3.zero : CellOnTray(cell);
+            // the anchor sits inside the scaled model: keep the item's size and arc in tray units
+            float rel = Mathf.Max(parent.lossyScale.y / Mathf.Max(tray.transform.lossyScale.y, 1e-6f), 1e-6f);
             var fromScale = t.localScale;
+            var toScale = Vector3.one * (B.ItemInTray / rel);
+            float arc = M.BottleArcHeight / rel;
             var fromRot = t.localRotation;
-            var cap = tray.transform.Find("Cap_" + cell);
-            Vector3 capFrom = cap != null ? cap.localPosition : Vector3.zero;
-            var capTo = to + Vector3.up * B.CapOnNeckY;
             await LMotion.Create(0f, 1f, M.BottleFlight).WithEase(Ease.InOutQuad).Bind(k =>
             {
                 if (t == null) return;
                 var p = Vector3.Lerp(from, to, k);
-                p.y += Mathf.Sin(k * Mathf.PI) * M.BottleArcHeight;
+                p.y += Mathf.Sin(k * Mathf.PI) * arc;
                 t.localPosition = p;
-                t.localScale = Vector3.Lerp(fromScale, Vector3.one, k);
+                t.localScale = Vector3.Lerp(fromScale, toScale, k);
                 t.localRotation = Quaternion.Slerp(fromRot, Quaternion.identity, k);
-                if (cap != null)
-                {
-                    var c = Vector3.Lerp(capFrom, capTo, k);
-                    c.y += Mathf.Sin(k * Mathf.PI) * M.BottleArcHeight * 0.5f;
-                    cap.localPosition = c;
-                    cap.localScale = Vector3.one * Mathf.Lerp(B.CapOnTrayScale, 1f, k);
-                    cap.localRotation = Quaternion.Euler(0f, k * 360f, 0f);
-                }
             }).AddTo(gameObject).ToUniTask(destroyCancellationToken);
         }
 
-        /// <summary>Box full tray <paramref name="trayId"/> and ship it (R13): drop, fold, tape, fly away.</summary>
-        public async UniTask PackTray(int trayId, TintFlavor color)
+        /// <summary>Ship full tray <paramref name="trayId"/> (R13): once its items are in, the container closes its lid and
+        /// flies away.</summary>
+        public async UniTask PackTray(int trayId)
         {
             if (!_trays.TryGetValue(trayId, out var rec) || rec.Go == null) return;
             _trays.Remove(trayId);
+            _containers.TryGetValue(rec.Go, out var container);       // kept in the table until the tray is gone
             while (rec.Visual < 0) await UniTask.Yield(PlayerLoopTiming.Update, destroyCancellationToken);   // still claiming a slot
             int v = rec.Visual;
             var tray = rec.Go;
@@ -372,38 +382,24 @@ namespace Game.Views
             await UniTask.WhenAll(rec.Flights);
             await UniTask.Delay(TimeSpan.FromSeconds(M.BoxHold), cancellationToken: destroyCancellationToken);
 
-            var box = Spawn(_p.Box, transform, SlotPos(v) + Vector3.up * 3f);
-            box.transform.localScale = Vector3.one * _slotScale;
-            Tint(box, color);
-            await Move(box.transform, box.transform.localPosition, SlotPos(v), M.BoxDrop, Ease.OutBounce);
-            tray.transform.SetParent(box.transform, true);
-
-            var folds = new List<UniTask>();
-            foreach (var name in new[] { "Flap_Left", "Flap_Right", "Flap_Front", "Flap_Back" })
-            {
-                var pivot = box.transform.Find(name);
-                if (pivot == null) continue;
-                var open = pivot.localRotation;
-                var closed = open * Quaternion.Euler(125f, 0f, 0f);   // −35° open lean → +90° closed (ArtGenerator)
-                folds.Add(LMotion.Create(0f, 1f, M.BoxFlaps).WithEase(Ease.InOutQuad)
-                    .Bind(k => { if (pivot != null) pivot.localRotation = Quaternion.Slerp(open, closed, k); }).AddTo(box).ToUniTask(destroyCancellationToken));
-            }
-            await UniTask.WhenAll(folds);
-            var tape = box.transform.Find("Tape");
-            if (tape != null) tape.gameObject.SetActive(true);
+            // the container closes its own lid, then lifts off the way the carton used to
+            if (container != null) await container.CloseLidAsync(M.LidClose, B.LidDrop, B.LidTilt, destroyCancellationToken);
 
             _slotLeaving[v] = false;                                   // lifting off: the slot is free on screen
-            var bt = box.transform;
-            var from = bt.localPosition;
+            var tt = tray.transform;
+            var from = tt.localPosition;
+            var fromScale = tt.localScale;
             var to = new Vector3(B.BoxExitX, B.BoxExitY, from.z + 1f);
             await LMotion.Create(0f, 1f, M.BoxExit).WithEase(Ease.InBack).Bind(k =>
             {
-                if (bt == null) return;
-                bt.localPosition = Vector3.LerpUnclamped(from, to, k);
-                bt.localScale = Vector3.one * (_slotScale * Mathf.Lerp(1f, 0.6f, k));
-                bt.localRotation = Quaternion.Euler(0f, 0f, -15f * k);
-            }).AddTo(box).ToUniTask(destroyCancellationToken);
-            Destroy(box);
+                if (tt == null) return;
+                tt.localPosition = Vector3.LerpUnclamped(from, to, k);
+                tt.localScale = fromScale * Mathf.Lerp(1f, 0.6f, k);
+                tt.localRotation = Quaternion.Euler(0f, 0f, -15f * k);
+            }).AddTo(tray).ToUniTask(destroyCancellationToken);
+            _containers.Remove(tray);
+            _looks.Remove(tray);
+            Destroy(tray);
         }
 
         /// <summary>Every tray in the slots shakes — the jam that precedes the lose result (art §6).</summary>
@@ -502,9 +498,25 @@ namespace Game.Views
             return go;
         }
 
+        /// <summary>A tray on a lane: an empty root (what moves, scales, flies and is tapped) holding the container model,
+        /// scaled to <see cref="DesignTokens.Board.ContainerSize"/> across and standing on the belt.</summary>
         private GameObject TrayOnBelt(int lane, int index, TrayLook look)
         {
-            var tray = Spawn(_p.CapTray, _laneRoots[lane], TrayOnLane(index));
+            var tray = new GameObject("Tray");
+            tray.transform.SetParent(_laneRoots[lane], false);
+            tray.transform.localPosition = TrayOnLane(index);
+            if (_p.Container != null)
+            {
+                var (scale, offset) = PrefabFit.Footprint(_p.Container, B.ContainerSize);
+                var model = Instantiate(_p.Container, tray.transform, false);
+                model.transform.localScale = model.transform.localScale * scale;
+                model.transform.localPosition = offset;
+                foreach (var c in model.GetComponentsInChildren<Collider>(true)) Destroy(c);   // the root's hit box is the tap target
+                var view = model.GetComponent<ContainerView>() ?? model.AddComponent<ContainerView>();
+                view.SetLidOpen(true);                                   // open while it waits and fills
+                _containers[tray] = view;
+            }
+            _stamp(tray);
             ApplyLook(tray, look);
             if (look.Locked && _p.TrayLock != null)
             {
@@ -519,12 +531,12 @@ namespace Game.Views
             return tray;
         }
 
-        /// <summary>Flavour or the hidden "?" look (R17): tray and caps take the mystery slate and the mark shows.</summary>
-        private static void ApplyLook(GameObject tray, TrayLook look)
+        /// <summary>The tray's look: its colour, or hidden (R17) / locked (R18) — the container swaps its material.</summary>
+        private void ApplyLook(GameObject tray, TrayLook look)
         {
-            Tint(tray, look.Hidden ? TintFlavor.Mystery : look.Color);
-            var mark = tray.transform.Find(MysteryMarkChild);
-            if (mark != null) mark.gameObject.SetActive(look.Hidden);
+            _looks[tray] = look;
+            if (_containers.TryGetValue(tray, out var view) && view != null)
+                view.SetLook(_p.ContainerPalette != null ? _p.ContainerPalette.For(look.Color, look.Hidden, look.Locked) : null, look.Hidden);
         }
 
         private bool TryBeltTray(int lane, int index, out GameObject tray)
@@ -549,7 +561,7 @@ namespace Game.Views
             foreach (var t in go.GetComponentsInChildren<TokenTint>(true)) t.SetFlavor(color);
         }
 
-        private static float ColumnX(int i, int count) => (i - (count - 1) * 0.5f) * B.ColumnSpacing;
+        private static float ColumnX(int i, int count) => (i - (count - 1) * 0.5f) * B.LaneSpacing;
         private Vector3 SlotPos(int s) => new Vector3((s - (_slotCount - 1) * 0.5f) * _slotSpacing, B.SlotTop, B.SlotZ);
         private static Vector3 TrayOnLane(int index) => new Vector3(0f, 0.01f, -B.TrayOnBeltOffset - index * B.LanePitch);
 

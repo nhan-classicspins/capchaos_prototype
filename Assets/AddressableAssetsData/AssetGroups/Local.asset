@@ -15,8 +15,48 @@ MonoBehaviour:
   m_GroupName: Local
   m_GUID: b7f97dd9f75664e39ae2f19f3897edcf
   m_SerializeEntries:
+  - m_GUID: 06b30638e70754a8096ae356eef45a19
+    m_Address: Items/Items_02
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 092097be9cb464d7aaeb35e23d4eba8f
+    m_Address: ResultDialog
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 09d826330ad824955b2a8b42c32af7c2
+    m_Address: OutOfSlotDialog
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 125554f58be684143b0045823c602908
+    m_Address: LevelSelectWidget
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1523b55535c66441a859c82c97692742
+    m_Address: Items/Items_01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 234dd53d5ecdc42df9439a40aaaeac18
+    m_Address: TrayLink
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 36f98eb3e2ac241d49a7d7a37797a1f0
     m_Address: Scenes/Loading
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 530a609454acd4bc790fab9bfec63d04
+    m_Address: Items/Items_08
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 642b25fcde8d74efa8ba7785d1244624
+    m_Address: Containers/IceCube_S
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -25,8 +65,68 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 789e33065a9af4461a954b0db03df5d2
+    m_Address: ParkingSlotDialog
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7caee5fcf80e544f0b05ccede020a0ec
+    m_Address: Containers/Container_S
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 802f9d2e2ae78430bbeaf71d297801b6
+    m_Address: TrayLock
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 86f35b096c1c8480cb5ed22b91952f91
+    m_Address: Containers/RainbowCover_S
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 92991467ac99145f99ae622662c1a633
+    m_Address: Items/Items_05
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 9bfd4704106ae403bb81724453076fc4
     m_Address: PF/Blocker
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a72c75cb441f14071a3c37d2f8035dfd
+    m_Address: Items/Items_07
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ab837317d39714f2886715210a46a101
+    m_Address: Slot
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce0cfcd9376de4eefbc05cc0ade1e42d
+    m_Address: Items/Items_04
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce95cd7e6097041eca084f7c70a2492b
+    m_Address: Floor
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d8047a2c86d7f4c3ebe1134575370155
+    m_Address: GameplayHudWidget
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dc7a90da4c5d646f9b90e6285cc2bfa0
+    m_Address: Items/Items_06
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dc8ebe97e616b4daeb87c9b2c9f26ac6
+    m_Address: Lane
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -37,6 +137,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f6f6a778ffb4641e29fd60b4389a8046
     m_Address: PF/LoadingOverlay
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f81f1026bfb68498399ca9b1cc204e29
+    m_Address: Items/Items_03
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

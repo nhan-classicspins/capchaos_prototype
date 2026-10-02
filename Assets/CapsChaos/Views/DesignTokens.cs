@@ -59,17 +59,19 @@ namespace Game.Views
             { Body = Hex(body); Shade = Hex(shade); Cap = Hex(cap); }
         }
 
-        /// <summary>Art-spec order R O B G P Y C N — <c>Flavors[i]</c> is <c>(TintFlavor)(i + 1)</c>.</summary>
+        /// <summary>Art-spec order R O B G P Y C N — <c>Flavors[i]</c> is <c>(TintFlavor)(i + 1)</c>. Body = the average colour
+        /// of that colour's item texture (Items_NN, 2026-10-02), so trays and boxes match what rides the belt; Shade ≈ 70 %
+        /// of it, Cap (the highlight) ≈ half way to white. N is named Brown in the data but its item is PINK.</summary>
         private static readonly FlavorColors[] Flavors =
         {
-            new("EF2B86", "B81F65", "F692C2"), // R pink-red
-            new("E3761B", "A65100", "F4A15A"), // O orange
-            new("0098FB", "076DBD", "5CC0FF"), // B blue
-            new("2FA36B", "006636", "81CBA4"), // G green
-            new("8E4BF0", "5E2BB0", "C29BFA"), // P purple
-            new("F7C520", "B98A00", "FFE27A"), // Y yellow
-            new("18C3C8", "0D8589", "8EE9EC"), // C cyan
-            new("8B5A3A", "5A3620", "C08A66"), // N brown
+            new("E8314D", "A22236", "F498A6"), // R red      (Items_01)
+            new("F97610", "AE530B", "FCBA88"), // O orange   (Items_06)
+            new("2977F7", "1D53AD", "94BBFB"), // B blue     (Items_02)
+            new("64E917", "46A310", "B2F48B"), // G green    (Items_03)
+            new("9141D8", "662E97", "C8A0EC"), // P purple   (Items_07)
+            new("FBC40F", "B0890B", "FDE287"), // Y yellow   (Items_04)
+            new("1AD1ED", "1292A6", "8DE8F6"), // C cyan     (Items_08)
+            new("FE79C0", "B25586", "FFBCE0"), // N pink     (Items_05; "Brown" in the data)
         };
 
         private static readonly FlavorColors Missing = new("FF00FF", "FF00FF", "FF00FF");
@@ -150,21 +152,33 @@ namespace Game.Views
             /// <summary>The queue's belt sits this much under the oval's, so the oval's wins where they overlap.</summary>
             public const float FeederBeltSink = 0.006f;
             public const float ColumnSpacing = 1.12f;      // slot / lane spacing along X
+            /// <summary>An item's widest footprint (board units, like the bottle it replaces: 0.38 across).</summary>
+            public const float ItemSize = 0.38f;
+            /// <summary>A tray container's widest footprint on a lane (board units; the old cap tray was 0.9 across).</summary>
+            public const float ContainerSize = 0.9f;
+            /// <summary>An item's scale once in a container (its four anchors stand ~0.36 apart; an item is ItemSize across).</summary>
+            public const float ItemInTray = 0.85f;
             public const float SlotZ = 1.55f, SlotTop = 0.05f;
             public const float SlotBandDepth = 1.35f;
-            /// <summary>The slot row never grows wider than this (4 slots at full size); 5 slots shrink to fit.</summary>
-            public const float SlotRowMaxWidth = 4.48f;
+            /// <summary>The slot row never grows wider than this (5 slots at full size); the usual 6 (4 open + 2 locked) shrink to ~0.83, the band staying inside the 6.53-wide safe rect.</summary>
+            public const float SlotRowMaxWidth = 5.6f;
             /// <summary>Band = slot row + this margin (3 slots → 3 × 1.12 + 0.84 = 4.2, the art-preview band).</summary>
             public const float SlotBandMargin = 0.84f;
-            public const float LaneFrontZ = 0.62f, LanePitch = 0.95f, TrayOnBeltOffset = 0.5f;
+            public const float LaneFrontZ = 0.45f, LanePitch = 0.95f, TrayOnBeltOffset = 0.5f;
+            /// <summary>The tray lanes are drawn this much larger than the lane prefab (belt, trays, hit boxes, locks alike),
+            /// LaneSpacing apart, so the queued containers read clearly.</summary>
+            public const float LaneScale = 1.25f, LaneSpacing = 1.4f;
             public const int VisibleTraysPerLane = 6;
             /// <summary>A tapped-but-not-front tray shakes side to side on the ground plane by this much.</summary>
             public const float TrayShakeAmplitude = 0.07f;
             /// <summary>Tray hit box (tray-local): the slab plus the cell-filling caps on top.</summary>
             public static readonly Vector3 TrayHitSize = new Vector3(0.9f, 0.25f, 0.86f);
             public const float TrayHitCenterY = 0.12f;
-            public const float TrayCellHalf = 0.21f, TrayCupY = 0.052f, CapOnNeckY = 0.925f, CapOnTrayScale = 2f;
+            public const float TrayCellHalf = 0.21f, TrayCupY = 0.052f;
             public const float BoxExitX = 3.5f, BoxExitY = 4.5f;
+            /// <summary>Where a closing lid starts: this far above the box (the container model's own units — the box is
+            /// about 0.5 tall) and tilted this many degrees.</summary>
+            public const float LidDrop = 0.6f, LidTilt = 25f;
             /// <summary>The "+" on a locked slot (R20), slot-tile-local: arm length, arm width, thickness, height; and the
             /// tile's tap box.</summary>
             public const float SlotPlusLength = 0.46f, SlotPlusWidth = 0.13f, SlotPlusThickness = 0.03f, SlotPlusY = 0.04f;
@@ -200,7 +214,9 @@ namespace Game.Views
             /// <summary>Bottles picked in one belt step leave one after another, this far apart.</summary>
             public const float PickStagger = 0.04f;
             public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
-            public const float BoxHold = 0.35f, BoxDrop = 0.25f, BoxFlaps = 0.25f, BoxExit = 0.40f;
+            /// <summary>A full container (R13): it holds BoxHold once its items are in, closes its lid over LidClose, then
+            /// flies off over BoxExit (the old carton's exit).</summary>
+            public const float BoxHold = 0.35f, LidClose = 0.3f, BoxExit = 0.40f;
             public const float RoundEndPause = 1.0f;
             /// <summary>A locked slot opening: its "+" shrinks away while the tile pops.</summary>
             public const float SlotUnlock = 0.3f;

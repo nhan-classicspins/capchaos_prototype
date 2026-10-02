@@ -63,10 +63,10 @@ Nhịp một lượt, đo từ video 1 với mốc tap = 0 [QS]:
 |---|---|
 | 0,00 | Tap khay đầu làn |
 | 0,20 | Khay đã vào slot; băng chuyền dồn lên một ô |
-| 0,50–1,00 | 4 chai bay vào, mỗi chai cách nhau ~0,12 s; nắp bắn từ khay lên chụp vào cổ chai |
-| ~2,00 | Thùng carton úp xuống, 4 nắp thùng gập lại |
+| 0,50–1,00 | 4 chai bay vào hốc khay, mỗi chai cách nhau ~0,12 s (không còn nắp — bỏ 2026-10-02) |
+| ~2,00 | Khay đậy nắp (bỏ thùng carton — 2026-10-02) |
 | 2,50 | Dán băng keo |
-| 2,80 | Thùng bay ra góc trên phải; slot trống |
+| 2,80 | Khay đã đậy nắp bay ra góc trên phải; slot trống |
 
 ---
 
@@ -95,7 +95,7 @@ Nhịp một lượt, đo từ video 1 với mốc tap = 0 [QS]:
 | **CapTray** | Khay 2×2 = 4 nắp cùng màu [QS] | `color`, `capacity` (mặc định 4), `filled` |
 | **Lane (Conveyor)** | Băng chuyền, là hàng đợi FIFO các khay [QS] | `queue<CapTray>` |
 | **Slot** | Chỗ đặt khay đang nạp chai [QS] | `tray?` |
-| **Box** | Thùng carton cùng màu với khay; chỉ để trình diễn [QS] | — |
+| **Box** | ~~Thùng carton~~ — bỏ 2026-10-02: khay (container) tự đậy nắp rồi bay đi | — |
 
 **Màu** [CHỐT D2]: chỉ dùng màu, không nhãn. Bảng MVP có 8 màu. Mỗi level chọn một tập con (video dùng 4).
 Mã hex ở Art §3.
@@ -421,11 +421,11 @@ Loc key khởi đầu: `title.play`, `hud.level` (arg `{0}`), `win.title`, `win.
 ## 8. Feel / juice
 
 1. Chai rời khối có **vòng pop** tại chỗ nó đứng [QS].
-2. Nắp **bắn từ khay lên** chụp vào cổ chai giữa không trung. Đây là khoảnh khắc "cap" của tên game [QS].
+2. ~~Nắp bắn từ khay lên chụp vào cổ chai~~ — **bỏ 2026-10-02** (product owner): chai bay thẳng vào hốc khay.
 3. Chồng chai **rơi** xuống có nảy nhẹ và bụi ở chân chai [QS].
 4. **Reveal**: cầu vồng tan ra thành màu thật, kèm flash và vài hạt lấp lánh [CHỐT D3].
 5. Băng chuyền chạy mượt; khay có quán tính nhẹ khi dừng [QS].
-6. Đóng thùng có 3 nhịp (úp, gập, dán), sau đó thùng bay đi [QS].
+6. Khay đầy **đậy nắp** rồi bay đi (sửa 2026-10-02: bỏ thùng carton 3 nhịp úp, gập, dán).
 7. [GĐ] Haptic nhẹ khi đóng nắp, vừa khi đóng thùng, mạnh khi thắng.
 
 ---

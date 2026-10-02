@@ -63,16 +63,18 @@ HUD và popup là uGUI trên các layer có sẵn của rig, không bị ảnh h
 
 | Mã | Tên | `Body` | `Shade` | `Cap` (highlight) | Nguồn |
 |---|---|---|---|---|---|
-| `R` | Hồng-đỏ | `#EF2B86` | `#B81F65` | `#F692C2` | đo |
-| `O` | Cam | `#E3761B` | `#A65100` | `#F4A15A` | đo · cap nội suy |
-| `B` | Xanh dương | `#0098FB` | `#076DBD` | `#5CC0FF` | đo · cap nội suy |
-| `G` | Xanh lá | `#2FA36B` | `#006636` | `#81CBA4` | đo |
-| `P` | Tím | `#8E4BF0` | `#5E2BB0` | `#C29BFA` | mới |
-| `Y` | Vàng | `#F7C520` | `#B98A00` | `#FFE27A` | mới |
-| `C` | Xanh ngọc | `#18C3C8` | `#0D8589` | `#8EE9EC` | mới |
-| `N` | Nâu | `#8B5A3A` | `#5A3620` | `#C08A66` | mới |
+| `R` | Đỏ | `#E8314D` | `#A22236` | `#F498A6` | texture `Items_01` |
+| `O` | Cam | `#F97610` | `#AE530B` | `#FCBA88` | texture `Items_06` |
+| `B` | Xanh dương | `#2977F7` | `#1D53AD` | `#94BBFB` | texture `Items_02` |
+| `G` | Xanh lá | `#64E917` | `#46A310` | `#B2F48B` | texture `Items_03` |
+| `P` | Tím | `#9141D8` | `#662E97` | `#C8A0EC` | texture `Items_07` |
+| `Y` | Vàng | `#FBC40F` | `#B0890B` | `#FDE287` | texture `Items_04` |
+| `C` | Xanh ngọc | `#1AD1ED` | `#1292A6` | `#8DE8F6` | texture `Items_08` |
+| `N` | **Hồng** (dữ liệu vẫn gọi `Brown`) | `#FE79C0` | `#B25586` | `#FFBCE0` | texture `Items_05` |
 
-- Thùng carton dùng `Body` cho mặt và `Shade` cho cạnh.
+- Sửa 2026-10-02: `Body` = màu trung bình của texture item tương ứng, `Shade` ≈ 70 %, `Cap` ≈ nửa đường tới trắng; để khay
+  và thùng khớp với vật đang chạy trên băng.
+- ~~Thùng carton~~ đã bỏ (2026-10-02): khay đầy tự đậy nắp rồi bay đi (§4.4).
 - Khay dùng `Body` cho thân và `Shade` cho viền.
 - **Luật phân biệt** (kiểm bằng `Tools/pf/pixel-probe.py`, skill `pf-uigate`): mọi cặp `Body` cách nhau
   **ΔE76 ≥ 25**. Những cặp dễ lẫn nhất là `R`–`P`, `B`–`C` và `O`–`Y`, nên các cặp này cần **lệch độ sáng
@@ -101,7 +103,15 @@ Quy ước chung:
   màu. Không làm prefab riêng cho từng màu.
 - Dùng GPU instancing hoặc SRP Batcher, vì một level có thể có 200+ chai.
 
-### 4.1 Bottle — chai PET không nắp
+### 4.1 Item trên băng (thay chai, 2026-10-02)
+- Băng chở **item** thay cho chai: mỗi màu một prefab `Content/Art/Prefabs/Items/Items_NN` (model + material + texture đã
+  có màu sẵn, không qua `TokenTint`). Bảng ghép màu ↔ prefab nằm ở `GameplayScreen` (theo màu texture, xem §3.2).
+- Mỗi item được bọc trong một gốc rỗng: model được scale để bề ngang lớn nhất = `ItemSize` (0,38), căn giữa, đáy ở y = 0,
+  nên prefab có scale/pivot nào cũng đứng đúng chỗ trên băng và trong hốc khay.
+- Chai cũ đã **xoá** (2026-10-02): ArtGenerator không còn sinh `Bottle.asset` / `Bottle.prefab` / `M_PlasticFrosted`
+  và xoá chúng nếu còn sót. Phần dưới đây chỉ giữ để tham khảo.
+
+### 4.1a Bottle — chai PET không nắp (đã xoá)
 - **Dáng:** chai 500 ml, eo thắt, 2 gờ ngang, đáy 5 múi. **Cổ hở, thấy vành ren** [QS]: chai "trần" chờ
   đóng nắp.
 - **Tỷ lệ:** cao 1,0 · rộng 0,38.
@@ -143,26 +153,44 @@ Chai ẩn đã bỏ cùng khối chai (GDD D3, D6). Prefab `BottleHidden`, `M_Ra
   vừa chạm; mỗi chai của hàng vừa nhập **tự đi tới điểm đích riêng** của nó (ô của nó trên oval, đang chạy theo băng): trễ xuất phát ngẫu nhiên tới `BottleJoinDelayMax`, tốc độ `BottleJoinSpeed` ± `BottleJoinSpeedSpread`, nên 4 chai tới nơi lệch nhau như người bước lên băng.
 - Camera orthographic (ADR-001 §7): khung hình do `ViewHeight` (11,6) quyết định, tính theo chiều cao safe rect.
 
-### 4.3 Cap — nắp
-- Nắp vặn có răng cưa ở vành; mặt trên trơn và **không in chữ** (D2); có một vòng gờ đồng tâm để bắt sáng.
-- Màu theo `Cap`.
-- **Poly:** ≤ 150 tris.
+### 4.3 Cap — nắp (đã bỏ 2026-10-02)
+- Product owner bỏ nắp: không còn mesh `Cap.asset`, prefab `Cap.prefab`, nắp trên khay hay hiệu ứng nắp bay lên chụp cổ
+  chai. Chai bay thẳng vào hốc khay. Prefab chai sẽ được thay sau. Token `FlavorCap` / màu `Cap` còn giữ (enum được
+  serialize), nhưng không prefab nào dùng.
 
-### 4.4 CapTray — khay 4 nắp
+### 4.4 Container — khay (thay CapTray, 2026-10-02)
+- Khay giờ là prefab có sẵn `Content/Art/Prefabs/Containers/Container_S` (`Box` + `BoxLid`, decal "?" `Mystery`,
+  4 điểm neo `ItemAnchors` 01–04). `ContainerView` chỉ cache **phần của chính nó** (2 renderer, decal, 4 neo) và nhận
+  material từ ngoài; **danh sách material nằm một chỗ** trong asset dùng chung `ContainerPalette` (Addressable
+  `ContainerPalette`, group Shared, tải một lần bởi `ContainerPaletteProvider` ở Root): màu thường `M_Container_NN` (cùng
+  số với `Items_NN`), khay **khoá** (R18) `M_Container_Locked`, khay **ẩn** (R17) `M_Container_Hidden` + bật decal "?"
+  (khoá ưu tiên hơn ẩn). Ổ khoá có số đếm (`TrayLock`) vẫn hiện trên khay khoá.
+- Mỗi khay là một gốc rỗng chứa model, scale cho bề ngang `ContainerSize` (0,9), đáy đặt trên băng; vùng bấm là hit box
+  của gốc. Item được thu thập bay tới **điểm neo của ô nó** (01–04 = ô 0–3) và **ở lại làm con của neo đó**; kích thước
+  `ItemInTray` (0,85) và độ cao vòng cung được bù theo tỉ lệ của neo.
+- Gắn và điền tham chiếu bằng menu **CapsChaos → Art → Wire Containers** (tạo/cập nhật `ContainerPalette`, đánh dấu
+  Addressable, gắn `ContainerView` vào prefab).
+- Trên băng và khi đang nhận item, nắp được cất đi (khay mở); khay đầy thì đậy nắp rồi bay đi (§4.5).
+- Khay cũ `CapTray` đã **xoá** (2026-10-02): ArtGenerator không còn sinh nó và xoá nó nếu còn sót. Mô tả cũ giữ để tham khảo:
+
+### 4.4a CapTray — khay 4 nắp (đã xoá)
 - Khay nhựa bo góc lớn, **2×2 hốc**, tỷ lệ 1 : 0,95 [QS].
 - **Trạng thái:**
-  - trên băng: 4 nắp nằm trong hốc;
-  - trong slot: nắp đã bắn đi, các hốc giữ đáy chai ([`refs/05_deadlock.jpg`](design/refs/05_deadlock.jpg)).
-- **Poly:** ≤ 400 tris (không tính nắp).
+  - trên băng và trong slot: 4 hốc trống, khay tô màu của nó; chai bay vào thì các hốc giữ đáy chai
+    ([`refs/05_deadlock.jpg`](design/refs/05_deadlock.jpg)).
+- **Poly:** ≤ 400 tris.
 - **Khay đặc biệt** (GDD R17–R19, chủ SKU quyết 2026-10-01; màu chọn theo rule 17, token trong `DesignTokens`):
-  - **Ẩn:** khay và nắp tô flavor `Mystery` (slate `#5F6A8F` / nắp `#8792B8`), cộng decal **"?"** trắng viền tối
-    (`T_MysteryMark`, child `Mystery` trong `CapTray.prefab`) nằm phẳng trên nắp. Lộ màu thì đổi tint, tắt decal, khay nảy.
+  - **Ẩn:** khay tô flavor `Mystery` (slate `#5F6A8F`), cộng decal **"?"** trắng viền tối
+    (`T_MysteryMark`, child `Mystery` trong `CapTray.prefab`) nằm phẳng trên khay. Lộ màu thì đổi tint, tắt decal, khay nảy.
   - **Khoá:** `TrayLock.prefab` có quai thép `#D4DBEA` + thân than `#2F3554` (2 quad cùng khung, nghiêng 60° về
     camera), số lượt màu trắng (`TextTint` key `White`) in trên thân. Đây là nội dung tạm, chủ SKU sẽ thay.
   - **Nối:** `TrayLink.prefab` là dây thừng `#EBD5A4`, có sọc xoắn (`T_Rope`) và viền nâu `#5A4630`, vắt vòng cung qua
     nắp của 2 khay. Dây bám theo khay mỗi frame và mảnh dần rồi biến mất khi khay bay.
 
-### 4.5 Box — thùng carton
+### 4.5 Box — thùng carton (đã bỏ 2026-10-02)
+- Không còn thùng carton: khay `Container_S` đầy thì **đậy nắp `BoxLid`** (nắp rơi từ trên xuống `LidDrop`, nghiêng
+  `LidTilt`, nảy `OutBounce` trong `LidClose` 0,3 s) rồi **bay đi theo đúng motion cũ của thùng** (`InBack` 0,4 s tới
+  `BoxExitX/Y`, thu còn 60 %, nghiêng −15°). ArtGenerator không còn sinh `Box.prefab` và xoá nó nếu còn sót. Mô tả cũ:
 - Thùng cùng màu với khay [QS], có 4 nắp gập riêng, đặt pivot ở bản lề để animation gập được.
 - Mặt bên in một **icon trung tính** (ví dụ mũi tên "this side up"), không dùng "⚠" như video. Băng keo trắng.
 - **Poly:** ≤ 500 tris.
@@ -228,7 +256,7 @@ Popup vào bằng cách scale 0,8 → 1 (`OutBack`, 0,25 s) + dim fade 0,15 s; r
 | Khoảng cách giữa các chai | — | 0,12 s |
 | Chồng chai rơi một tầng | `InQuad` rơi rồi `OutBack` nảy | 0,18 s |
 | Reveal | `Linear` dissolve | 0,25 s |
-| Thùng úp / gập 4 nắp / bay đi | `OutBounce` / `InOutQuad` / `InBack` | 0,25 / 0,25 / 0,40 s |
+| Khay đầy: đậy nắp / bay đi | `OutBounce` / `InBack` | 0,30 / 0,40 s |
 | Khay bị từ chối | Lắc ngang 3 lần | 0,25 s |
 | Nút UI khi nhấn | Scale 1 → 0,92 → 1 | 0,12 s |
 
@@ -282,7 +310,7 @@ Chạy bằng **LitMotion**. Mọi thời lượng đọc từ config key (GDD �
 | Output | `Content/Art/Meshes` (11), `Textures` (7), `Materials` (12), `Prefabs` (10: Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor, TrayLock, TrayLink) |
 
 **Quy ước kỹ thuật đã chốt khi làm:**
-- **Đơn vị:** 1 unit = chiều cao một chai. Mọi kích thước là hằng số trong `ArtShapes`, gồm `CellPitch 0.42`, `LanePitch 0.95` và `CapOnTrayScale 2`. Nắp nằm trên khay được phóng to 2 lần để trông đầy hốc như trong video; khi bay lên chai thì thu về kích thước 1.
+- **Đơn vị:** 1 unit = chiều cao một chai. Mọi kích thước là hằng số trong `ArtShapes`, gồm `CellPitch 0.42` và `LanePitch 0.95`.
 - **Màu:** material luôn **trắng**. Màu do `TokenTint` (MaterialPropertyBlock, lấy từ `DesignTokens`) tô lên. Cạnh tham chiếu `Game.Editor → Game.Views` đang bị **ghim rỗng** (`SkuHeadlessTests/Gate/AssemblyReferenceTests.cs`), nên generator gắn `TokenTint` bằng **tên type**, và không chép lại mã màu nào.
 - **Thùng:** trục local +Z của pivot nắp hướng vào trong thùng. Tư thế mở = `yaw · Euler(FlapOpenLean = −35°)`, tư thế đóng = `yaw · Euler(90°)`. Child `Tape` mặc định tắt.
 - **GUID ổn định:** chạy lại generator sẽ ghi đè asset tại chỗ, nên mọi tham chiếu vẫn giữ nguyên.

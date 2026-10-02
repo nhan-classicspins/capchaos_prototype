@@ -35,7 +35,7 @@ namespace Game.Views
         private float _fit;                         // loop-local → board units
         private Transform _belt, _bottles;
         private Action<GameObject> _stamp;
-        private GameObject _bottlePrefab;
+        private IReadOnlyList<GameObject> _items;                       // [flavour − 1]: the item drawn for that colour
         private Renderer _beltRenderer;
         private MaterialPropertyBlock _block;
         private static readonly int BaseMapSt = Shader.PropertyToID("_BaseMap_ST");
@@ -73,11 +73,11 @@ namespace Game.Views
         /// <summary>Rows round the loop, bottles per row, rows in the pick zone; the shape's corners (clockwise from above,
         /// corner 0 → 1 the front edge) and their rounding radii; materials from the straight lane prefab.</summary>
         public void Build(int rows, int width, int pickRows, IReadOnlyList<float> xs, IReadOnlyList<float> zs, IReadOnlyList<float> radii,
-            GameObject bottlePrefab, GameObject lanePrefab, Action<GameObject> stamp)
+            IReadOnlyList<GameObject> itemPrefabs, GameObject lanePrefab, Action<GameObject> stamp)
         {
             _rows = rows; _width = width;
             _stamp = stamp ?? (_ => { });
-            _bottlePrefab = bottlePrefab;
+            _items = itemPrefabs ?? Array.Empty<GameObject>();
             _spots = new GameObject[rows * width];
             _pick = pickRows;
             // scale the shape: rows evenly round it at no less than the row pitch; at the tightest corner the inner track
@@ -484,11 +484,25 @@ namespace Game.Views
         }
 
         // ── building blocks ─────────────────────────────────────────────────────────────────
+        /// <summary>The item of <paramref name="color"/>, wrapped: the wrapper is what rides the belt and flies to a tray;
+        /// the model inside is scaled so its widest footprint is <see cref="DesignTokens.Board.ItemSize"/>, centred,
+        /// standing on y = 0 — whatever the prefab's own scale and pivot.</summary>
         private GameObject NewBottle(TintFlavor color, Transform parent)
         {
-            var go = Instantiate(_bottlePrefab, parent, false);
+            var go = new GameObject("Item_" + color);
+            go.transform.SetParent(parent, false);
             go.transform.localRotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
-            foreach (var t in go.GetComponentsInChildren<TokenTint>(true)) t.SetFlavor(color);
+            int i = (int)color - 1;
+            var prefab = i >= 0 && i < _items.Count ? _items[i] : null;
+            if (prefab != null)
+            {
+                var (scale, offset) = PrefabFit.Footprint(prefab, B.ItemSize);
+                var model = Instantiate(prefab, go.transform, false);
+                model.transform.localScale = model.transform.localScale * scale;
+                model.transform.localPosition = offset;
+                foreach (var t in model.GetComponentsInChildren<TokenTint>(true)) t.SetFlavor(color);
+            }
+            else Debug.LogWarning($"[LoopBeltView] no item prefab for {color}");
             _stamp(go);
             return go;
         }
