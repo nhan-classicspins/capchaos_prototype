@@ -28,8 +28,15 @@ namespace Game.Composition
             builder.RegisterInstance(hud);
             builder.Register<GameplayHudWidget>(Lifetime.Scoped).AsSelf();
 
+            // the fixed tick (rule #15): the framework's gate + GameplayTickDriver, pumping the belt clock
+            GameplayScopeInstaller.Install(builder);
+            builder.Register<BeltClock>(Lifetime.Scoped).AsSelf().As<ClassicSpins.PrototypeFramework.Application.IGameStep>();
+
             // the Win / Lose popup: the dialog service resolves its controller from this (the active) scope
             builder.Register<ResultDialog>(Lifetime.Transient);
+            // the two "one more slot" offers (R20)
+            builder.Register<ParkingSlotDialog>(Lifetime.Transient);
+            builder.Register<OutOfSlotDialog>(Lifetime.Transient);
             builder.RegisterEntryScreen<GameplayScreen>();
         }
     }

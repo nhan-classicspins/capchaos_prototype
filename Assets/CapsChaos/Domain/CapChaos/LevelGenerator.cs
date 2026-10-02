@@ -12,16 +12,22 @@ namespace Game.Domain
         public string Difficulty { get; set; }
         public string Notes { get; set; }
         public int Slots { get; set; } = LevelDefinition.DefaultSlots;
+        public int ExtraSlots { get; set; } = LevelDefinition.DefaultExtraSlots;
         public int TrayCapacity { get; set; } = LevelDefinition.DefaultTrayCapacity;
         public int Lanes { get; set; } = 3;
         public IReadOnlyList<CapColor> Colors { get; set; } = CapColorCodes.ParseList("ROBG");
-        /// <summary>Stack SHAPE, layers[k][row] like the level format but with '#' = visible bottle,
-        /// '?' = hidden bottle, '.' = empty. Row 0 is the back row.</summary>
-        public List<List<string>> Shape { get; set; } = new List<List<string>>();
-        /// <summary>0..1 — chance each tray is the colour with the most exposed matches (easy) rather than any
+        /// <summary>The oval: rows round it, bottles per row, rows in the pick zone.</summary>
+        public int Rows { get; set; } = 24;
+        public int Width { get; set; } = LoopDefinition.DefaultWidth;
+        public int PickRows { get; set; } = 5;
+        /// <summary>Per feeder: where it joins the oval and how many bottles it carries. The belt starts filled from
+        /// the feeders (no authored initial rows).</summary>
+        public List<(int mergeAt, int bottles)> Feeders { get; set; } = new List<(int, int)>();
+        /// <summary>0..1 — chance each tray is the colour with the most bottles on the belt (easy) rather than any
         /// colour that keeps the level alive (tense).</summary>
         public double Greed { get; set; } = 0.6;
-        /// <summary>0..1 — chance a bottle copies its front neighbour's colour (columns of one colour = easy).</summary>
+        /// <summary>0..1 — chance a bottle copies the colour of the bottle queued just before it (blocks of one colour
+        /// = easy).</summary>
         public double Clustering { get; set; } = 0.3;
     }
 
@@ -52,17 +58,17 @@ namespace Game.Domain
             Check(spec);
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                var stackDef = new StackDefinition(Paint(spec));
+                var loop = Paint(spec);
                 var lanes = new List<List<CapColor>>();
                 for (int j = 0; j < spec.Lanes; j++) lanes.Add(new List<CapColor>());
                 var solution = new List<int>();
-                if (!Construct(spec, stackDef, lanes, solution)) continue;
+                if (!Construct(spec, loop, lanes, solution)) continue;
 
                 var laneViews = new List<IReadOnlyList<CapColor>>();
                 foreach (var l in lanes) laneViews.Add(l);
                 var colors = new List<CapColor>(spec.Colors);
-                var level = new LevelDefinition(spec.Id, spec.Slots, spec.TrayCapacity, colors, stackDef, laneViews,
-                    name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution);
+                var level = new LevelDefinition(spec.Id, spec.Slots, spec.TrayCapacity, colors, loop, laneViews,
+                    name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution, extraSlots: spec.ExtraSlots);
                 return new GeneratedLevel(level, solution, attempt);
             }
             throw new InvalidOperationException($"{spec.Id}: no valid level in {maxAttempts} attempts — relax the spec");
@@ -70,78 +76,88 @@ namespace Game.Domain
 
         private static void Check(LevelSpec spec)
         {
-            if (spec.Shape.Count == 0) throw new ArgumentException($"{spec.Id}: empty shape");
-            int cells = 0;
-            foreach (var layer in spec.Shape) foreach (var row in layer) foreach (char c in row) if (c == '#' || c == '?') cells++;
-            if (cells % spec.TrayCapacity != 0)
-                throw new ArgumentException($"{spec.Id}: {cells} bottles is not a multiple of trayCapacity {spec.TrayCapacity}");
+            if (spec.Feeders.Count == 0) throw new ArgumentException($"{spec.Id}: no feeders");
+            int bottles = 0;
+            foreach (var f in spec.Feeders)
+            {
+                if (f.bottles % spec.Width != 0)
+                    throw new ArgumentException($"{spec.Id}: a feeder of {f.bottles} bottles is not whole rows of {spec.Width}");
+                bottles += f.bottles;
+            }
+            int unit = ColourUnit(spec);
+            if (bottles % unit != 0)
+                throw new ArgumentException($"{spec.Id}: {bottles} bottles is not a multiple of {unit} (whole rows of whole trays)");
             if (spec.Colors.Count == 0) throw new ArgumentException($"{spec.Id}: no colours");
-            if (cells / spec.TrayCapacity < spec.Colors.Count)
+            if (bottles / unit < spec.Colors.Count)
                 throw new ArgumentException($"{spec.Id}: too few bottles for {spec.Colors.Count} colours");
         }
 
-        /// <summary>Assign colours: per-colour totals are multiples of the capacity, spread as evenly as possible.</summary>
-        private StackCell[,,] Paint(LevelSpec spec)
+        /// <summary>The smallest bottle count a colour comes in: whole queue rows (R4 feeds row by row, one colour a
+        /// row) that also fill whole trays.</summary>
+        private static int ColourUnit(LevelSpec spec)
         {
-            int cols = spec.Shape[0][0].Length, rows = spec.Shape[0].Count;
-            var slots = new List<(int k, int r, int x)>();
-            for (int k = 0; k < spec.Shape.Count; k++)
-                for (int r = 0; r < rows; r++)
-                    for (int x = 0; x < cols; x++)
-                        if (spec.Shape[k][r][x] != '.') slots.Add((k, r, x));
-
-            int traysTotal = slots.Count / spec.TrayCapacity;
-            var bag = new List<CapColor>();
-            for (int t = 0; t < traysTotal; t++)
-                for (int i = 0; i < spec.TrayCapacity; i++) bag.Add(spec.Colors[t % spec.Colors.Count]);
-            _rng.Shuffle(bag);
-
-            var grid = new StackCell[spec.Shape.Count, rows, cols];
-            // paint front→back, ground→up, so "copy the front neighbour" (clustering) sees painted cells
-            slots.Sort((a, b) => a.k != b.k ? a.k.CompareTo(b.k) : a.r != b.r ? b.r.CompareTo(a.r) : a.x.CompareTo(b.x));
-            foreach (var (k, r, x) in slots)
-            {
-                var pick = bag[bag.Count - 1];
-                if (r + 1 < rows && !grid[k, r + 1, x].IsEmpty && _rng.NextFloat() < spec.Clustering)
-                {
-                    int i = bag.LastIndexOf(grid[k, r + 1, x].Color);
-                    if (i >= 0) pick = bag[i];
-                }
-                bag.RemoveAt(bag.LastIndexOf(pick));
-                grid[k, r, x] = new StackCell(pick, spec.Shape[k][r][x] == '?');
-            }
-            return grid;
+            int a = spec.Width, b = spec.TrayCapacity;
+            while (b != 0) { int t = a % b; a = b; b = t; }
+            return spec.Width / a * spec.TrayCapacity;
         }
 
-        private bool Construct(LevelSpec spec, StackDefinition stackDef, List<List<CapColor>> lanes, List<int> solution)
+        /// <summary>Assign colours ROW BY ROW — every queue row is one colour (R4). Per-colour totals are whole colour
+        /// units, spread as evenly as possible; the rows queue feeder after feeder, each copying the colour of the row
+        /// before it with probability Clustering.</summary>
+        private LoopDefinition Paint(LevelSpec spec)
         {
-            var stack = BottleStack.FromDefinition(stackDef);
-            var quota = new Dictionary<CapColor, int>();
-            for (int x = 0; x < stack.Cols; x++)
-                for (int z = 0; z < stack.Depth; z++)
-                    for (int h = 0; h < stack.Height(x, z); h++)
+            int total = 0;
+            foreach (var f in spec.Feeders) total += f.bottles;
+            int rowsPerUnit = ColourUnit(spec) / spec.Width;
+            int units = total / ColourUnit(spec);
+            var bag = new List<CapColor>();
+            for (int u = 0; u < units; u++)
+                for (int i = 0; i < rowsPerUnit; i++) bag.Add(spec.Colors[u % spec.Colors.Count]);
+            _rng.Shuffle(bag);
+
+            var feeders = new List<FeederDefinition>();
+            CapColor previous = CapColor.None;
+            foreach (var (mergeAt, count) in spec.Feeders)
+            {
+                var bottles = new List<CapColor>(count);
+                for (int row = 0; row < count / spec.Width; row++)
+                {
+                    var pick = bag[bag.Count - 1];
+                    if (previous != CapColor.None && _rng.NextFloat() < spec.Clustering)
                     {
-                        var c = stack.At(x, z, h).Color;
-                        quota[c] = (quota.TryGetValue(c, out var n) ? n : 0) + 1;
+                        int at = bag.LastIndexOf(previous);
+                        if (at >= 0) pick = bag[at];
                     }
+                    bag.RemoveAt(bag.LastIndexOf(pick));
+                    for (int k = 0; k < spec.Width; k++) bottles.Add(pick);
+                    previous = pick;
+                }
+                feeders.Add(new FeederDefinition(mergeAt, bottles));
+            }
+            return new LoopDefinition(spec.Rows, spec.Width, spec.PickRows, feeders);
+        }
+
+        private bool Construct(LevelSpec spec, LoopDefinition loop, List<List<CapColor>> lanes, List<int> solution)
+        {
+            var quota = new Dictionary<CapColor, int>();
+            foreach (var c in loop.AllBottles()) quota[c] = (quota.TryGetValue(c, out var n) ? n : 0) + 1;
             var keys = new List<CapColor>(quota.Keys);
             foreach (var c in keys) quota[c] /= spec.TrayCapacity;
 
-            var game = new CapChaosGame(stack, Array.Empty<IReadOnlyList<CapColor>>(), spec.Slots, spec.TrayCapacity) { EndlessSupply = true };
+            var game = new CapChaosGame(LoopBelt.FromDefinition(loop), Array.Empty<IReadOnlyList<CapColor>>(), spec.Slots, spec.TrayCapacity) { EndlessSupply = true };
+            game.Settle();
             while (game.Status == GameStatus.Playing)
             {
                 var order = new List<CapColor>();
                 foreach (var kv in quota) if (kv.Value > 0) order.Add(kv.Key);
                 if (order.Count == 0) return false;
-                // dictionary order is not a contract; the rng must see a stable list. Sorted by CODE, not by
-                // enum value: that is the order the seeds were tuned against, so every shipped level stays
-                // byte-identical under `LevelTool generate --check`.
+                // dictionary order is not a contract; the rng must see a stable list
                 order.Sort(ByCode);
                 _rng.Shuffle(order);
                 if (_rng.NextFloat() < spec.Greed)
                 {
-                    var exposed = CountExposed(game.Stack);
-                    order.Sort((a, b) => Get(exposed, b).CompareTo(Get(exposed, a)));
+                    var onBelt = CountOnBelt(game.Belt);
+                    order.Sort((a, b) => Get(onBelt, b).CompareTo(Get(onBelt, a)));
                 }
 
                 bool placed = false;
@@ -149,6 +165,7 @@ namespace Game.Domain
                 {
                     var next = game.Clone();
                     next.PlaceTray(c);
+                    next.Settle();
                     if (next.Status == GameStatus.Lost) continue;
                     quota[c]--;
                     int lane = PickLane(lanes);
@@ -175,16 +192,15 @@ namespace Game.Domain
             return candidates[_rng.NextInt(0, candidates.Count)];
         }
 
-        private static Dictionary<CapColor, int> CountExposed(BottleStack s)
+        private static Dictionary<CapColor, int> CountOnBelt(LoopBelt belt)
         {
             var d = new Dictionary<CapColor, int>();
-            for (int x = 0; x < s.Cols; x++)
-            {
-                int z = s.FrontZ(x);
-                if (z < 0 || !s.IsExposed(x, z)) continue;
-                var c = s.At(x, z, 0).Color;
-                d[c] = Get(d, c) + 1;
-            }
+            for (int r = 0; r < belt.Rows; r++)
+                for (int k = 0; k < belt.Width; k++)
+                {
+                    var c = belt.At(r, k);
+                    if (c != CapColor.None) d[c] = Get(d, c) + 1;
+                }
             return d;
         }
 

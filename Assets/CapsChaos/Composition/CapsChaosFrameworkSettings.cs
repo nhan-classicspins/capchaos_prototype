@@ -36,7 +36,14 @@ namespace Game.Composition
 
             // The SKU owns the single ConfigDefaults registration (the framework registers none —
             // zero registrants means every Get falls back to 0; two is a VContainer duplicate conflict).
-            builder.RegisterInstance(ConfigDefaults.Empty);
+            builder.RegisterInstance(new ConfigDefaults(new System.Collections.Generic.Dictionary<string, object>
+            {
+                // GDD §5.6 / §9: the coin economy and the price of an extra slot (R20)
+                [GameConfigKeys.EconomyStartCoins.Value] = 1000,
+                [GameConfigKeys.EconomyWinReward.Value] = 50,
+                [GameConfigKeys.SlotUnlockPrice.Value] = 300,
+                [GameConfigKeys.SlotRescuePrice.Value] = 900,
+            }));
 
             InstallBoot(builder);
         }

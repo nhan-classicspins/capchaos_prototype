@@ -9,7 +9,7 @@ namespace Game.Views
     /// ADR-001 §5.3 — the GamePlay layer only has a Physics2DRaycaster, so 3D colliders get no pointer
     /// events. This full-screen, invisible uGUI surface on the GamePlay host receives the click through
     /// the EventSystem (rule #9: no polling), raycasts the 3D board itself, and reports WHICH BELT TRAY was hit —
-    /// lane + queue position, never a screen position (rule #10). The belt and empty space report nothing;
+    /// lane + queue position, never a screen position (rule #10) — or which LOCKED SLOT (R20). The belt and empty space report nothing;
     /// what a tap on a given tray MEANS is the controller's call (rule #8).
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
@@ -21,6 +21,8 @@ namespace Game.Views
 
         /// <summary>(lane, index in that lane's queue; 0 = the front tray).</summary>
         public event Action<int, int> TrayTapped;
+        /// <summary>A locked slot (R20) was tapped: its index in the slot bar.</summary>
+        public event Action<int> LockedSlotTapped;
 
         public void Bind(Camera boardCamera, BoardView board)
         {
@@ -40,8 +42,10 @@ namespace Game.Views
         {
             if (_camera == null || _board == null) return;
             var ray = _camera.ScreenPointToRay(eventData.position);
-            if (!Physics.Raycast(ray, out var hit, 500f, _mask, QueryTriggerInteraction.Collide)) return;
+            // the board stands ViewDistance in front of the camera (ADR-001 §7) — reach as far as the camera sees
+            if (!Physics.Raycast(ray, out var hit, _camera.farClipPlane, _mask, QueryTriggerInteraction.Collide)) return;
             if (_board.TryGetBeltTray(hit.collider, out int lane, out int index)) TrayTapped?.Invoke(lane, index);
+            else if (_board.TryGetLockedSlot(hit.collider, out int slot)) LockedSlotTapped?.Invoke(slot);
         }
     }
 }

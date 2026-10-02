@@ -1,5 +1,6 @@
 {
   "gameplay.lock_turns": "{0}",
+  "hud.coins": "{0}",
   "level_select.difficulty_breather": "Breather",
   "level_select.difficulty_easy": "Easy",
   "level_select.difficulty_hard": "Hard",
@@ -11,6 +12,13 @@
   "lose.restart": "RESTART",
   "lose.subtitle": "Out of space!",
   "lose.title": "YOU CAN\\nDO IT",
+  "offer.free": "FREE",
+  "offer.price": "{0}",
+  "out_of_slot.body": "Open one more slot and keep packing",
+  "out_of_slot.restart": "Restart",
+  "out_of_slot.title": "Out of Slot",
+  "parking_slot.body": "Open one more slot",
+  "parking_slot.title": "Parking Slot",
   "win.next": "NEXT",
   "win.subtitle": "Level {0} cleared!",
   "win.title": "GOOD\\nJOB"

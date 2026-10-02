@@ -26,13 +26,15 @@ namespace Game.Domain
     }
 
     /// <summary>
-    /// The Cap Chaos rules (GDD §5, R5–R16) over one level. Deterministic and instantaneous: a tap
-    /// resolves the whole cascade (place → fill → drop/reveal → pack → win/lose) and returns the facts;
-    /// nothing here waits for an animation. No randomness, no time, no engine (rules #14, #15).
+    /// The Cap Chaos rules (GDD §5, R1–R19) over one level. Deterministic and discrete: the oval belt moves in
+    /// whole rows (<see cref="Step"/>), and the controller decides WHEN — it calls Step on a fixed cadence from the
+    /// gameplay tick, so no clock lives here. A tap or a step resolves its whole cascade (place → pick → pack → feed →
+    /// win/lose) and returns the facts; nothing here waits for an animation. No randomness, no time, no engine
+    /// (rules #14, #15).
     /// </summary>
     public sealed class CapChaosGame
     {
-        private readonly BottleStack _stack;
+        private readonly LoopBelt _belt;
         private readonly List<CapColor>[] _lanes;
         private readonly int[] _laneHead;
         // per-tray modifiers (R17–R19), immutable after construction and shared by clones; null = none in the level
@@ -43,39 +45,57 @@ namespace Game.Domain
         private readonly int[] _gap;               // per lane: empty positions at the front of a HELD belt (R19)
         private readonly CapColor[] _slotColor;   // None = empty slot
         private readonly int[] _slotFilled;
+        private readonly bool[] _slotOpen;        // R20: false = an extra slot still locked (it takes no tray)
+        private bool _ranOut;                     // R20: SlotsRanOut was reported for the current stall
 
         /// <summary>Generator mode: trays come from <see cref="PlaceTray"/>, so empty lanes are not a dead end.</summary>
         internal bool EndlessSupply { get; set; }
 
         public int Capacity { get; }
+        /// <summary>Every slot of the bar, open or locked (R20).</summary>
         public int SlotCount => _slotColor.Length;
+        public bool IsSlotOpen(int slot) => _slotOpen[slot];
+        public int LockedSlotCount
+        {
+            get
+            {
+                int n = 0;
+                foreach (bool open in _slotOpen) if (!open) n++;
+                return n;
+            }
+        }
+        /// <summary>R20: the open slots ran out (stall reported) and an extra slot can still be unlocked; the round waits
+        /// for <see cref="UnlockSlot"/> or for the player to restart.</summary>
+        public bool SlotsRanOut => _ranOut;
         public int LaneCount => _lanes.Length;
         public GameStatus Status { get; private set; }
-        public BottleStack Stack => _stack;
+        public LoopBelt Belt => _belt;
 
         public CapChaosGame(LevelDefinition level)
-            : this(BottleStack.FromDefinition(level.Stack), level.Lanes, level.Slots, level.TrayCapacity)
+            : this(LoopBelt.FromDefinition(level.Loop), level.Lanes, level.Slots, level.TrayCapacity, level.ExtraSlots)
         {
             ApplyTrayModifiers(level);
         }
 
-        internal CapChaosGame(BottleStack stack, IReadOnlyList<IReadOnlyList<CapColor>> lanes, int slots, int capacity)
+        internal CapChaosGame(LoopBelt belt, IReadOnlyList<IReadOnlyList<CapColor>> lanes, int slots, int capacity, int extraSlots = 0)
         {
-            _stack = stack;
+            _belt = belt;
             Capacity = capacity;
             _lanes = new List<CapColor>[lanes.Count];
             for (int j = 0; j < lanes.Count; j++) _lanes[j] = new List<CapColor>(lanes[j]);
             _laneHead = new int[lanes.Count];
             _lockLeft = new int[lanes.Count];
             _gap = new int[lanes.Count];
-            _slotColor = new CapColor[slots];
-            _slotFilled = new int[slots];
+            _slotColor = new CapColor[slots + extraSlots];
+            _slotFilled = new int[slots + extraSlots];
+            _slotOpen = new bool[slots + extraSlots];
+            for (int s = 0; s < slots; s++) _slotOpen[s] = true;
             Status = GameStatus.Playing;
         }
 
         private CapChaosGame(CapChaosGame src)
         {
-            _stack = src._stack.Clone();
+            _belt = src._belt.Clone();
             Capacity = src.Capacity;
             _lanes = src._lanes;                          // lane CONTENT is immutable after construction…
             _laneHead = (int[])src._laneHead.Clone();     // …only the heads move
@@ -84,6 +104,8 @@ namespace Game.Domain
             _gap = (int[])src._gap.Clone();
             _slotColor = (CapColor[])src._slotColor.Clone();
             _slotFilled = (int[])src._slotFilled.Clone();
+            _slotOpen = (bool[])src._slotOpen.Clone();
+            _ranOut = src._ranOut;
             Status = src.Status;
             EndlessSupply = src.EndlessSupply;
         }
@@ -222,6 +244,46 @@ namespace Game.Domain
         }
 
         /// <summary>
+        /// R1–R4: the oval moves one row; the bottles now in the pick zone fly to the trays waiting for them, then every
+        /// feeder fills the empty spots passing its merge point. Nothing happens once the round is over.
+        /// </summary>
+        public IReadOnlyList<GameFact> Step()
+        {
+            if (Status != GameStatus.Playing) return Array.Empty<GameFact>();
+            var facts = new List<GameFact>();
+            _belt.Advance();
+            Pick(facts);
+            _belt.Feed(facts);
+            Judge(facts);
+            return facts;
+        }
+
+        /// <summary>
+        /// Nothing can change any more without a tap: no tray in a slot has a bottle of its colour on the belt (so no
+        /// pick will happen, R2), and no feeder can move (R4). The belt still turns, but turning changes nothing.
+        /// </summary>
+        public bool IsQuiescent
+        {
+            get
+            {
+                for (int s = 0; s < _slotColor.Length; s++)
+                    if (_slotColor[s] != CapColor.None && _belt.Contains(_slotColor[s])) return false;
+                return !_belt.CanFeed;
+            }
+        }
+
+        /// <summary>Step until <see cref="IsQuiescent"/> or the round is over — "tap, then wait until the board is
+        /// quiet" (the solver's and the generator's player). Returns every fact of those steps.</summary>
+        public IReadOnlyList<GameFact> Settle()
+        {
+            var facts = new List<GameFact>();
+            // every full turn without a change is quiescent, and each pick or feed moves a bottle for good
+            int budget = (_belt.Count + _belt.FeederRemainingTotal + 2) * _belt.Rows;
+            while (Status == GameStatus.Playing && !IsQuiescent && budget-- > 0) facts.AddRange(Step());
+            return facts;
+        }
+
+        /// <summary>
         /// R7 + R19: a belt with an empty front position steps one tray forward — unless it carries a tray linked to a
         /// tray on ANOTHER belt: linked trays stay side by side, so those belts only step together, when every one of
         /// them has an empty front. A belt that can not step yet is HELD (its front stays empty, nothing on it can be
@@ -317,33 +379,42 @@ namespace Game.Domain
 
         private int FreeSlot()                                                                  // R6: left-most free
         {
-            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] == CapColor.None) return s;
+            for (int s = 0; s < _slotColor.Length; s++) if (_slotOpen[s] && _slotColor[s] == CapColor.None) return s;
             return -1;
         }
 
         private int FreeSlotCount()
         {
             int n = 0;
-            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] == CapColor.None) n++;
+            for (int s = 0; s < _slotColor.Length; s++) if (_slotOpen[s] && _slotColor[s] == CapColor.None) n++;
             return n;
         }
 
-        /// <summary>R11: fill to a fixpoint, slots left→right, one bottle at a time, restarting after each pick.</summary>
+        /// <summary>A tap's cascade after the placement: the trays take what is in the pick zone now (R10), then win/lose.</summary>
         private void Resolve(List<GameFact> facts)
         {
-            bool progress = true;
-            while (progress)
+            Pick(facts);
+            Judge(facts);
+        }
+
+        /// <summary>
+        /// R2 + R11: every bottle in the pick zone whose colour a tray is waiting for flies to the left-most such slot.
+        /// The zone is read front-most row first (the row that leaves it soonest), tracks left→right. A full tray
+        /// packs at once and frees its slot (R13).
+        /// </summary>
+        private void Pick(List<GameFact> facts)
+        {
+            for (int pos = _belt.PickRows - 1; pos >= 0; pos--)
             {
-                progress = false;
-                for (int s = 0; s < _slotColor.Length && !progress; s++)
+                int row = _belt.RowAt(pos);
+                for (int k = 0; k < _belt.Width; k++)
                 {
-                    if (_slotColor[s] == CapColor.None) continue;
-                    if (!TryBest(s, out int bx, out int bz)) continue;
-                    // the drop/reveal facts belong AFTER the pick in replay order
-                    var tail = new List<GameFact>(2);
-                    var b = _stack.TakeGround(bx, bz, tail);
-                    facts.Add(new BottlePicked(bx, bz, s, b.Color));
-                    facts.AddRange(tail);
+                    var c = _belt.At(row, k);
+                    if (c == CapColor.None) continue;
+                    int s = SlotWaitingFor(c);
+                    if (s < 0) continue;
+                    _belt.Take(row, k);
+                    facts.Add(new BottlePicked(row, k, s, c));
                     _slotFilled[s]++;
                     facts.Add(new BottleCapped(s, _slotFilled[s]));
                     if (_slotFilled[s] >= Capacity)                                             // R13
@@ -352,50 +423,66 @@ namespace Game.Domain
                         _slotColor[s] = CapColor.None;
                         _slotFilled[s] = 0;
                     }
-                    progress = true;
                 }
             }
-            Judge(facts);
+        }
+
+        private int SlotWaitingFor(CapColor color)
+        {
+            for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] == color) return s;
+            return -1;
+        }
+
+        /// <summary>Would one more open slot let the round go on: the slots are full, or a tray waits only for room
+        /// (a linked pair needing two)?</summary>
+        private bool NeedsASlot()
+        {
+            if (FreeSlot() < 0) return true;
+            for (int j = 0; j < _lanes.Length; j++)
+                if (Check(j, out _, out _) == TapOutcome.RejectedNoFreeSlot) return true;
+            return false;
         }
 
         /// <summary>
-        /// Best exposed bottle of the slot's colour: smallest z (front-most), then the column nearest the
-        /// slot's centre, then the smaller x. Deterministic (R11).
+        /// R20: open the left-most locked slot — the player paid for it (coins or a rewarded ad); the rules do not care
+        /// which. Clears a reported stall. Nothing happens once the round is over or when every slot is open.
         /// </summary>
-        private bool TryBest(int slot, out int bestX, out int bestZ)
+        public IReadOnlyList<GameFact> UnlockSlot()
         {
-            bestX = bestZ = -1;
-            CapColor color = _slotColor[slot];
-            double centre = (slot + 0.5) * _stack.Cols / _slotColor.Length - 0.5;
-            double bestDist = double.MaxValue;
-            for (int x = 0; x < _stack.Cols; x++)
-            {
-                int z = _stack.FrontZ(x);
-                if (z < 0 || !_stack.IsExposed(x, z) || _stack.At(x, z, 0).Color != color) continue;
-                double d = Math.Abs(x - centre);
-                if (bestZ < 0 || z < bestZ || (z == bestZ && (d < bestDist || (d == bestDist && x < bestX))))
-                { bestX = x; bestZ = z; bestDist = d; }
-            }
-            return bestX >= 0;
+            if (Status != GameStatus.Playing) return Array.Empty<GameFact>();
+            int s = Array.IndexOf(_slotOpen, false);
+            if (s < 0) return Array.Empty<GameFact>();
+            _slotOpen[s] = true;
+            _ranOut = false;
+            var facts = new List<GameFact> { new SlotUnlocked(s) };
+            Judge(facts);
+            return facts;
         }
 
         private void Judge(List<GameFact> facts)
         {
             bool anyTray = false;
             for (int s = 0; s < _slotColor.Length; s++) if (_slotColor[s] != CapColor.None) anyTray = true;
-            if (_stack.IsEmpty && !anyTray)
+            if (_belt.IsEmpty && !anyTray)
             {
                 Status = GameStatus.Won;                                                        // R14
                 facts.Add(new LevelCompleted());
                 return;
             }
-            if (FreeSlot() < 0)                                                                 // R15 (fill already reached its fixpoint)
+            if (!IsQuiescent) { _ranOut = false; return; }                                       // something will still change
+            if (LockedSlotCount > 0 && NeedsASlot())                                            // R20: offer a slot first
+            {
+                if (!_ranOut) facts.Add(new SlotsRanOut());
+                _ranOut = true;
+                return;
+            }
+            if (FreeSlot() < 0)                                                                 // R15
             {
                 Status = GameStatus.Lost;
                 facts.Add(new LevelFailed(FailReason.SlotsJammed));
                 return;
             }
-            // a tap is the only thing that changes the state, so "no tap is accepted now" means "never again"
+            // quiescent: a tap is the only thing that changes the state, so "no tap is accepted now" means "never again"
             bool anyMove = EndlessSupply;
             for (int j = 0; j < _lanes.Length && !anyMove; j++) anyMove = Check(j, out _, out _) == TapOutcome.Accepted;
             if (!anyMove)
@@ -408,12 +495,13 @@ namespace Game.Domain
         /// <summary>Exact state fingerprint for the solver's memo.</summary>
         public string StateKey()
         {
-            var sb = new StringBuilder(64 + _stack.Count * 2);
+            var sb = new StringBuilder(64 + _belt.Rows * _belt.Width);
             for (int j = 0; j < _laneHead.Length; j++) sb.Append(_laneHead[j]).Append(':').Append(_gap[j]).Append(':').Append(_lockLeft[j]).Append(',');
             sb.Append('#');
-            for (int s = 0; s < _slotColor.Length; s++) sb.Append(_slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]);
+            for (int s = 0; s < _slotColor.Length; s++)
+                sb.Append(!_slotOpen[s] ? 'x' : _slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]);
             sb.Append('#');
-            _stack.AppendKey(sb);
+            _belt.AppendKey(sb);
             return sb.ToString();
         }
     }

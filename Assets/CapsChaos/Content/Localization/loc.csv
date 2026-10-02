@@ -14,3 +14,11 @@ lose.title,YOU CAN\nDO IT,CỐ LÊN\nNÀO
 lose.subtitle,Out of space!,Hết chỗ rồi!
 lose.restart,RESTART,CHƠI LẠI
 gameplay.lock_turns,{0},{0}
+parking_slot.title,Parking Slot,Thêm Slot
+parking_slot.body,Open one more slot,Mở thêm một slot
+out_of_slot.title,Out of Slot,Hết Slot
+out_of_slot.body,Open one more slot and keep packing,Mở thêm một slot để đóng chai tiếp
+offer.free,FREE,MIỄN PHÍ
+offer.price,{0},{0}
+out_of_slot.restart,Restart,Chơi lại
+hud.coins,{0},{0}

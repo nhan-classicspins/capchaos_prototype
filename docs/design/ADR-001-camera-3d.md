@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Trạng thái** | **Đã chốt: phương án B** (2026-09-30, product owner) · rig đã áp dụng, boot smoke đạt |
+| **Trạng thái** | **Đã chốt: phương án B** (2026-09-30, product owner) · **sửa 2026-10-02: camera `GamePlay` về orthographic** (§7) |
 | **Bối cảnh** | GDD D1: camera 3D perspective [CHỐT] · GDD §10.1 |
 | **Loại** | Spine change (luật #7, `architecture-map.md` §5) |
 
@@ -112,3 +112,22 @@ CI. Đã đọc code: build check không kiểm projection, nhưng **CI mới l�
 - A: mở story trong repo framework ("SKU game-layer rig bindings") → `bmad-architecture` → dev → gate →
   bump → cập nhật `packages-lock` bên SKU → thêm `game.layers.json` + rig Board3D.
 - B: ghi Design Note vào GDD §10.1; sửa rig qua editor sống (luật #12); làm vùng chạm uGUI cho 3 làn.
+
+## 7. Sửa đổi 2026-10-02: camera `GamePlay` về orthographic
+
+Product owner yêu cầu chuyển camera `GamePlay` về **orthographic** (cùng lúc với băng oval, GDD D6). Các quy ước của §5
+vẫn giữ nguyên (board tự đặt mình và nghiêng −60° trước camera, không `Stamp` nội dung 3D, tap đi qua hit-catcher uGUI);
+chỉ khác cách lấy kích thước:
+
+- **Rig (Master scene, sửa qua editor sống; diff 2 dòng):** `GamePlayCamera` `orthographic 0 → 1`, `field of view 30 → 60`
+  (giá trị mặc định, không dùng khi ortho). `orthographicSize` vẫn do `WorldSpaceCanvasScaler` quản lý (960).
+- **Board scale theo viewport.** Với ortho, khoảng cách không làm vật nhỏ đi, nên board phải tự scale:
+  `scale = IWorldViewport.SafeRect.height / ViewHeight`, với `ViewHeight = 11.6` đơn vị board (ban đầu 10.45 = khung
+  hình rig perspective cũ; nới ra 2026-10-02 để thấy hàng chờ rõ hơn). Tính theo **safe rect** chứ không theo `HalfHeight`:
+  màn hình cao hơn 9:16 chỉ thấy thêm board ở trên/dưới, không bao giờ bị cắt hai bên. Board đặt cách camera `ViewDistance = 1000` world unit (mặt phẳng canvas), điểm
+  focus nằm trên trục nhìn. Controller đọc `IWorldViewport` mỗi tick và gọi lại `BoardView.PlaceInFrontOf`, không bao giờ
+  dùng `orthographicSize` như hằng số.
+- **Bóng đổ.** Board giờ cách camera khoảng 1000 world unit, xa hơn `m_ShadowDistance = 50` mặc định của URP nên mất bóng.
+  `PC_RPAsset` / `Mobile_RPAsset` nâng `m_ShadowDistance` lên **2200**. Các layer 2D không dùng bóng nên không bị ảnh hưởng.
+- **Hệ quả:** không còn phối cảnh (vật ở xa không nhỏ đi). Khung hình được giữ bằng `ViewHeight`; nếu cần to/nhỏ hơn, chỉnh
+  token đó.

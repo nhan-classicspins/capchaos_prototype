@@ -11,7 +11,6 @@ namespace Game.Presentation
     public static class AssetKeys
     {
         public static readonly AssetKey<GameObject> Bottle            = new("Bottle");
-        public static readonly AssetKey<GameObject> BottleHidden      = new("BottleHidden");
         public static readonly AssetKey<GameObject> Box               = new("Box");
         public static readonly AssetKey<GameObject> Cap               = new("Cap");
         public static readonly AssetKey<GameObject> CapTray           = new("CapTray");
@@ -20,6 +19,8 @@ namespace Game.Presentation
         public static readonly AssetKey<GameObject> Lane              = new("Lane");
         public static readonly AssetKey<GameObject> LevelButton       = new("LevelButton");
         public static readonly AssetKey<GameObject> LevelSelectWidget = new("LevelSelectWidget");
+        public static readonly AssetKey<GameObject> OutOfSlotDialog   = new("OutOfSlotDialog");
+        public static readonly AssetKey<GameObject> ParkingSlotDialog = new("ParkingSlotDialog");
         public static readonly AssetKey<GameObject> ResultDialog      = new("ResultDialog");
         public static readonly AssetKey<GameObject> Slot              = new("Slot");
         public static readonly AssetKey<GameObject> TrayLink          = new("TrayLink");

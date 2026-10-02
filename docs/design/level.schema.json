@@ -1,20 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://classicspins.local/capschaos/level.schema.json",
-  "title": "Cap Chaos level — format v2",
-  "description": "One level, fully data-driven (GDD §6). Written for designers and their own tools: every colour is a NUMBER (see $defs.colorId), every flag is a named field. Structural checks live here; semantic checks (floating bottles, hidden-on-ground, colour balance, solvability, link targets) are LevelValidator V2–V7. Format v1 files (letter codes) still load: level.schema.v1.json.",
+  "title": "Cap Chaos level — format v3",
+  "description": "One level, fully data-driven (GDD §6). Written for designers and their own tools: every colour is a NUMBER (see $defs.colorId), every flag is a named field. Structural checks live here; semantic checks (colour balance, solvability, link targets, merge points and pick zone) are LevelValidator V4–V8. Format v1/v2 files describe a bottle stack and no longer load: regenerate them.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["formatVersion", "id", "colors", "stack", "lanes"],
+  "required": ["formatVersion", "id", "colors", "loop", "lanes"],
   "properties": {
     "$schema": { "type": "string" },
-    "formatVersion": { "const": 2 },
+    "formatVersion": { "const": 3 },
     "id": {
       "type": "string",
       "pattern": "^level_[0-9]{4}$",
       "description": "Must equal the file name without extension."
     },
-    "slots": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 },
+    "slots": { "type": "integer", "minimum": 1, "maximum": 6, "default": 4, "description": "Slots open from the start." },
+    "extraSlots": { "type": "integer", "minimum": 0, "maximum": 5, "default": 2, "description": "Locked slots right of the open ones (R20): each opens for coins or a rewarded ad, for this round only. slots + extraSlots ≤ 6." },
     "trayCapacity": { "type": "integer", "minimum": 2, "maximum": 6, "default": 4 },
     "colors": {
       "type": "array",
@@ -24,41 +25,38 @@
       "items": { "$ref": "#/$defs/colorId" },
       "description": "Palette subset used by this level. Hex values live in DesignTokens, never here."
     },
-    "stack": {
+    "loop": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["cols", "rows", "layers"],
+      "required": ["rows", "pickRows", "feeders"],
+      "description": "The oval conveyor (R1–R4). Track position 0 is the first row of the pick zone (the front straight, in front of the slots); positions grow in the direction of travel. The view derives the oval's shape from rows and pickRows: two straights of pickRows rows, the rest is the two bends.",
       "properties": {
-        "cols": { "type": "integer", "minimum": 1, "maximum": 16 },
-        "rows": { "type": "integer", "minimum": 1, "maximum": 16 },
-        "layers": {
+        "rows": { "type": "integer", "minimum": 8, "maximum": 64, "description": "Rows of belt round the oval." },
+        "width": { "type": "integer", "minimum": 1, "maximum": 6, "default": 4, "description": "Bottle spots per row." },
+        "pickRows": { "type": "integer", "minimum": 1, "description": "Rows of the pick zone, track positions 0..pickRows-1. V8: rows ≥ 2 × pickRows + 6." },
+        "feeders": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 8,
-          "description": "layers[0] is the GROUND. Each layer is `rows` rows of `cols` cells; row 0 is the BACK row, the last row is the FRONT row (nearest the player).",
-          "items": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "array",
-              "minItems": 1,
-              "items": { "$ref": "#/$defs/cellId" }
-            }
-          }
-        },
-        "hidden": {
-          "type": "array",
-          "description": "Hidden bottles (R4): shown as rainbow until they reach the ground. Each names a non-empty cell. V3: never on layer 0.",
+          "maxItems": 4,
+          "description": "Queues of bottles that join the oval (R4), a whole queue row at a time: the front row steps on only when the belt row passing the merge point is empty on every track it needs.",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["layer", "row", "col"],
+            "required": ["mergeAt", "bottles"],
             "properties": {
-              "layer": { "type": "integer", "minimum": 0 },
-              "row": { "type": "integer", "minimum": 0 },
-              "col": { "type": "integer", "minimum": 0 }
+              "mergeAt": { "type": "integer", "minimum": 0, "description": "Track position the feeder joins at. V8: outside the pick zone, one feeder per position." },
+              "bottles": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/colorId" },
+                "description": "The queue, front first, row by row: bottle i waits in queue row i / width on track i % width. The generator paints every queue row one colour."
+              }
             }
           }
+        },
+        "initial": {
+          "type": "array",
+          "description": "Optional: the belt at the start, one array of `width` cellIds per row (row r starts at track position r). Absent = the belt starts empty; every bottle waits in a feeder and joins while the belt runs.",
+          "items": { "type": "array", "items": { "$ref": "#/$defs/cellId" } }
         }
       }
     },
@@ -90,8 +88,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "cameraPreset": { "type": "string", "enum": ["default", "tall", "wide"], "default": "default" },
-        "stackScale": { "type": "number", "exclusiveMinimum": 0, "maximum": 2, "default": 1.0 }
+        "cameraPreset": { "type": "string", "enum": ["default", "tall", "wide"], "default": "default" }
       }
     },
     "meta": {
@@ -118,7 +115,7 @@
     "cellId": {
       "type": "integer",
       "enum": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-      "description": "0 = empty cell, otherwise a colorId."
+      "description": "0 = empty belt spot, otherwise a colorId."
     },
     "tray": {
       "type": "object",

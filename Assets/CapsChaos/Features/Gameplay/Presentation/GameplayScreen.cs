@@ -23,8 +23,9 @@ namespace Game.Presentation
 
     /// <summary>
     /// The Gameplay screen controller (GDD §5, §7). Decides WHAT happens: it owns the round
-    /// (<see cref="CapChaosGame"/>), turns a lane tap into a rules call, and replays the returned facts on
-    /// the <see cref="BoardView"/> in order (R9 — the Domain has already resolved; the board catches up).
+    /// (<see cref="CapChaosGame"/>), turns a lane tap into a rules call, steps the oval belt on the fixed gameplay tick
+    /// (<see cref="BeltClock"/>, one row every 1 / <c>BeltRowsPerSecond</c> s) and plays the facts each returns on the
+    /// <see cref="BoardView"/> at once (R9 — the Domain has already resolved; the board catches up).
     /// Loaded additively by the scene service as <c>Scenes/Gameplay</c> on top of Master.
     /// <para>Round end (GDD §5.4): after a short pause the Result popup — "GOOD JOB" + NEXT on a win (R14), "YOU CAN
     /// DO IT" + RESTART on a loss (R15). NEXT plays the next level, RESTART the same one, both in place (no scene
@@ -42,17 +43,17 @@ namespace Game.Presentation
         private readonly IDialogService _dialogs;
         private readonly ILocalizationService _loc;
         private readonly UiPaletteProvider _palette;
+        private readonly BeltClock _clock;
+        private readonly IGameplayGateControl _gate;
+        private readonly IWalletService _wallet;
+        private readonly IAdsService _ads;
+        private readonly IGameConfig _config;
+        private readonly IUserData _userData;
+        private readonly IWorldViewport _viewport;
         private readonly ILog _log;
 
         private readonly BoardPrefabs _prefabs = new BoardPrefabs();
         private readonly List<GameObject> _held = new List<GameObject>();
-        /// <summary>A fact to replay, bound at enqueue time to the TRAY it concerns (rules slots get reused).</summary>
-        private readonly struct Step
-        {
-            public readonly GameFact Fact; public readonly int Tray; public readonly int Cell;
-            public Step(GameFact fact, int tray = -1, int cell = -1) { Fact = fact; Tray = tray; Cell = cell; }
-        }
-        private readonly Queue<Step> _replay = new Queue<Step>();
 
         private CancellationTokenSource _roundCts;
         private LevelDefinition _level;
@@ -67,13 +68,24 @@ namespace Game.Presentation
         private readonly Dictionary<int, int> _cells = new Dictionary<int, int>();   // tray id → bottles assigned so far
         private int _nextTray;
         private readonly List<UniTask> _packs = new List<UniTask>();   // boxes still animating; the round end waits for all
-        private bool _replaying;
+        private float _beltTime;           // seconds since the belt's last row step
+        private bool _ending;              // the rules finished the round; the result is on its way
+        private bool _offering;            // a slot offer (R20) is on screen or paying
         private bool _leaving;
 
         public GameplayScreen(GameplayParam param, LevelCatalog catalog, IRenderLayerRegistry layers,
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
-            IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, ILog log = null)
+            IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, BeltClock clock,
+            IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, IUserData userData,
+            IWorldViewport viewport, ILog log = null)
         {
+            _viewport = viewport;
+            _wallet = wallet;
+            _ads = ads;
+            _config = config;
+            _userData = userData;
+            _clock = clock;
+            _gate = gate;
             _loc = loc;
             _palette = palette;
             _dialogs = dialogs;
@@ -90,7 +102,6 @@ namespace Game.Presentation
         public override async UniTask OnLoadAsync(CancellationToken ct)
         {
             _prefabs.Bottle = await Hold(AssetKeys.Bottle, ct);
-            _prefabs.BottleHidden = await Hold(AssetKeys.BottleHidden, ct);
             _prefabs.Cap = await Hold(AssetKeys.Cap, ct);
             _prefabs.CapTray = await Hold(AssetKeys.CapTray, ct);
             _prefabs.Box = await Hold(AssetKeys.Box, ct);
@@ -102,6 +113,9 @@ namespace Game.Presentation
             _hud.Attach();
             _hud.RetryRequested += OnRetry;
             _hud.HomeRequested += GoHome;
+            _clock.Ticked += OnTick;
+            GrantStarterCoins();
+            RefreshCoins();
             StartRound(_param.LevelIndex);
         }
 
@@ -113,9 +127,10 @@ namespace Game.Presentation
         }
 
         // OnPause/OnResume also fire when the APP loses/regains focus: the HUD stays visible and only stops
-        // taking taps. It is a sibling under the Ui host, so OnEnter/OnExit show and hide it.
-        public override void OnPause() => _hud.SetInteractable(false);
-        public override void OnResume() => _hud.SetInteractable(true);
+        // taking taps, and the belt stops with it (the gate halts the fixed tick — no time jump on resume).
+        // The HUD is a sibling under the Ui host, so OnEnter/OnExit show and hide it.
+        public override void OnPause() { _hud.SetInteractable(false); _gate.SetAppFocused(false); }
+        public override void OnResume() { _hud.SetInteractable(true); _gate.SetAppFocused(true); }
 
         public override void OnExit()
         {
@@ -147,6 +162,7 @@ namespace Game.Presentation
         public override UniTask OnUnloadAsync(CancellationToken ct)
         {
             TeardownRound();
+            _clock.Ticked -= OnTick;
             _hud.RetryRequested -= OnRetry;
             _hud.HomeRequested -= GoHome;
             _hud.Dispose();
@@ -175,18 +191,29 @@ namespace Game.Presentation
             // flatten the 3D board (ADR-001 §5.5). Put the board on the GamePlay layer's culling layer only.
             int boardLayer = _layers.GetHost(RenderLayers.GamePlay).gameObject.layer;
             _board.Bind(_prefabs, go => SetLayer(go.transform, boardLayer));
-            _board.PlaceInFrontOf(cam);
-            _board.BuildTable(_level.Slots, _level.Lanes.Count);
+            _board.PlaceInFrontOf(cam, _viewport.SafeRect.height * 0.5f);
+            _board.BuildTable(_level.Slots, _level.ExtraSlots, _level.Lanes.Count);
 
-            var stack = _game.Stack;
-            _board.BuildStack(stack.Cols, stack.Depth, (float)_level.StackScale);
-            for (int x = 0; x < stack.Cols; x++)
-                for (int z = 0; z < stack.Depth; z++)
-                    for (int h = 0; h < stack.Height(x, z); h++)
-                    {
-                        var b = stack.At(x, z, h);
-                        _board.AddBottle(x, z, h, b.Color.ToTint(), b.Hidden);
-                    }
+            var belt = _game.Belt;
+            _board.BuildLoop(belt.Rows, belt.Width, belt.PickRows);
+            for (int row = 0; row < belt.Rows; row++)
+                for (int k = 0; k < belt.Width; k++)
+                    if (belt.At(row, k) != CapColor.None) _board.AddBeltBottle(row, k, belt.At(row, k).ToTint());
+            for (int f = 0; f < belt.FeederCount; f++)
+            {
+                var tracks = new List<IReadOnlyList<TintFlavor>>();
+                for (int k = 0; k < belt.Width; k++)
+                {
+                    var queue = new List<TintFlavor>();
+                    for (int d = 0; d < belt.FeederRemaining(f, k); d++) queue.Add(belt.FeederAt(f, k, d).ToTint());
+                    tracks.Add(queue);
+                }
+                _board.AddFeeder(belt.MergeAt(f), tracks);
+            }
+            _board.FinishLoop();
+            _beltTime = 0f;
+            _ending = false;
+            _board.SetBeltPhase(belt.Offset, DesignTokens.Motion.BeltRowsPerSecond);
 
             _laneShown = new int[_level.Lanes.Count];
             _laneTaken = new int[_level.Lanes.Count];
@@ -195,7 +222,8 @@ namespace Game.Presentation
                     _board.AddLaneTray(j, LookOf(j, _laneShown[j]));
             for (int j = 0; j < _level.Lanes.Count; j++)
                 for (int t = 0; t < _laneShown[j]; t++) LinkIfShown(j, t);
-            _trayInSlot = new int[_level.Slots];
+            _trayInSlot = new int[_game.SlotCount];
+            _offering = false;
             _cells.Clear();
             _nextTray = 0;
             _packs.Clear();
@@ -208,18 +236,19 @@ namespace Game.Presentation
             _input.Bind(cam, _board);
             _layers.Stamp(_inputGo, RenderLayers.GamePlay);
             _input.TrayTapped += OnTrayTapped;
+            _input.LockedSlotTapped += OnLockedSlotTapped;
 
-            _log.Info($"[GameplayScreen] round {_level.Id}: {stack.Count} bottles, {_level.Lanes.Count} lanes, {_level.Slots} slots.");
+            _log.Info($"[GameplayScreen] round {_level.Id}: {belt.Count} bottles on a {belt.Rows}×{belt.Width} belt, " +
+                      $"{belt.FeederRemainingTotal} in {belt.FeederCount} feeder(s), {_level.Lanes.Count} lanes, {_level.Slots} slots.");
         }
 
         private void TeardownRound()
         {
-            if (_input != null) _input.TrayTapped -= OnTrayTapped;
+            if (_input != null) { _input.TrayTapped -= OnTrayTapped; _input.LockedSlotTapped -= OnLockedSlotTapped; }
             _roundCts?.Cancel();
             _roundCts?.Dispose();
             _roundCts = null;
-            _replay.Clear();
-            _replaying = false;
+            _ending = false;
             if (_inputGo != null) Object.Destroy(_inputGo);
             if (_boardGo != null) Object.Destroy(_boardGo);
             _inputGo = _boardGo = null;
@@ -261,8 +290,8 @@ namespace Game.Presentation
                 return;
             }
 
-            // Immediate feedback: the released trays leave the belt NOW, not after earlier animations replay, and the
-            // belt / reveal / lock beats play at once too. Every stack fact keeps its order in the replay queue.
+            // Immediate feedback: the released trays leave the belt NOW, and the belt / reveal / lock beats play at once
+            // too; the bottles the trays take from the pick zone fly as they are listed.
             var advanced = new Dictionary<int, (int steps, List<TrayLook> tails)>();
             foreach (var f in result.Facts)
             {
@@ -283,18 +312,6 @@ namespace Game.Presentation
                     case TrayRevealed _:
                     case TrayLockTicked _:
                         break;                                     // below, once the belt has moved
-                    case BottlePicked p:
-                        int slotTray = _trayInSlot[p.Slot];
-                        _replay.Enqueue(new Step(p, slotTray, _cells[slotTray]++));
-                        break;
-                    case TrayPacked k:
-                        _replay.Enqueue(new Step(k, _trayInSlot[k.Slot]));
-                        break;
-                    case BottleCapped _:
-                        break;                                     // part of the bottle's flight
-                    default:
-                        _replay.Enqueue(new Step(f));
-                        break;
                 }
             }
             foreach (var kv in advanced)
@@ -318,7 +335,64 @@ namespace Game.Presentation
                         break;
                 }
             }
-            if (!_replaying) ReplayAsync(_roundCts.Token).Forget();
+            PlayBelt(result.Facts);
+        }
+
+        // ── the belt ─────────────────────────────────────────────────────────────────────────
+        /// <summary>The fixed gameplay tick (gate open): the oval moves one row every 1 / BeltRowsPerSecond seconds; the
+        /// board draws it in between.</summary>
+        private void OnTick(float dt)
+        {
+            if (_board != null) _board.PlaceInFrontOf(_layers.GetCamera(RenderLayers.GamePlay), _viewport.SafeRect.height * 0.5f);   // the view may resize
+            if (_game == null || _board == null || _ending || _game.Status != GameStatus.Playing) return;
+            float interval = 1f / DesignTokens.Motion.BeltRowsPerSecond;
+            _beltTime += dt;
+            while (_beltTime >= interval && _game.Status == GameStatus.Playing)
+            {
+                _beltTime -= interval;
+                PlayBelt(_game.Step());
+            }
+            _board.SetBeltPhase(_game.Belt.Offset + _beltTime / interval,
+                _game.Status == GameStatus.Playing ? DesignTokens.Motion.BeltRowsPerSecond : 0f);
+        }
+
+        /// <summary>
+        /// The belt facts of a tap or a step, at once: picked bottles fly to their tray (one after another, a stagger
+        /// apart), fed bottles step onto the oval, a full tray packs once its own flights land, and the round end
+        /// waits for every box before the result.
+        /// </summary>
+        private void PlayBelt(IReadOnlyList<GameFact> facts)
+        {
+            int flights = 0;
+            foreach (var f in facts)
+            {
+                switch (f)
+                {
+                    case BottlePicked p:
+                        int tray = _trayInSlot[p.Slot];
+                        _board.FlyBottle(p.Row, p.Track, tray, _cells[tray]++, flights++ * DesignTokens.Motion.PickStagger);
+                        break;
+                    case BottleFed d:
+                        _board.FeedBottle(d.Feeder, d.Track, d.Row);
+                        break;
+                    case TrayPacked k:
+                        _packs.Add(_board.PackTray(_trayInSlot[k.Slot], k.Color.ToTint()).Preserve());
+                        break;
+                    case SlotsRanOut _:
+                        OfferSlotAsync(rescue: true, _roundCts.Token).Forget();
+                        break;
+                    case LevelCompleted _:
+                        _wallet.Grant(ResourceKeys.Coins, _config.Get(GameConfigKeys.EconomyWinReward), GrantSource.Reward);
+                        RefreshCoins();
+                        _ending = true;
+                        EndRoundAsync(f, _roundCts.Token).Forget();
+                        break;
+                    case LevelFailed _:
+                        _ending = true;
+                        EndRoundAsync(f, _roundCts.Token).Forget();
+                        break;
+                }
+            }
         }
 
         /// <summary>"Not this one": the tray shakes — with its partner, when it is linked and the partner is on the belt.</summary>
@@ -348,47 +422,93 @@ namespace Game.Presentation
             _board.LinkTrays(lane, tray - _laneTaken[lane], p.Lane, p.Index - _laneTaken[p.Lane]);
         }
 
-        private async UniTaskVoid ReplayAsync(CancellationToken ct)
+        // ── extra slots (R20) ───────────────────────────────────────────────────────────────
+        /// <summary>A locked slot was tapped: offer it (Parking Slot). Ignored while another offer is up or the round is over.</summary>
+        private void OnLockedSlotTapped(int slot)
         {
-            _replaying = true;
-            try
-            {
-                while (_replay.Count > 0 && !ct.IsCancellationRequested)
-                    await Play(_replay.Dequeue(), ct);
-            }
-            catch (OperationCanceledException) { /* round torn down mid-animation */ }
-            finally { if (!ct.IsCancellationRequested) _replaying = false; }
+            if (_game == null || _game.Status != GameStatus.Playing || _ending || _offering || _game.SlotsRanOut) return;
+            OfferSlotAsync(rescue: false, _roundCts.Token).Forget();
         }
 
-        private async UniTask Play(Step step, CancellationToken ct)
+        /// <summary>
+        /// Offer one more slot for a rewarded ad or coins: Parking Slot when the player asked (✕ = no thanks), Out of Slot
+        /// when the open slots ran out (Restart = play the level again). The belt waits while the popup is up. Paying is
+        /// done here, not in the dialog: an ad that does not reward, or coins that are not there, opens nothing — and a
+        /// rescue that was not paid for is offered again.
+        /// </summary>
+        private async UniTaskVoid OfferSlotAsync(bool rescue, CancellationToken ct)
         {
-            switch (step.Fact)
+            if (_offering) return;
+            _offering = true;
+            _gate.SetDialogCovering(true);
+            try
             {
-                case BottlePicked p:
-                    await _board.FlyBottle(p.X, p.Z, step.Tray, step.Cell);
-                    break;
-                case StackDropped d:
-                    await _board.DropPile(d.X, d.Z);
-                    break;
-                case BottleRevealed r:
-                    await _board.Reveal(r.X, r.Z, r.Color.ToTint());
-                    break;
-                case TrayPacked k:
-                    _packs.Add(_board.PackTray(step.Tray, k.Color.ToTint()).Preserve());
-                    break;
-                case LevelCompleted _:
+                while (!ct.IsCancellationRequested && _game != null && _game.Status == GameStatus.Playing && _game.LockedSlotCount > 0)
+                {
+                    int price = _config.Get(rescue ? GameConfigKeys.SlotRescuePrice : GameConfigKeys.SlotUnlockPrice);
+                    var args = new SlotOfferArgs(price, _wallet.CanAfford(ResourceKeys.Coins, price));
+                    var result = rescue
+                        ? await _dialogs.ShowAsync<OutOfSlotDialog, SlotOfferChoice>(args, default, ct)
+                        : await _dialogs.ShowAsync<ParkingSlotDialog, SlotOfferChoice>(args, default, ct);
+                    if (ct.IsCancellationRequested || result.Reason == DialogCloseReason.Aborted || result.Reason == DialogCloseReason.CloseAll)
+                        return;
+                    var choice = result.Reason == DialogCloseReason.BackButton ? SlotOfferChoice.Declined : result.Value;
+                    if (choice == SlotOfferChoice.Declined)
+                    {
+                        if (rescue) { _log.Info($"[GameplayScreen] out of slots on {_level.Id}: restart."); StartRound(_levelIndex); }
+                        return;
+                    }
+                    bool paid = choice == SlotOfferChoice.WatchAd
+                        ? await _ads.ShowAsync(rescue ? AdPlacements.SlotRescueRewarded : AdPlacements.SlotUnlockRewarded, ct) == AdResult.Rewarded
+                        : _wallet.TrySpend(ResourceKeys.Coins, price, GrantSource.Reward);
+                    RefreshCoins();
+                    if (paid)
+                    {
+                        _log.Info($"[GameplayScreen] slot unlocked by {(choice == SlotOfferChoice.WatchAd ? "ad" : $"{price} coins")}.");
+                        var facts = _game.UnlockSlot();
+                        foreach (var f in facts) if (f is SlotUnlocked u) _board.UnlockSlot(u.Slot).Forget();
+                        PlayBelt(facts);
+                        return;
+                    }
+                    if (!rescue) return;                                    // a rescue stays on offer until it is taken or declined
+                }
+            }
+            catch (OperationCanceledException) { /* round torn down */ }
+            finally
+            {
+                _gate.SetDialogCovering(false);
+                _offering = false;
+            }
+        }
+
+        /// <summary>The first time the game runs, the wallet has never held coins: give the starting balance once.</summary>
+        private void GrantStarterCoins()
+        {
+            var wallet = _userData.Get<WalletModel>();
+            if (wallet != null && wallet.Balances.ContainsKey(ResourceKeys.Coins.Value)) return;
+            _wallet.Grant(ResourceKeys.Coins, _config.Get(GameConfigKeys.EconomyStartCoins), GrantSource.Reward);
+        }
+
+        private void RefreshCoins() => _hud.SetCoins(_loc.Get(LocKeys.HudCoins, _wallet.Balance(ResourceKeys.Coins)));
+
+        private async UniTaskVoid EndRoundAsync(GameFact end, CancellationToken ct)
+        {
+            try
+            {
+                if (end is LevelFailed failed)
+                {
+                    _log.Info($"[GameplayScreen] {_level.Id} failed ({failed.Reason}).");
+                    await _board.Jam();
+                }
+                else
+                {
                     foreach (var pack in _packs) await pack;
                     _log.Info($"[GameplayScreen] {_level.Id} cleared.");
-                    await UniTask.Delay(TimeSpan.FromSeconds(DesignTokens.Motion.RoundEndPause), cancellationToken: ct);
-                    await ShowResultAsync(won: true, ct);
-                    break;
-                case LevelFailed f:
-                    _log.Info($"[GameplayScreen] {_level.Id} failed ({f.Reason}).");
-                    await _board.Jam();
-                    await UniTask.Delay(TimeSpan.FromSeconds(DesignTokens.Motion.RoundEndPause), cancellationToken: ct);
-                    await ShowResultAsync(won: false, ct);
-                    break;
+                }
+                await UniTask.Delay(TimeSpan.FromSeconds(DesignTokens.Motion.RoundEndPause), cancellationToken: ct);
+                await ShowResultAsync(won: end is LevelCompleted, ct);
             }
+            catch (OperationCanceledException) { /* round torn down mid-animation */ }
         }
 
         /// <summary>The Result popup, then what its button means: NEXT → the next level, RESTART → this one again.</summary>

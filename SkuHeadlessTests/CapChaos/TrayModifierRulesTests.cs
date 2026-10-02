@@ -5,11 +5,11 @@ using static CapsChaos.SkuHeadlessTests.CapChaos.LevelBuilder;
 
 namespace CapsChaos.SkuHeadlessTests.CapChaos
 {
-    /// <summary>GDD §5.5 — hidden (R17), locked (R18) and linked (R19) trays. A front row of yellow bottles that no
+    /// <summary>GDD §5.5 — hidden (R17), locked (R18) and linked (R19) trays. A belt of yellow bottles that no
     /// tray takes keeps the other trays waiting in their slots, so a trace shows only the tray rules.</summary>
     public sealed class TrayModifierRulesTests
     {
-        private static readonly string[][] NoMatch = { new[] { "YY" } };
+        private static readonly string[] NoMatch = { "YY" };
 
         [Test]
         public void R17_a_hidden_tray_shows_its_colour_when_it_reaches_the_front()
@@ -32,7 +32,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void R18_a_locked_front_tray_counts_down_one_per_tray_that_flies_to_a_slot()
         {
-            var g = new CapChaosGame(Level(new[] { new[] { "RBB" } }, new[] { "R", "BB" }, slots: 3, capacity: 1,
+            var g = new CapChaosGame(Level(new[] { "RBB" }, new[] { "R", "BB" }, slots: 3, capacity: 1,
                 locks: new[] { new[] { 0, 0, 2 } }));
             Assert.That(g.LockLeft(0), Is.EqualTo(2));
             Assert.That(g.Tap(0).Outcome, Is.EqualTo(TapOutcome.RejectedLocked));
@@ -45,7 +45,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void R18_a_lock_only_counts_while_its_tray_stands_at_the_front()
         {
-            var g = new CapChaosGame(Level(new[] { new[] { "RBB" } }, new[] { "BR", "B" }, slots: 3, capacity: 1,
+            var g = new CapChaosGame(Level(new[] { "RBB" }, new[] { "BR", "B" }, slots: 3, capacity: 1,
                 locks: new[] { new[] { 0, 1, 1 } }));
             Assert.That(g.LockLeft(0), Is.EqualTo(0), "the locked tray is not at the front yet");
             var first = g.Tap(0);
@@ -59,9 +59,9 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void R18_trays_locked_for_good_are_a_loss_not_a_hang()
         {
-            var g = new CapChaosGame(Level(new[] { new[] { "RB" } }, new[] { "B", "R" }, slots: 3, capacity: 1,
+            var g = new CapChaosGame(Level(new[] { "RB" }, new[] { "B", "R" }, slots: 3, capacity: 1,
                 locks: new[] { new[] { 1, 0, 5 } }));
-            Assert.That(Trace(g.Tap(0).Facts), Does.EndWith("lock(L1#0:4) pick(1,0->S0:B) cap(S0:1) pack(S0:B) FAIL(NoMovesLeft)"));
+            Assert.That(Trace(g.Tap(0).Facts), Does.EndWith("lock(L1#0:4) pick(0,1->S0:B) cap(S0:1) pack(S0:B) FAIL(NoMovesLeft)"));
             Assert.That(g.Status, Is.EqualTo(GameStatus.Lost));
         }
 
@@ -129,7 +129,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void Locks_and_links_are_part_of_the_state_key()
         {
-            var l = Level(new[] { new[] { "RBB" } }, new[] { "R", "BB" }, slots: 3, capacity: 1, locks: new[] { new[] { 0, 0, 2 } });
+            var l = Level(new[] { "RBB" }, new[] { "R", "BB" }, slots: 3, capacity: 1, locks: new[] { new[] { 0, 0, 2 } });
             var a = new CapChaosGame(l);
             var b = a.Clone();
             a.Tap(1);
@@ -141,7 +141,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         public void V6_the_solver_plays_through_locks_and_links()
         {
             // R needs two placements first; the O+G pair needs B gone. Exactly one order wins.
-            var l = Level(new[] { new[] { "RBOG" } }, new[] { "RO", "BG" }, slots: 3, capacity: 1,
+            var l = Level(new[] { "RBOG" }, new[] { "RO", "BG" }, slots: 3, capacity: 1,
                 locks: new[] { new[] { 0, 0, 1 } }, links: new[] { new[] { 0, 1, 1, 1 } });
             var report = LevelSolver.Solve(l);
             Assert.That(report.Status, Is.EqualTo(SolveStatus.Solvable));
@@ -151,7 +151,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void V7_locks_and_links_must_name_real_neighbouring_trays()
         {
-            var l = Level(new[] { new[] { "RROO" } }, new[] { "RO", "RO" }, capacity: 1,
+            var l = Level(new[] { "RROO" }, new[] { "RO", "RO" }, capacity: 1,
                 locks: new[] { new[] { 0, 5, 1 }, new[] { 1, 1, 2 } },
                 links: new[] { new[] { 0, 0, 1, 1 }, new[] { 0, 1, 1, 1 }, new[] { 0, 1, 0, 0 } });
             var errors = LevelValidator.Validate(l);
@@ -164,7 +164,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void Hidden_trays_locks_and_links_round_trip_through_json()
         {
-            var l = Level(new[] { new[] { "RROO" } }, new[] { "Ro", "rO" }, capacity: 2,
+            var l = Level(new[] { "RROO" }, new[] { "Ro", "rO" }, capacity: 2,
                 locks: new[] { new[] { 0, 1, 3 } }, links: new[] { new[] { 1, 0, 1, 1 } });
             var text = LevelJson.Write(l);
             Assert.That(text, Does.Contain("[{ \"color\": 1 }, { \"color\": 2, \"hidden\": true, \"lockTurns\": 3 }]")

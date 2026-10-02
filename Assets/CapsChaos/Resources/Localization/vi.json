@@ -1,5 +1,6 @@
 {
   "gameplay.lock_turns": "{0}",
+  "hud.coins": "{0}",
   "level_select.difficulty_breather": "Thư giãn",
   "level_select.difficulty_easy": "Dễ",
   "level_select.difficulty_hard": "Khó",
@@ -11,6 +12,13 @@
   "lose.restart": "CHƠI LẠI",
   "lose.subtitle": "Hết chỗ rồi!",
   "lose.title": "CỐ LÊN\\nNÀO",
+  "offer.free": "MIỄN PHÍ",
+  "offer.price": "{0}",
+  "out_of_slot.body": "Mở thêm một slot để đóng chai tiếp",
+  "out_of_slot.restart": "Chơi lại",
+  "out_of_slot.title": "Hết Slot",
+  "parking_slot.body": "Mở thêm một slot",
+  "parking_slot.title": "Thêm Slot",
   "win.next": "TIẾP",
   "win.subtitle": "Đã qua màn {0}!",
   "win.title": "LÀM TỐT\\nLẮM"

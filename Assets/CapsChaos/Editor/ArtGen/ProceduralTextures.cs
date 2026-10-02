@@ -3,48 +3,13 @@ using UnityEngine;
 namespace Game.Editor
 {
     /// <summary>
-    /// Procedural textures (art-direction §9). Everything except the rainbow is GREYSCALE: the colour
+    /// Procedural textures (art-direction §9). Everything is GREYSCALE: the colour
     /// comes from a design token at runtime (TokenTint), so no palette value is duplicated here.
     /// The rainbow's hues are the spectrum itself (art §4.2), not a palette choice.
     /// Deterministic: a fixed seed, so a regeneration yields identical pixels.
     /// </summary>
     internal static class ProceduralTextures
     {
-        /// <summary>7-hue diagonal bands, periodic in U and V so it wraps around a lathe seamlessly, plus sparkles.</summary>
-        public static Texture2D Rainbow(int size = 512)
-        {
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "T_Rainbow" };
-            var px = new Color[size * size];
-            const int bandsU = 2, bandsV = 3;             // integer ⇒ seamless wrap; slope ≈ 30°
-            const float saturation = 0.8f, value = 0.95f, edge = 0.08f;
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float u = (float)x / size, v = (float)y / size;
-                    float t = Mathf.Repeat(u * bandsU + v * bandsV, 1f) * 7f;
-                    int band = Mathf.FloorToInt(t) % 7;
-                    float f = t - Mathf.Floor(t);
-                    // crisp bands with a short blend into the next hue
-                    float blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(1f - edge, 1f, f));
-                    float hue = Mathf.Lerp(band, band + 1, blend) / 7f;
-                    px[y * size + x] = Color.HSVToRGB(Mathf.Repeat(hue, 1f), saturation, value);
-                }
-            var rng = new System.Random(20260930);
-            for (int i = 0; i < 90; i++)
-            {
-                int cx = rng.Next(size), cy = rng.Next(size); int r = 2 + rng.Next(3);
-                for (int dy = -r; dy <= r; dy++)
-                    for (int dx = -r; dx <= r; dx++)
-                    {
-                        float d = Mathf.Sqrt(dx * dx + dy * dy) / r; if (d > 1f) continue;
-                        int ix = (cx + dx + size) % size, iy = (cy + dy + size) % size;
-                        px[iy * size + ix] = Color.Lerp(px[iy * size + ix], Color.white, 1f - d * d);
-                    }
-            }
-            tex.SetPixels(px); tex.Apply(true);
-            return tex;
-        }
-
         /// <summary>Belt stripes: two grey tones (ratio LaneBeltB/LaneBeltA ≈ 0.95) with a thin seam line. One repeat = one tray pitch.</summary>
         public static Texture2D BeltStripes(int size = 64)
         {
@@ -120,6 +85,33 @@ namespace Game.Editor
         }
 
         // shape rasteriser: unit square [-1, 1]², y up, 4 × 4 supersampling for the anti-aliased edge
+        /// <summary>Five-point star (the coin's face, art: R20 coin pill / offer button).</summary>
+        public static Texture2D IconStar(int size = 128)
+        {
+            var pts = new Vector2[10];
+            for (int i = 0; i < 10; i++) pts[i] = Polar(i % 2 == 0 ? 0.9f : 0.4f, 90f + i * 36f);
+            return Shape("T_IconStar", size, (x, y) =>
+            {
+                var p = new Vector2(x, y);
+                for (int i = 0; i < 10; i += 2)
+                    if (InTriangle(p, Vector2.zero, pts[i], pts[(i + 1) % 10]) || InTriangle(p, Vector2.zero, pts[i], pts[(i + 9) % 10])) return true;
+                return false;
+            });
+        }
+
+        /// <summary>A rounded plus (an extra slot, R20).</summary>
+        public static Texture2D IconPlus(int size = 128)
+            => Shape("T_IconPlus", size, (x, y) => (Mathf.Abs(x) < 0.22f && Mathf.Abs(y) < 0.8f) || (Mathf.Abs(y) < 0.22f && Mathf.Abs(x) < 0.8f));
+
+        /// <summary>A play triangle (the rewarded ad, drawn on a rounded clapper body).</summary>
+        public static Texture2D IconPlay(int size = 128)
+            => Shape("T_IconPlay", size, (x, y) => InTriangle(new Vector2(x, y), new Vector2(-0.45f, -0.6f), new Vector2(-0.45f, 0.6f), new Vector2(0.65f, 0f)));
+
+        /// <summary>A bold ✕ (the offer's close button).</summary>
+        public static Texture2D IconClose(int size = 128)
+            => Shape("T_IconClose", size, (x, y) =>
+                (Mathf.Abs(x - y) < 0.3f || Mathf.Abs(x + y) < 0.3f) && Mathf.Abs(x) < 0.62f && Mathf.Abs(y) < 0.62f);
+
         private static Texture2D Shape(string name, int size, System.Func<float, float, bool> inside)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = name };

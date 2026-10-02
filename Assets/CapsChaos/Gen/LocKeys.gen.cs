@@ -10,6 +10,7 @@ namespace Game.Gen
     public static class LocKeys
     {
         public static readonly LocKey GameplayLockTurns             = new("gameplay.lock_turns");
+        public static readonly LocKey HudCoins                      = new("hud.coins");
         public static readonly LocKey LevelSelectDifficultyBreather = new("level_select.difficulty_breather");
         public static readonly LocKey LevelSelectDifficultyEasy     = new("level_select.difficulty_easy");
         public static readonly LocKey LevelSelectDifficultyHard     = new("level_select.difficulty_hard");
@@ -21,6 +22,13 @@ namespace Game.Gen
         public static readonly LocKey LoseRestart                   = new("lose.restart");
         public static readonly LocKey LoseSubtitle                  = new("lose.subtitle");
         public static readonly LocKey LoseTitle                     = new("lose.title");
+        public static readonly LocKey OfferFree                     = new("offer.free");
+        public static readonly LocKey OfferPrice                    = new("offer.price");
+        public static readonly LocKey OutOfSlotBody                 = new("out_of_slot.body");
+        public static readonly LocKey OutOfSlotRestart              = new("out_of_slot.restart");
+        public static readonly LocKey OutOfSlotTitle                = new("out_of_slot.title");
+        public static readonly LocKey ParkingSlotBody               = new("parking_slot.body");
+        public static readonly LocKey ParkingSlotTitle              = new("parking_slot.title");
         public static readonly LocKey WinNext                       = new("win.next");
         public static readonly LocKey WinSubtitle                   = new("win.subtitle");
         public static readonly LocKey WinTitle                      = new("win.title");

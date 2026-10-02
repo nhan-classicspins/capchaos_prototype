@@ -64,7 +64,7 @@ namespace CapsChaos.LevelTool
             Directory.CreateDirectory(outDir);
             var drift = new List<string>();
             var ids = new List<string>();
-            Console.WriteLine($"{"id",-11} {"seed",6} {"colors",-6} {"bottles",7} {"hidden",6} {"trays",5} {"layers",6} {"tries",5}  lanes");
+            Console.WriteLine($"{"id",-11} {"seed",6} {"colors",-6} {"bottles",7} {"trays",5} {"rows",4} {"feeders",7} {"tries",5}  lanes");
             foreach (var (spec, seed) in specs)
             {
                 var gen = new LevelGenerator(new Pcg32(seed)).Generate(spec);
@@ -77,15 +77,16 @@ namespace CapsChaos.LevelTool
                 Emit(file, text, check, drift);
                 ids.Add(spec.Id);
 
-                var (bottles, hidden) = Count(gen.Level);
-                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {hidden,6} {bottles / spec.TrayCapacity,5} {gen.Level.Stack.LayerCount,6} {gen.Attempts,5}  " +
+                int bottles = gen.Level.Loop.AllBottles().Count();
+                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {bottles / spec.TrayCapacity,5} {gen.Level.Loop.Rows,4} {gen.Level.Loop.Feeders.Count,7} {gen.Attempts,5}  " +
                                   string.Join(" ", gen.Level.Lanes.Select(l => l.Count)));
             }
             int generated = ids.Count;
-            // hand-authored levels (not in the spec) keep their place at the end of the order, by id
+            // hand-authored levels (not in the spec) are kept; the play order is the id order, so a level's number is its place
             if (Directory.Exists(outDir))
                 ids.AddRange(Directory.GetFiles(outDir, "level_*.json").Select(Path.GetFileNameWithoutExtension)
-                    .Where(id => !ids.Contains(id)).OrderBy(id => id, StringComparer.Ordinal));
+                    .Where(id => !ids.Contains(id)));
+            ids.Sort(StringComparer.Ordinal);
             var index = new StringBuilder("{\n  \"order\": [\n");
             for (int i = 0; i < ids.Count; i++) index.Append("    \"").Append(ids[i]).Append(i < ids.Count - 1 ? "\",\n" : "\"\n");
             index.Append("  ]\n}\n");
@@ -105,18 +106,6 @@ namespace CapsChaos.LevelTool
             bool same = File.Exists(file) && File.ReadAllText(file) == text;
             if (check) { if (!same) drift.Add(file); return; }
             if (!same) File.WriteAllText(file, text, new UTF8Encoding(false));
-        }
-
-        private static (int bottles, int hidden) Count(LevelDefinition l)
-        {
-            int b = 0, h = 0;
-            var st = l.Stack;
-            for (int k = 0; k < st.LayerCount; k++) for (int r = 0; r < st.Rows; r++) for (int x = 0; x < st.Cols; x++)
-            {
-                var c = st.At(k, r, x);
-                if (!c.IsEmpty) { b++; if (c.Hidden) h++; }
-            }
-            return (b, h);
         }
 
         // ── migrate ──────────────────────────────────────────────────────────────────────────
@@ -184,7 +173,8 @@ namespace CapsChaos.LevelTool
         }
 
         // ── stats: a difficulty read-out, not a gate ─────────────────────────────────────────
-        /// <summary>Random-play win rate (uniform over non-empty lanes, fixed seed) + solver effort per level.</summary>
+        /// <summary>Random-play win rate (uniform over non-empty lanes, tapping when the board is quiet, fixed seed) +
+        /// solver effort per level.</summary>
         private static int Stats(string dir, int plays)
         {
             const long seed = 20260930;
@@ -199,12 +189,14 @@ namespace CapsChaos.LevelTool
                 for (int p = 0; p < plays; p++)
                 {
                     var g = new CapChaosGame(level);
+                    g.Settle();
                     var open = new List<int>();
                     while (g.Status == GameStatus.Playing)
                     {
                         open.Clear();
                         for (int j = 0; j < g.LaneCount; j++) if (g.LaneRemaining(j) > 0) open.Add(j);
                         g.Tap(open[rng.NextInt(0, open.Count)]);
+                        g.Settle();
                     }
                     if (g.Status == GameStatus.Won) wins++;
                 }
@@ -246,9 +238,12 @@ namespace CapsChaos.LevelTool
                     Lanes = (int)N(l, "lanes", 3),
                     Greed = N(l, "greed", 0.6),
                     Clustering = N(l, "clustering", 0.3),
+                    Rows = (int)N(l, "rows", 24),
+                    Width = (int)N(l, "width", LoopDefinition.DefaultWidth),
+                    PickRows = (int)N(l, "pickRows", 5),
                 };
-                if (!l.TryGet("shape", out var shape)) throw new InvalidDataException($"{spec.Id}: 'shape' missing");
-                foreach (var layer in shape.Items) spec.Shape.Add(layer.Items.Select(r => r.String).ToList());
+                if (!l.TryGet("feeders", out var feeders)) throw new InvalidDataException($"{spec.Id}: 'feeders' missing");
+                foreach (var f in feeders.Items) spec.Feeders.Add(((int)N(f, "mergeAt", -1), (int)N(f, "bottles", 0)));
                 list.Add((spec, (long)N(l, "seed", 1)));
             }
             return list;

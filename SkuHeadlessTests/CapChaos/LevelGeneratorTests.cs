@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using ClassicSpins.PrototypeFramework.Domain;
 using Game.Domain;
 using NUnit.Framework;
@@ -11,11 +12,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             Id = "level_0099",
             Colors = CapColorCodes.ParseList("ROBG"),
-            Shape = new List<List<string>>
-            {
-                new List<string> { "######", "######", "######", "######" },
-                new List<string> { "......", "??????", "??????", "......" },
-            },
+            Rows = 20, PickRows = 5,
+            Feeders = new List<(int, int)> { (17, 48), (12, 16) },
             Greed = 0.5, Clustering = 0.3,
         };
 
@@ -34,8 +32,13 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(LevelValidator.Validate(gen.Level), Is.Empty);
 
             var game = new CapChaosGame(gen.Level);
-            foreach (int lane in gen.Solution) Assert.That(game.Tap(lane).Accepted, Is.True);
-            Assert.That(game.Status, Is.EqualTo(GameStatus.Won));
+            game.Settle();
+            foreach (int lane in gen.Solution)
+            {
+                Assert.That(game.Tap(lane).Accepted, Is.True);
+                game.Settle();
+            }
+            Assert.That(game.Status, Is.EqualTo(GameStatus.Won), "tap, wait until the board is quiet, tap the next");
 
             var reparsed = LevelJson.Parse(LevelJson.Write(gen.Level));
             Assert.That(reparsed.Errors, Is.Empty, "the writer emits schema-valid JSON");
@@ -53,17 +56,20 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
-        public void Hidden_cells_in_the_shape_become_hidden_bottles()
+        public void The_feeders_carry_every_bottle_in_rows_of_one_colour_and_the_belt_starts_empty()
         {
             var gen = new LevelGenerator(new Pcg32(3)).Generate(Spec());
-            for (int x = 0; x < gen.Level.Stack.Cols; x++)
-            {
-                var upper = gen.Level.Stack.At(1, 1, x);
-                var ground = gen.Level.Stack.At(0, 0, x);
-                Assert.That(upper.IsEmpty || ground.IsEmpty, Is.False);
-                Assert.That(upper.Hidden, Is.True);
-                Assert.That(ground.Hidden, Is.False);
-            }
+            var loop = gen.Level.Loop;
+            Assert.That(loop.Initial, Is.Null, "the generator authors feeders only");
+            Assert.That(loop.Feeders.Select(f => f.MergeAt), Is.EqualTo(new[] { 17, 12 }));
+            Assert.That(loop.Feeders.Select(f => f.Bottles.Count), Is.EqualTo(new[] { 48, 16 }));
+            foreach (var f in loop.Feeders)
+                for (int row = 0; row < f.Bottles.Count / loop.Width; row++)
+                    Assert.That(f.Bottles.Skip(row * loop.Width).Take(loop.Width).Distinct().Count(), Is.EqualTo(1),
+                        "R4: a queue row is one colour");
+            var belt = new CapChaosGame(gen.Level).Belt;
+            Assert.That(belt.Count, Is.Zero, "every bottle starts in a feeder");
+            Assert.That(belt.FeederRemainingTotal, Is.EqualTo(64));
         }
     }
 }

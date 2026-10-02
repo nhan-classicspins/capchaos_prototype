@@ -46,6 +46,10 @@ namespace Game.Editor
                 SaveUiSprite(ProceduralTextures.Disc(128), 0),
                 SaveUiSprite(ProceduralTextures.IconRetry(128), 0),
                 SaveUiSprite(ProceduralTextures.IconHome(128), 0),
+                SaveUiSprite(ProceduralTextures.IconStar(128), 0),
+                SaveUiSprite(ProceduralTextures.IconPlus(128), 0),
+                SaveUiSprite(ProceduralTextures.IconPlay(128), 0),
+                SaveUiSprite(ProceduralTextures.IconClose(128), 0),
             };
             return "[ArtGen] UI sprites → " + string.Join(", ", paths);
         }
@@ -93,7 +97,6 @@ namespace Game.Editor
             log.Append("meshes 11 · ");
 
             // textures
-            var tRainbow = SaveTexture(ProceduralTextures.Rainbow(), TextureWrapMode.Repeat);
             var tBelt = SaveTexture(ProceduralTextures.BeltStripes(), TextureWrapMode.Repeat);
             var tCard = SaveTexture(ProceduralTextures.Cardboard(), TextureWrapMode.Repeat);
             var tMystery = SaveTexture(ProceduralTextures.MysteryMark(), TextureWrapMode.Clamp);
@@ -105,7 +108,6 @@ namespace Game.Editor
             // materials — white, tinted per instance by TokenTint (URP Lit, instancing on)
             var mPlastic = SaveMaterial("M_Plastic", null, 0.86f);
             var mFrosted = SaveMaterial("M_PlasticFrosted", null, 0.35f);
-            var mRainbow = SaveMaterial("M_Rainbow", tRainbow, 0.8f);
             var mCard = SaveMaterial("M_Cardboard", tCard, 0.15f);
             var mTape = SaveMaterial("M_Tape", null, 0.55f);
             var mMatte = SaveMaterial("M_Matte", null, 0.25f);
@@ -133,7 +135,6 @@ namespace Game.Editor
                 Tint(go, tintType, "FlavorBody", materialIndex: 0);
                 Tint(go, tintType, "FlavorBand", materialIndex: 1);
             });
-            SavePrefab("BottleHidden", go => Renderer(go, bottle, mRainbow, mRainbow));
             SavePrefab("CapTray", go =>
             {
                 Renderer(go, tray, mPlastic);
@@ -179,7 +180,7 @@ namespace Game.Editor
             SavePrefab("Floor", go => { Renderer(go, floor, mMatte); Tint(go, tintType, "Floor"); });
             SavePrefab("TrayLock", go => BuildTrayLock(go, mShackle, mLockBody, tintType));
             SavePrefab("TrayLink", go => BuildTrayLink(go, mRope, mRopeOutline, tintType));
-            log.Append("prefabs 11 (Cap, Bottle, BottleHidden, CapTray, Box, Slot, Lane, Floor, TrayLock, TrayLink + nested caps)");
+            log.Append("prefabs 10 (Cap, Bottle, CapTray, Box, Slot, Lane, Floor, TrayLock, TrayLink + nested caps)");
 
             AssetDatabase.SaveAssets();
             return log.ToString();

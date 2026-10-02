@@ -53,12 +53,13 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var texts = new Dictionary<string, string>
             {
-                ["level_0001"] = "{ \"formatVersion\": 1, \"id\": \"level_0001\", \"colors\": [\"R\"], " +
-                                 "\"stack\": { \"cols\": 2, \"rows\": 1, \"layers\": [[\"Rr\"]] }, \"lanes\": [[\"R\"]] }",
+                ["level_0001"] = "{ \"formatVersion\": 3, \"id\": \"level_0001\", \"colors\": [1], " +
+                                 "\"loop\": { \"rows\": 8, \"pickRows\": 1, \"feeders\": [ { \"mergeAt\": 0, \"bottles\": [1, 1] } ] }, " +
+                                 "\"lanes\": [[{ \"color\": 1 }]] }",
             };
             var c = new LevelCatalog();
             var e = Assert.Throws<LevelLoadException>(() => c.Populate(LevelCatalog.ParseOrder(Index), texts));
-            Assert.That(e!.Message, Does.Contain("V3").And.Contains("V4"));
+            Assert.That(e!.Message, Does.Contain("V8").And.Contains("V4"));
             Assert.That(c.IsLoaded, Is.False, "all-or-nothing");
         }
 

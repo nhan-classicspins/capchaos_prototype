@@ -15,9 +15,10 @@
 
 | # | Quyết định | Hệ quả |
 |---|---|---|
-| D1 | **Camera 3D perspective** [CHỐT] | Theo **ADR-001 phương án B**: camera `GamePlay` chuyển sang perspective, không thêm layer. Xem §10.1 |
+| D1 | **Camera 3D, orthographic** [CHỐT, sửa 2026-10-02] | ADR-001 phương án B, sửa §7: camera `GamePlay` orthographic, board nghiêng và tự scale theo viewport. Xem §10.1 |
 | D2 | **Không dùng nhãn hiệu**. Chai, nắp, khay chỉ phân biệt bằng **màu** [CHỐT] | Không có logo hay chữ trên vật thể gameplay |
-| D3 | Chai ẩn hiển thị bằng **texture cầu vồng**, không dùng màu tối như video [CHỐT] | Art §4.2 |
+| D3 | ~~Chai ẩn hiển thị bằng texture cầu vồng~~ — **bỏ 2026-10-02** cùng khối chai: mọi chai trên băng oval và trong hàng chờ đều lộ màu | Thông tin "sắp tới" nằm ở đuôi hàng chờ, không cần chai ẩn |
+| D6 | **Băng chuyền oval thay khối chai** (2026-10-02) [CHỐT]: chai đi thành hàng 4 trên một vòng oval chạy liên tục; hàng chờ (feeder) nhập vào oval khi có ô trống; nhiều điểm nhập cấu hình theo level | §5.1, §6.2. Model rời rạc (1 bước = oval tiến 1 hàng), controller bước theo tick cố định |
 | D4 | **Toàn bộ art của MVP do team dev/agent tự tạo** [CHỐT] | Pipeline ở Art §9 |
 | D5 | **Level được cấu hình hoàn toàn bằng JSON** [CHỐT] | §6; scene và prefab không chứa dữ liệu level |
 
@@ -25,12 +26,13 @@
 
 ## 1. Tóm tắt
 
-**Cap Chaos** là game puzzle 3D casual, màn hình dọc, chơi bằng tap. Trên đầu màn hình là một **khối chai
-không nắp xếp chồng nhiều tầng**. Người chơi tap vào **khay nắp** (mỗi khay 4 nắp cùng màu) ở đầu 3
-**băng chuyền**. Khay bay lên một trong 3 **slot**. Những chai cùng màu đang lấy được sẽ tự bay xuống,
-được đóng nắp và cắm vào khay. Khay đủ 4 chai thì được đóng thùng và chuyển đi.
+**Cap Chaos** là game puzzle 3D casual, màn hình dọc, chơi bằng tap. Trên đầu màn hình là một **băng chuyền
+oval** chở chai không nắp, xếp **hàng 4**, chạy vòng liên tục; một hoặc nhiều **hàng chờ** nhập thêm chai vào oval
+mỗi khi có chỗ trống. Người chơi tap vào **khay nắp** (mỗi khay 4 nắp cùng màu) ở đầu 3 **băng chuyền khay**. Khay bay
+lên một trong 3 **slot**. Chai cùng màu chạy ngang qua **đoạn trước slot** sẽ tự bay xuống, được đóng nắp và cắm vào
+khay. Khay đủ 4 chai thì được đóng thùng và chuyển đi.
 
-**Fantasy:** làm công nhân dây chuyền đóng chai, dọn sạch một núi chai hỗn loạn.
+**Fantasy:** làm công nhân dây chuyền đóng chai, dọn sạch một dòng chai không ngừng chảy.
 **Thể loại:** sort và match có hàng đợi, cùng họ với *Bus Jam* và *Screw Sort*. Cái khó nằm ở việc
 **chọn thứ tự tap** để 3 slot không bị kẹt.
 
@@ -39,20 +41,20 @@ không nắp xếp chồng nhiều tầng**. Người chơi tap vào **khay nắ
 | Nền tảng | Mobile, portrait [QS] |
 | Input | Chỉ tap [QS] |
 | Độ dài một level | 60–120 s [QS] |
-| Camera | 3D perspective, cố định, nhìn chếch từ trước-trên [QS][CHỐT] |
+| Camera | 3D orthographic, cố định, board nghiêng nhìn chếch từ trước-trên [CHỐT, sửa 2026-10-02] |
 
 ---
 
 ## 2. Core loop
 
 ```
- 1. Đọc khối chai: chai nào ĐANG LẤY ĐƯỢC (tầng đất + hàng trước)? màu gì?
- 2. Đọc 3 khay đầu băng chuyền.
- 3. TAP một khay → khay bay vào slot trống; băng chuyền chạy, đưa khay kế lên đầu.
- 4. Chai cùng màu lấy được bay xuống → đóng nắp → cắm vào khay.
- 5. Lấy chai ở tầng đất → chồng phía trên RƠI xuống 1 tầng → chai chạm đất LỘ MÀU (nếu đang ẩn).
+ 1. Đọc băng oval: màu nào sắp chạy ngang qua đoạn trước slot? hàng chờ còn những màu gì?
+ 2. Đọc 3 khay đầu băng chuyền khay.
+ 3. TAP một khay → khay bay vào slot trống; băng khay chạy, đưa khay kế lên đầu.
+ 4. Chai cùng màu chạy qua đoạn trước slot bay xuống → đóng nắp → cắm vào khay.
+ 5. Chai bị lấy để lại ô trống chạy theo oval → tới điểm nhập thì hàng chờ đổ chai mới vào.
  6. Khay đủ 4 → đóng thùng → thùng bay đi → slot trống.
- Thắng: hết chai (popup GOOD JOB)   Thua: 3 slot kẹt (popup YOU CAN DO IT)
+ Thắng: oval + hàng chờ hết chai (popup GOOD JOB)   Thua: slot đầy, không chai trên oval khớp khay nào và hàng chờ không nhập được (popup YOU CAN DO IT)
 ```
 
 Nhịp một lượt, đo từ video 1 với mốc tap = 0 [QS]:
@@ -73,13 +75,12 @@ Nhịp một lượt, đo từ video 1 với mốc tap = 0 [QS]:
 | Vùng | Vị trí (theo chiều cao màn hình) | Nội dung |
 |---|---|---|
 | **HUD** | 0–8 % | Restart (trái) · pill "Level N" (giữa) · Home (phải) [QS] |
-| **Bottle Stack** | 5–40 % | Khối chai 3D nhiều tầng [QS] |
+| **Băng oval** | 5–40 % | Oval chai hàng 4, hàng chờ đi vào từ mép trên/phải; cạnh trước oval là vùng lấy chai |
 | **Slot Bar** | 45–57 % | 3 slot nằm ngang, luôn thấy ô trống [QS] |
 | **Conveyor Lanes** | 60–100 % | 3 băng chuyền dọc, chạy ra ngoài mép dưới màn hình [QS] |
 
 Ảnh tham chiếu:
 - [`refs/02_gameplay_start.jpg`](refs/02_gameplay_start.jpg): màn chơi lúc bắt đầu.
-- [`refs/07_hidden_stack.jpg`](refs/07_hidden_stack.jpg): khối chai có chai ẩn.
 - [`refs/05_deadlock.jpg`](refs/05_deadlock.jpg): lúc bế tắc.
 
 ---
@@ -88,7 +89,9 @@ Nhịp một lượt, đo từ video 1 với mốc tap = 0 [QS]:
 
 | Thực thể | Mô tả | Thuộc tính |
 |---|---|---|
-| **Bottle** | Chai PET không nắp, đứng trong khối | `color`, `pos (x, z, layer)`, `hidden: bool` |
+| **Bottle** | Chai PET không nắp, đứng trên băng oval hoặc trong hàng chờ | `color`, vị trí `(row, track)` trên oval |
+| **Loop** | Băng oval: `rows` hàng × `width` chai (mặc định 4), chạy vòng liên tục | `rows`, `width`, `pickRows` |
+| **Feeder** | Hàng chờ chai, nhập vào oval tại một điểm cố định | `mergeAt`, `bottles` |
 | **CapTray** | Khay 2×2 = 4 nắp cùng màu [QS] | `color`, `capacity` (mặc định 4), `filled` |
 | **Lane (Conveyor)** | Băng chuyền, là hàng đợi FIFO các khay [QS] | `queue<CapTray>` |
 | **Slot** | Chỗ đặt khay đang nạp chai [QS] | `tray?` |
@@ -117,25 +120,31 @@ LevelTool và test.
 
 ## 5. Luật chơi
 
-### 5.1 Khối chai: lưới 3D có trọng lực
-- **R1** [QS] Khối chai là lưới 3D `(x = cột, z = hàng sâu, layer = tầng)`. Chai ở tầng `k ≥ 1` **đứng
-  trên** chai ở tầng `k−1` cùng ô. Video 2, frame 5,5 s: một chai tối đứng trên chai cam ở hàng trước.
-- **R2 — Lấy được (exposed)** [QS] Một chai lấy được khi thoả **cả hai** điều kiện:
-  1. nằm ở **tầng đất** (`layer = 0`);
-  2. là chai **trước nhất** ở tầng đất trong cột `x` của nó, tức là không có chai tầng đất nào ở `z`
-     nhỏ hơn (gần người chơi hơn).
+### 5.1 Băng oval và hàng chờ (thay khối chai, 2026-10-02)
+Tham chiếu: video crowd-sort (người đi thành hàng trên vòng xoay, hàng chờ nhập vào ở cạnh phải). Phân tích ở
+chat 2026-10-02; mô hình dưới đây là bản chuyển sang chai.
 
-  Bằng chứng:
-  - Video 1, 76,5 s: người chơi bế tắc dù chai cam/hồng vẫn còn, vì chúng nằm ở tầng trên hoặc phía sau.
-  - Video 2, 10–13 s: chai cam ở tầng đất nhưng nằm sau hàng chai xanh thì không bị kéo, cho tới khi hàng
-    xanh được dọn đi.
-- **R3 — Trọng lực** [QS] Khi chai ở `(x, z, 0)` bị lấy đi, **toàn bộ chồng** tại `(x, z)` rơi xuống một
-  tầng (video 2, 7,8 s → 8,0 s). Cột không trượt về phía trước.
-- **R4 — Chai ẩn** [QS][CHỐT D3] Chai có cờ `hidden` hiển thị bằng **vật liệu cầu vồng** và người chơi
-  **không biết màu** của nó. Nó **lộ màu đúng lúc chạm đất** (`layer = 0`). Khi lộ màu có VFX "reveal"
-  (Art §6).
-  - Chai ẩn ở tầng đất **không tồn tại**: bộ validate level bắt lỗi này, hoặc engine lộ màu ngay khi load.
-  - Chai ẩn **không bao giờ** được khay nào kéo, vì nó luôn nằm ở tầng ≥ 1.
+- **R1 — Oval** Băng gồm `rows` **hàng**, mỗi hàng `width` **ô** (track) — mặc định 4 chai một hàng. Băng **chạy
+  liên tục** theo chiều kim đồng hồ nhìn từ trên (cạnh trước chạy phải → trái), mỗi bước tiến **đúng 1 hàng**.
+  Một hàng là một miếng băng cố định: chai trên đó đi cùng nó. Vị trí trên đường chạy (track position) `0` là hàng
+  đầu tiên của **vùng lấy chai**; vị trí tăng theo chiều chạy.
+- **R2 — Vùng lấy chai** Vùng lấy là `pickRows` vị trí `0 … pickRows−1`, tức **cạnh thẳng phía trước, ngay trên dãy
+  slot**. Chỉ chai đang nằm trong vùng này mới bay vào khay. Chai cùng màu ở chỗ khác phải đợi oval quay tới.
+- **R3 — Ô trống chạy theo băng** Chai bị lấy để lại **ô trống**; không có chai nào dồn lên lấp. Ô trống chạy theo
+  oval cho tới khi được hàng chờ lấp (R4).
+- **R4 — Hàng chờ (feeder)** Mỗi level có 0–4 hàng chờ, mỗi cái nhập vào oval tại vị trí `mergeAt` (ngoài vùng lấy).
+  Chai trong hàng chờ xếp theo hàng: chai thứ `i` đứng ở hàng `i / width`, track `i % width`. Hàng chờ **nhập nguyên hàng**
+  (sửa 2026-10-02): hàng đầu chỉ bước lên khi hàng oval đi ngang điểm nhập **trống ở mọi track nó cần**; không bao giờ nhập
+  lẻ từng chai. Generator tô **mỗi hàng một màu** (số chai mỗi hàng chờ là bội của `width`). Về hình ảnh, hàng chờ là
+  một **làn nhập** (on-ramp) đi xuống từ mép trên và rẽ vào oval tại điểm nhập. Để các hàng chờ thành cột trái → giữa → phải
+  theo đúng thứ tự trên băng (B = số hàng mỗi khúc cua): **trái** `mergeAt = pickRows + B − 1` (đầu cạnh sau; có hàng giữa thì
+  sớm hơn 1–2 hàng), **giữa** `2·pickRows + B − 1` (cuối cạnh sau), **phải** `rows − B/2` (giữa khúc cua phải). Nhập thấp hơn
+  ở khúc cua trái thì hàng chờ đi vào từ mép trái. Hàng chờ
+  **đứng yên** khi hàng đi ngang điểm nhập còn chai ở track nó cần; khi một hàng đủ trống chạy tới, cả hàng đầu bước lên
+  oval và hàng chờ tiến 1 nấc. Nhiều hàng chờ xét theo thứ tự khai báo.
+  - Không khai `loop.initial` ⇒ oval **bắt đầu trống**: mọi chai nằm trong hàng chờ và nhập vào khi oval chạy (sửa
+    2026-10-02, trước đây oval được đổ đầy trước khi vào ván).
+  - Mọi chai đều lộ màu. **Không còn chai ẩn** (D3).
 
 ### 5.2 Tap và băng chuyền
 - **R5** [QS][CHỐT] **Tap vào khay, không tap vào băng chuyền.** Mỗi khay trên băng chuyền có vùng chạm riêng;
@@ -159,28 +168,31 @@ LevelTool và test.
     bám theo chỉ số slot.
 
 ### 5.3 Nạp chai
-- **R10** [QS] Mỗi khay trong slot **tự động** kéo các chai lấy được **cùng màu** cho tới khi đủ
-  `capacity`. Người chơi không cần tap vào chai.
-- **R11 — Tất định** [GĐ] Engine lặp tới khi không còn gì thay đổi:
-  1. Xét slot theo thứ tự trái → phải.
-  2. Mỗi slot chọn chai hợp lệ có `z` nhỏ nhất; hoà thì lấy `x` gần slot nhất; vẫn hoà thì lấy `x` nhỏ.
-  3. Mỗi lần lấy một chai thì áp R3 và R4 ngay, rồi lặp lại từ bước 1.
+- **R10** Mỗi khay trong slot **tự động** nhận chai **cùng màu** chạy qua vùng lấy (R2) cho tới khi đủ `capacity`.
+  Người chơi không cần tap vào chai.
+- **R11 — Tất định** Sau mỗi tap, và sau mỗi bước oval:
+  1. Xét vùng lấy từ hàng **sắp rời vùng** trước (vị trí `pickRows−1` → `0`), trong mỗi hàng track trái → phải.
+  2. Mỗi chai trùng màu một khay thì bay vào **slot trái nhất** đang chờ màu đó. Khay đủ thì đóng thùng ngay (R13).
+  3. Sau đó (chỉ khi là một bước oval) hàng chờ lấp ô trống tại điểm nhập (R4).
 
-  Cùng một chuỗi tap luôn cho **cùng** kết quả, nhờ đó test headless tái lập được.
-- **R12** [QS] Khay chưa đầy mà không còn chai hợp lệ thì **đứng chờ** trong slot.
+  Cùng một chuỗi tap ở cùng các bước luôn cho **cùng** kết quả, nhờ đó test headless tái lập được.
+- **R12** Khay chưa đầy thì **đứng chờ** trong slot cho tới khi chai cùng màu chạy tới.
 - **R13** [QS] Khay đầy thì phát sự kiện đóng thùng; slot được giải phóng khi thùng bay đi.
 
 ### 5.4 Thắng / Thua
-- **R14 — Thắng** [QS ảnh] Khối chai trống và thùng cuối cùng đã bay đi thì hiện popup **"GOOD JOB" +
+- **R14 — Thắng** [QS ảnh] Oval và mọi hàng chờ hết chai, và thùng cuối cùng đã bay đi thì hiện popup **"GOOD JOB" +
   NEXT** ([`refs/09_win_popup.png`](refs/09_win_popup.png)). Bấm NEXT sang Level N+1.
-- **R15 — Thua** [QS] Game xử thua khi:
+- **R15 — Thua** Game xử thua khi bàn chơi **đứng yên vĩnh viễn** (quiescent) mà:
   - mọi slot đều có khay,
-  - không còn animation nạp nào đang chạy,
-  - và không chai lấy được nào trùng màu với bất kỳ khay nào trong slot.
+  - không chai nào **trên oval** trùng màu với khay nào trong slot,
+  - và không hàng chờ nào nhập được nữa (oval không còn ô trống, hoặc hàng chờ của các track còn trống đã hết).
+
+  Còn chai khớp màu trên oval thì **chưa thua**: chai sẽ chạy tới vùng lấy. Khi chưa đầy slot mà bàn đứng yên và không
+  tap nào được chấp nhận (khoá, cặp nối thiếu slot…) thì cũng thua (`NoMovesLeft`).
 
   Khi đó hiện popup **"YOU CAN DO IT" + RESTART** ([`refs/10_lose_popup.png`](refs/10_lose_popup.png)).
   Bấm RESTART chơi lại đúng level đó.
-- **R16 — Bất biến** Với mọi màu c: `số chai màu c = capacity × số khay màu c`. Level vi phạm bất biến
+- **R16 — Bất biến** Với mọi màu c: `số chai màu c (oval + hàng chờ) = capacity × số khay màu c`. Level vi phạm bất biến
   **không được load** (§6.4).
 
 ### 5.5 Khay đặc biệt (thêm 2026-10-01)
@@ -208,7 +220,21 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 - **Thua khi hết nước** Nếu còn slot trống mà không lần tap nào được chấp nhận (mọi khay đầu làn đang khoá, đang chờ
   bạn nối, hoặc cặp nối thiếu slot) thì thua với lý do `NoMovesLeft`, vì chỉ có tap mới thay đổi được trạng thái.
 
-### 5.6 HUD
+### 5.6 Slot mở thêm (R20, thêm 2026-10-02)
+- **R20** Mỗi level có `slots` slot mở sẵn (mặc định **4**) và `extraSlots` slot **khoá** (mặc định **2**) nằm bên phải,
+  vẽ bằng ô tối có dấu **"+"** xanh. Slot khoá không nhận khay.
+  - **Bấm vào slot khoá** → popup **Parking Slot**: FREE (xem quảng cáo thưởng, placement `slot_unlock_rewarded`) hoặc
+    `slots.unlockPrice` coin (mặc định 300); ✕ để thôi. Mở slot trái nhất còn khoá.
+  - **Hết slot**: bàn đứng yên, không còn gì di chuyển được nếu không có thêm slot, mà vẫn còn slot khoá → luật phát
+    `SlotsRanOut` (**chưa thua**). Màn chơi hiện popup **Out of Slot**: FREE (`slot_rescue_rewarded`) hoặc
+    `slots.rescuePrice` coin (mặc định 900), hoặc **Restart** (chơi lại level). Hết slot khoá mà kẹt → thua như R15.
+  - Slot đã mở **chỉ có hiệu lực trong ván đó**: restart hoặc sang level khác lại về 4 slot.
+  - Băng oval **dừng** khi popup đang mở.
+  - V6 chứng minh level giải được **chỉ với slot mở sẵn**: slot trả phí là trợ giúp, không phải lời giải.
+- **Coin**: ví của framework (`ResourceKeys.Coins`, lưu cùng save). Lần chạy đầu được `economy.startCoins` (1000); thắng
+  một level được `economy.winReward` (50). HUD hiện số coin cạnh nút Home.
+
+### 5.7 HUD
 - Restart: chơi lại level ngay, không hỏi xác nhận [GĐ].
 - Home: về màn Title [QS].
 
@@ -229,64 +255,69 @@ Unity**. Đây là machine zone: diff được, review được, test headless �
 | `Game.Domain.CapColor` | Enum màu, dùng chung cho chai, tray, nắp và hộp. Trong JSON (v2) màu là **số** của enum (bảng §4) |
 | [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12), là nguồn chân lý của định dạng |
 
-### 6.2 Định dạng (format v2, đổi 2026-10-01)
+### 6.2 Định dạng (format v3, đổi 2026-10-02)
 
-Định dạng viết cho **designer** (họ có thể tự viết tool): màu là **số** (§4), mọi cờ là **field có tên**. File format
-v1 cũ (mã chữ) vẫn load được (`LevelFormatV1`), nhưng tool luôn ghi v2; `LevelTool migrate` chuyển cả thư mục.
+Định dạng viết cho **designer** (họ có thể tự viết tool): màu là **số** (§4), mọi cờ là **field có tên**. Format v3 thay
+`stack` bằng `loop`. File v1/v2 mô tả khối chai, không có cách chuyển tương đương sang oval: loader **từ chối** và chỉ
+về `LevelTool generate` (toàn bộ seed level đã sinh lại 2026-10-02).
 
 ```json
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 2,
+  "formatVersion": 3,
   "id": "level_0019",
   "slots": 4,
   "trayCapacity": 4,
   "colors": [1, 2, 3],
-  "stack": {
-    "cols": 3,
-    "rows": 2,
-    "layers": [
-      [[3, 2, 1],
-       [1, 2, 3]],
-      [[0, 2, 0],
-       [0, 1, 0]]
-    ],
-    "hidden": [
-      { "layer": 1, "row": 0, "col": 1 }
+  "loop": {
+    "rows": 20,
+    "width": 4,
+    "pickRows": 5,
+    "feeders": [
+      { "mergeAt": 18, "bottles": [
+        1, 1, 1, 1,
+        2, 2, 2, 2,
+        3, 3, 3, 3
+      ] },
+      { "mergeAt": 11, "bottles": [ 2, 2, 1, 1 ] }
     ]
   },
   "lanes": [
     [{ "color": 3 }, { "color": 2, "hidden": true }],
     [{ "color": 1, "lockTurns": 2 }, { "color": 2 }],
-    [{ "color": 1 }, { "color": 3 }]
+    [{ "color": 1 }]
   ],
   "links": [
-    { "a": { "lane": 2, "tray": 0 }, "b": { "lane": 2, "tray": 1 } }
+    { "a": { "lane": 0, "tray": 0 }, "b": { "lane": 0, "tray": 1 } }
   ],
-  "view": { "cameraPreset": "default", "stackScale": 1.0 },
+  "view": { "cameraPreset": "default" },
   "meta": { "name": "Ví dụ", "difficulty": "easy", "notes": "Chỉ để minh hoạ định dạng" }
 }
 ```
 
-Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm, và ví dụ trên chỉ để minh hoạ định dạng.
+Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 
 | Trường | Ý nghĩa |
 |---|---|
-| `formatVersion` | `2`. Tăng khi đổi định dạng; loader có migrator cho từng version (v1: `LevelFormatV1`, schema `level.schema.v1.json`) |
-| `slots` | Số slot, 1–5 (mặc định 3) |
+| `formatVersion` | `3`. v1/v2 (khối chai) bị từ chối với lỗi chỉ về `LevelTool generate` |
+| `slots` | Số slot mở sẵn, 1–6 (mặc định 4) |
+| `extraSlots` | (tuỳ chọn, mặc định 2) số slot khoá mở được bằng coin / quảng cáo (R20); `slots + extraSlots ≤ 6` |
 | `trayCapacity` | Số nắp mỗi khay (mặc định 4) |
-| `colors` | Tập số màu dùng trong level; mọi số khác 0 trong `stack` và `lanes` phải thuộc tập này |
-| `stack.layers[k]` | Lưới của tầng `k`; `layers[0]` là **tầng đất** |
-| `stack.layers[k][i]` | Một mảng `cols` số; **`i = 0` là hàng xa nhất**, **`i = rows−1` là hàng trước** (gần người chơi). `0` = ô trống |
-| `stack.hidden` | (tuỳ chọn) danh sách chai **ẩn** (R4, cầu vồng, lộ màu khi chạm đất): `{ "layer", "row", "col" }`, phải trỏ vào ô có chai, không ở tầng 0 (V3) |
-| `lanes[j]` | Hàng đợi của băng chuyền `j` (trái → phải), mỗi phần tử là một khay. Phần tử `[0]` là khay đầu làn |
+| `colors` | Tập số màu dùng trong level; mọi màu trong `loop` và `lanes` phải thuộc tập này |
+| `loop.rows` | Số hàng quanh oval, 8–64 |
+| `loop.width` | (tuỳ chọn, mặc định 4) số chai mỗi hàng, 1–6 |
+| `loop.pickRows` | Số hàng của vùng lấy (cạnh trước). V8: `rows ≥ 2 × pickRows + 6`. Hình oval suy ra từ `rows` và `pickRows`: hai cạnh thẳng dài `pickRows` hàng, phần còn lại là hai khúc cua |
+| `loop.feeders[f].mergeAt` | Vị trí hàng chờ nhập vào oval. V8: ngoài vùng lấy, mỗi vị trí một hàng chờ |
+| `loop.feeders[f].bottles` | Hàng chờ, chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`) |
+| `loop.initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |
+| `lanes[j]` | Hàng đợi của băng khay `j` (trái → phải), mỗi phần tử là một khay. Phần tử `[0]` là khay đầu làn |
 | `lanes[j][t].color` | Số màu của khay |
 | `lanes[j][t].hidden` | (tuỳ chọn, mặc định `false`) khay **ẩn** (R17) |
 | `lanes[j][t].lockTurns` | (tuỳ chọn) khay **khoá** `n` lượt, 1–99 (R18) |
 | `links` | (tuỳ chọn) cặp khay **nối** (R19): `{ "a": { "lane": 0, "tray": 1 }, "b": { "lane": 1, "tray": 1 } }`, `tray` là chỉ số trong `lanes[lane]` |
-| `view` | (tuỳ chọn) preset camera và scale khối chai, dùng khi khối chai quá to |
+| `view` | (tuỳ chọn) preset camera |
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
-| `meta.solution` | (tuỳ chọn) một chuỗi tap thắng (chỉ số làn), do LevelTool ghi; V6 chạy lại nó để chứng minh level giải được. Có thể dùng làm gợi ý (hint) sau này |
+| `meta.solution` | (tuỳ chọn) chuỗi tap thắng (chỉ số làn), do LevelTool ghi. V6 chạy lại theo kiểu "tap rồi chờ bàn đứng yên" để chứng minh level giải được |
 
 ### 6.3 Tham số chung (không nằm trong level)
 Timing animation, easing, màu hex và SFX là **config key / design token**, dùng chung cho mọi level (§9,
@@ -299,12 +330,11 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | # | Luật | Lỗi mẫu |
 |---|---|---|
 | V1 | JSON khớp schema | `$.stack.layers[1][2]: 6 cells ≠ cols 7` |
-| V2 | Không có chai lơ lửng: chai ở tầng `k ≥ 1` phải có chai ở tầng `k−1` cùng ô | `floating bottle at (3,1,2)` |
-| V3 | Không có chai ẩn ở tầng 0 | `hidden bottle on ground at (0,3)` |
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
 | V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
-| V6 | **Có lời giải**. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
+| V8 | Oval: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau; hàng chờ có ít nhất 1 chai | `V8 loop.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
+| V6 | **Có lời giải**. Người chơi giả định "tap rồi chờ bàn đứng yên" (`CapChaosGame.Settle`) — mọi chuỗi thắng của người chơi đó cũng là chuỗi thắng thật. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
 
 V6 là cửa CI: level không giải được thì không ship.
 
@@ -313,20 +343,22 @@ V6 là cửa CI: level không giải được thì không ship.
 | Đòn bẩy | Dễ | Khó |
 |---|---|---|
 | Số màu | 2–3 | 6–8 |
-| Số tầng | 1 | 3–4 |
-| Tỷ lệ chai ẩn | 0 % | 60 %+ tầng trên [QS video 2: gần như toàn bộ tầng trên ẩn] |
-| Độ trộn trong cột | Cột cùng màu | Xen kẽ từng chai |
-| Thứ tự khay | Khớp với tầng đất | Lệch pha, người chơi phải nhìn trước 2–3 nước |
+| Kích thước oval (`rows`) | Nhỏ, chai quay lại nhanh | Lớn, phải chờ lâu mới tới màu cần |
+| Số chai trong hàng chờ | 0 (mọi chai lên oval ngay) | Nhiều, màu cần nằm sâu trong hàng chờ |
+| Số hàng chờ / điểm nhập | 1 | 3–4, nhập ở nhiều chỗ |
+| Độ cụm màu (`clustering`) | Khối dài một màu | Xen kẽ từng chai |
+| Thứ tự khay | Khớp với màu đang trên oval | Lệch pha, người chơi phải nhìn trước màu trong hàng chờ |
 | Số slot (`"slots"`, 1–5, cấu hình theo từng level) | 4–5 (level tutorial) | 3 |
 
 **Đường cong đề xuất** [GĐ]:
-- L1–3: 1 tầng, 2–3 màu, dạy tap, băng chuyền và đóng thùng.
-- L4–8: 2 tầng, lộ màu hết.
-- L9–12: deadlock thật (giống video 1).
-- L13+: chai ẩn (giống video 2).
+- L1–3: oval nhỏ, mọi chai đã lên oval, 2–3 màu; dạy tap, vùng lấy, đóng thùng.
+- L4–6: có hàng chờ; dạy chai mới nhập vào chỗ trống, rồi 2 điểm nhập.
+- L7–10: oval lớn hơn, hàng chờ dài, `greed` thấp dần — deadlock thật.
+- L11+: 3 hàng chờ, 5 màu, oval 28–32 hàng (giống video tham chiếu).
 
-**Seed levels của MVP:** 15 level, trong đó `level_0012` và `level_0013` tái dựng gần đúng từ hai video.
-`level_0016`–`level_0018` viết tay (không có trong spec của LevelTool), mỗi level dạy một loại khay đặc biệt: ẩn, khoá, nối (R17–R19). `generate` giữ các level viết tay ở cuối index.
+**Seed levels của MVP:** 15 level sinh tự động (sinh lại 2026-10-02 cho oval); `level_0012` mô phỏng video tham chiếu
+(một hàng chờ dài nuôi oval đông). `level_0016`–`level_0018` viết tay (không có trong spec của LevelTool), mỗi level dạy
+một loại khay đặc biệt: ẩn, khoá, nối (R17–R19). `generate` giữ các level viết tay ở cuối index.
 
 **Số slot là config của level** (`"slots"`, mặc định 3, cho phép 1–5):
 - Domain: `CapChaosGame.SlotCount`, dùng cho R6 (chọn slot) và R15 (xử thua).
@@ -346,17 +378,19 @@ dotnet run --project Tools/LevelTool -- stats             # độ khó: tỉ l�
 dotnet run --project Tools/LevelTool -- migrate           # ghi lại mọi level theo format hiện tại (v2), nội dung giữ nguyên; --check: exit 1 nếu còn file cũ
 ```
 
-- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: hình dạng khối chai (`#` chai lộ màu, `?` chai ẩn),
-  bộ màu, `greed` (1 = dễ), `clustering`, và `seed`. Tool là nơi giữ seed (luật #14).
+- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: oval (`rows`, `width`, `pickRows`), danh sách hàng chờ
+  (`mergeAt`, số chai), bộ màu, `greed` (1 = dễ), `clustering` (1 = khối dài một màu), và `seed`. Tool là nơi giữ
+  seed (luật #14). Người chơi giả định của `generate`, `validate` và `stats` tap khi bàn đứng yên.
 - **⚠ `generate` ghi đè** các level có trong spec. Level nào designer đã sửa tay thì **xoá khỏi spec**
   (hoặc đổi id) trước khi chạy lại. Level viết tay không cần `meta.solution`; V6 sẽ dùng solver.
 
-**Độ khó của seed levels** (`stats`, 500 ván tap ngẫu nhiên, seed 20260930). Đây là proxy, **cần playtest**:
+**Độ khó của seed levels** (`stats`, 200 ván tap ngẫu nhiên khi bàn đứng yên, seed 20260930, sinh lại 2026-10-02).
+Với băng oval, mọi seed level hiện thắng 100 % khi tap ngẫu nhiên (trừ L17: 93 %). Độ khó do designer quyết định qua
+thứ tự khay (`lanes`) — quyết định 2026-10-02.
 
-| Level | 1–4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Nhãn | tutorial/easy | easy | easy | medium | medium | medium | breather | hard | hard | hard | medium | hard |
-| Thắng ngẫu nhiên | 100 % | 100 % | 80 % | 37 % | 62 % | 18 % | 100 % | 3 % | 2 % | 3 % | 17 % | 0.6 % |
+| Level | 1–16 | 17 | 18 |
+|---|---|---|---|
+| Thắng ngẫu nhiên | 100 % | 93 % | 100 % |
 
 ---
 
@@ -399,6 +433,10 @@ Loc key khởi đầu: `title.play`, `hud.level` (arg `{0}`), `win.title`, `win.
 
 | Key | Mặc định | Nguồn |
 |---|---|---|
+| `economy.startCoins` | 1000 | coin lần chạy đầu (R20) |
+| `economy.winReward` | 50 | coin mỗi lần thắng |
+| `slots.unlockPrice` | 300 | Parking Slot (R20) |
+| `slots.rescuePrice` | 900 | Out of Slot (R20) |
 | `anim.trayToSlotSec` | 0.20 | [QS] |
 | `anim.laneAdvanceSec` | 0.20 | [QS≈] |
 | `anim.bottleFlightSec` | 0.30 | [QS≈] |
@@ -520,4 +558,5 @@ chạy với mọi level trong `Content/LevelConfig/`; `Gate/LevelConfigAddressa
 1. Khay cam in chữ "PEPSI" trong video 1 (76,5 s): lỗi art của bản gốc. Không ảnh hưởng MVP vì D2.
 2. Booster (undo, thêm slot, xáo trộn), tiền tệ, continue bằng quảng cáo: ngoài phạm vi MVP.
 3. Progression và map level: ngoài phạm vi MVP. Hiện chỉ có `levels.index.json` tuyến tính.
-4. Nên hé lộ màu chai ẩn một phần (ví dụ viền màu mờ) ở level khó không? Chờ playtest.
+4. ~~Hé lộ màu chai ẩn~~ — chai ẩn đã bỏ (D3, 2026-10-02).
+5. ~~Độ khó của băng oval~~ — chốt 2026-10-02: designer chỉnh qua thứ tự khay; tối đa 8 màu, 4 slot + 2 slot mở thêm.

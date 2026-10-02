@@ -14,11 +14,11 @@ namespace Game.Domain
         public LevelParseResult(LevelDefinition level, IReadOnlyList<string> errors) { Level = level; Errors = errors; }
     }
 
-    /// <summary>What a format reader yields: the version-specific part of a level (colours, stack, lanes, tray modifiers).</summary>
+    /// <summary>What the format reader yields: the content part of a level (colours, belt, lanes, tray modifiers).</summary>
     internal sealed class LevelContent
     {
         public readonly List<CapColor> Colors = new List<CapColor>();
-        public StackDefinition Stack;
+        public LoopDefinition Loop;
         public List<IReadOnlyList<CapColor>> Lanes;
         public readonly List<TrayRef> HiddenTrays = new List<TrayRef>();
         public List<TrayLock> Locks = new List<TrayLock>();
@@ -29,25 +29,27 @@ namespace Game.Domain
     /// Level JSON ⇄ <see cref="LevelDefinition"/>. <see cref="Parse"/> is validator leg V1: every
     /// structural rule of <c>docs/design/level.schema.json</c>, reported all at once with a JSON path.
     /// The schema file is the contract; this class mirrors it and a headless test pins the two together.
-    /// <para>Format v2 (2026-10-01) is written for designers and their own tools: every colour is the NUMBER of its
-    /// <see cref="CapColor"/> (0 = empty cell), and every flag is a named field — <c>stack.hidden</c> for hidden
-    /// bottles, <c>hidden</c> / <c>lockTurns</c> on a tray object, <c>links</c> by <c>{lane, tray}</c>. v1 files
-    /// (letter codes) still load through <see cref="LevelFormatV1"/>; <see cref="Write"/> always writes v2.</para>
+    /// <para>Format v3 (2026-10-02) replaced the bottle stack with the oval belt (<c>loop</c>: rows, width, pick zone,
+    /// feeders, optional initial rows). Every colour is the NUMBER of its <see cref="CapColor"/> (0 = empty spot), and
+    /// every flag is a named field — <c>hidden</c> / <c>lockTurns</c> on a tray object, <c>links</c> by
+    /// <c>{lane, tray}</c>. v1/v2 files describe a stack, which has no belt equivalent: they are rejected with a
+    /// pointer to the generator, never guessed at.</para>
     /// </summary>
     public static class LevelJson
     {
         private static readonly HashSet<string> RootKeys = new HashSet<string>(StringComparer.Ordinal)
-            { "$schema", "formatVersion", "id", "slots", "trayCapacity", "colors", "stack", "lanes", "links", "view", "meta" };
-        private static readonly HashSet<string> StackKeys = new HashSet<string>(StringComparer.Ordinal) { "cols", "rows", "layers", "hidden" };
-        private static readonly HashSet<string> CellKeys = new HashSet<string>(StringComparer.Ordinal) { "layer", "row", "col" };
+            { "$schema", "formatVersion", "id", "slots", "extraSlots", "trayCapacity", "colors", "loop", "lanes", "links", "view", "meta" };
+        private static readonly HashSet<string> LoopKeys = new HashSet<string>(StringComparer.Ordinal) { "rows", "width", "pickRows", "feeders", "initial" };
+        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "mergeAt", "bottles" };
         private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "hidden", "lockTurns" };
         private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
         private static readonly HashSet<string> RefKeys = new HashSet<string>(StringComparer.Ordinal) { "lane", "tray" };
-        private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset", "stackScale" };
+        private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset" };
         private static readonly HashSet<string> MetaKeys = new HashSet<string>(StringComparer.Ordinal) { "name", "difficulty", "notes", "solution" };
         private static readonly string[] CameraPresets = { "default", "tall", "wide" };
         private static readonly string[] Difficulties = { "tutorial", "easy", "medium", "hard", "breather" };
         public const int MaxLockTurns = 99;
+        public const int MinRows = 8, MaxRows = 64, MaxWidth = 6, MaxFeeders = 4;
         private const int MaxColorId = 8;
 
         public static LevelParseResult Parse(string json)
@@ -61,16 +63,24 @@ namespace Game.Domain
 
             int formatVersion = Int(root, "formatVersion", "$", errors, required: true, min: 1, max: LevelDefinition.CurrentFormatVersion,
                 fallback: LevelDefinition.CurrentFormatVersion);
-            bool v1 = formatVersion == 1;
-            Unknown(root, v1 ? LevelFormatV1.RootKeys : RootKeys, "$", errors);
+            if (formatVersion < LevelDefinition.CurrentFormatVersion)
+            {
+                errors.Add($"$.formatVersion: {formatVersion} describes a bottle stack, which format {LevelDefinition.CurrentFormatVersion} replaced " +
+                           "with the oval belt — regenerate the level (`dotnet run --project Tools/LevelTool -- generate`) or re-author it");
+                return new LevelParseResult(null, errors);
+            }
+            Unknown(root, RootKeys, "$", errors);
             string id = Str(root, "id", "$", errors, required: true);
             if (id != null && !IsLevelId(id)) errors.Add($"$.id: '{id}' must match level_NNNN");
-            int slots = Int(root, "slots", "$", errors, required: false, min: 1, max: 5, fallback: LevelDefinition.DefaultSlots);
+            int slots = Int(root, "slots", "$", errors, required: false, min: 1, max: LevelDefinition.MaxSlots, fallback: LevelDefinition.DefaultSlots);
+            int extra = Int(root, "extraSlots", "$", errors, required: false, min: 0, max: LevelDefinition.MaxSlots - 1,
+                fallback: LevelDefinition.DefaultExtraSlots);
+            if (slots + extra > LevelDefinition.MaxSlots) errors.Add($"$.extraSlots: slots {slots} + extraSlots {extra} > {LevelDefinition.MaxSlots}");
             int cap = Int(root, "trayCapacity", "$", errors, required: false, min: 2, max: 6, fallback: LevelDefinition.DefaultTrayCapacity);
 
-            var content = v1 ? LevelFormatV1.Read(root, errors) : ReadV2(root, errors);
+            var content = ReadContent(root, errors);
             var lanes = content.Lanes;
-            string preset = "default"; double scale = 1.0;
+            string preset = "default";
             if (root.TryGet("view", out var view))
             {
                 if (view.Kind != JsonKind.Object) errors.Add("$.view: must be an object");
@@ -79,11 +89,6 @@ namespace Game.Domain
                     Unknown(view, ViewKeys, "$.view", errors);
                     var p = Str(view, "cameraPreset", "$.view", errors, required: false);
                     if (p != null) { if (Array.IndexOf(CameraPresets, p) < 0) errors.Add($"$.view.cameraPreset: '{p}' not in [default, tall, wide]"); else preset = p; }
-                    if (view.TryGet("stackScale", out var s))
-                    {
-                        if (s.Kind != JsonKind.Number || s.Number <= 0 || s.Number > 2) errors.Add("$.view.stackScale: number in (0, 2]");
-                        else scale = s.Number;
-                    }
                 }
             }
 
@@ -119,14 +124,14 @@ namespace Game.Domain
                 }
             }
 
-            if (errors.Count > 0 || id == null || content.Stack == null || lanes == null) return new LevelParseResult(null, errors);
-            var level = new LevelDefinition(id, slots, cap, content.Colors, content.Stack, lanes, preset, scale, name, difficulty, notes,
-                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links);
+            if (errors.Count > 0 || id == null || content.Loop == null || lanes == null) return new LevelParseResult(null, errors);
+            var level = new LevelDefinition(id, slots, cap, content.Colors, content.Loop, lanes, preset, name, difficulty, notes,
+                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra);
             return new LevelParseResult(level, errors);
         }
 
-        // ── format v2 ─────────────────────────────────────────────────────────────────────────
-        private static LevelContent ReadV2(JsonValue root, List<string> errors)
+        // ── content ───────────────────────────────────────────────────────────────────────────
+        private static LevelContent ReadContent(JsonValue root, List<string> errors)
         {
             var c = new LevelContent();
             if (!root.TryGet("colors", out var colorsNode)) errors.Add("$.colors: required");
@@ -142,62 +147,69 @@ namespace Game.Domain
                     else c.Colors.Add(col);
                 }
             }
-            c.Stack = ReadStack(root, errors);
+            c.Loop = ReadLoop(root, errors);
             c.Lanes = ReadLanes(root, c, errors);
             c.Links = ReadLinks(root, errors);
             return c;
         }
 
-        private static StackDefinition ReadStack(JsonValue root, List<string> errors)
+        // whether merge points, the pick zone and the bottle counts make sense together is V8/V4 (LevelValidator)
+        private static LoopDefinition ReadLoop(JsonValue root, List<string> errors)
         {
-            if (!root.TryGet("stack", out var st)) { errors.Add("$.stack: required"); return null; }
-            if (st.Kind != JsonKind.Object) { errors.Add("$.stack: must be an object"); return null; }
-            Unknown(st, StackKeys, "$.stack", errors);
-            int cols = Int(st, "cols", "$.stack", errors, required: true, min: 1, max: 16, fallback: 0);
-            int rows = Int(st, "rows", "$.stack", errors, required: true, min: 1, max: 16, fallback: 0);
-            if (!st.TryGet("layers", out var layersNode)) { errors.Add("$.stack.layers: required"); return null; }
-            if (layersNode.Kind != JsonKind.Array) { errors.Add("$.stack.layers: must be an array"); return null; }
-            if (layersNode.Items.Count < 1 || layersNode.Items.Count > 8) errors.Add("$.stack.layers: 1..8 layers");
+            if (!root.TryGet("loop", out var lp)) { errors.Add("$.loop: required"); return null; }
+            if (lp.Kind != JsonKind.Object) { errors.Add("$.loop: must be an object"); return null; }
             int before = errors.Count;
-            if (cols <= 0 || rows <= 0) return null;
+            Unknown(lp, LoopKeys, "$.loop", errors);
+            int rows = Int(lp, "rows", "$.loop", errors, required: true, min: MinRows, max: MaxRows, fallback: 0);
+            int width = Int(lp, "width", "$.loop", errors, required: false, min: 1, max: MaxWidth, fallback: LoopDefinition.DefaultWidth);
+            int pick = Int(lp, "pickRows", "$.loop", errors, required: true, min: 1, max: MaxRows, fallback: 0);
 
-            var cells = new StackCell[layersNode.Items.Count, rows, cols];
-            for (int k = 0; k < layersNode.Items.Count; k++)
+            var feeders = new List<FeederDefinition>();
+            if (!lp.TryGet("feeders", out var fn)) errors.Add("$.loop.feeders: required");
+            else if (fn.Kind != JsonKind.Array) errors.Add("$.loop.feeders: must be an array");
+            else
             {
-                var ln = layersNode.Items[k];
-                string lp = $"$.stack.layers[{k}]";
-                if (ln.Kind != JsonKind.Array) { errors.Add(lp + ": must be an array of rows"); continue; }
-                if (ln.Items.Count != rows) { errors.Add($"{lp}: {ln.Items.Count} rows ≠ rows {rows}"); continue; }
-                for (int r = 0; r < rows; r++)
+                if (fn.Items.Count > MaxFeeders) errors.Add($"$.loop.feeders: 0..{MaxFeeders} feeders");
+                for (int f = 0; f < fn.Items.Count; f++)
                 {
-                    var row = ln.Items[r];
-                    string rp = $"{lp}[{r}]";
-                    if (row.Kind != JsonKind.Array) { errors.Add(rp + ": must be an array of colour numbers"); continue; }
-                    if (row.Items.Count != cols) { errors.Add($"{rp}: {row.Items.Count} cells ≠ cols {cols}"); continue; }
-                    for (int x = 0; x < cols; x++)
-                        cells[k, r, x] = new StackCell(ColorId(row.Items[x], $"{rp}[{x}]", errors, allowEmpty: true), hidden: false);
+                    var o = fn.Items[f];
+                    string fp = $"$.loop.feeders[{f}]";
+                    if (o.Kind != JsonKind.Object) { errors.Add(fp + ": must be { mergeAt, bottles }"); continue; }
+                    Unknown(o, FeederKeys, fp, errors);
+                    int merge = Int(o, "mergeAt", fp, errors, required: true, min: 0, max: MaxRows - 1, fallback: -1);
+                    var bottles = new List<CapColor>();
+                    if (!o.TryGet("bottles", out var bn)) errors.Add(fp + ".bottles: required");
+                    else if (bn.Kind != JsonKind.Array) errors.Add(fp + ".bottles: must be an array of colour numbers");
+                    else for (int i = 0; i < bn.Items.Count; i++)
+                    {
+                        var col = ColorId(bn.Items[i], $"{fp}.bottles[{i}]", errors, allowEmpty: false);
+                        if (col != CapColor.None) bottles.Add(col);
+                    }
+                    feeders.Add(new FeederDefinition(merge, bottles));
                 }
             }
 
-            if (st.TryGet("hidden", out var hiddenNode))
+            List<IReadOnlyList<CapColor>> initial = null;
+            if (lp.TryGet("initial", out var init))
             {
-                if (hiddenNode.Kind != JsonKind.Array) errors.Add("$.stack.hidden: must be an array of { layer, row, col }");
+                if (init.Kind != JsonKind.Array) errors.Add("$.loop.initial: must be an array of rows");
                 else
-                    for (int i = 0; i < hiddenNode.Items.Count; i++)
+                {
+                    if (rows > 0 && init.Items.Count != rows) errors.Add($"$.loop.initial: {init.Items.Count} rows ≠ rows {rows}");
+                    initial = new List<IReadOnlyList<CapColor>>();
+                    for (int r = 0; r < init.Items.Count; r++)
                     {
-                        var h = hiddenNode.Items[i];
-                        string hp = $"$.stack.hidden[{i}]";
-                        if (h.Kind != JsonKind.Object) { errors.Add(hp + ": must be { layer, row, col }"); continue; }
-                        Unknown(h, CellKeys, hp, errors);
-                        int k = Int(h, "layer", hp, errors, required: true, min: 0, max: cells.GetLength(0) - 1, fallback: -1);
-                        int r = Int(h, "row", hp, errors, required: true, min: 0, max: rows - 1, fallback: -1);
-                        int x = Int(h, "col", hp, errors, required: true, min: 0, max: cols - 1, fallback: -1);
-                        if (k < 0 || r < 0 || x < 0) continue;
-                        if (cells[k, r, x].IsEmpty) errors.Add($"{hp}: cell (layer {k}, row {r}, col {x}) is empty — only a bottle can be hidden");
-                        else cells[k, r, x] = new StackCell(cells[k, r, x].Color, hidden: true);
+                        var row = init.Items[r];
+                        string rp = $"$.loop.initial[{r}]";
+                        if (row.Kind != JsonKind.Array) { errors.Add(rp + ": must be an array of colour numbers"); continue; }
+                        if (row.Items.Count != width) { errors.Add($"{rp}: {row.Items.Count} spots ≠ width {width}"); continue; }
+                        var spots = new List<CapColor>();
+                        for (int k = 0; k < width; k++) spots.Add(ColorId(row.Items[k], $"{rp}[{k}]", errors, allowEmpty: true));
+                        initial.Add(spots);
                     }
+                }
             }
-            return errors.Count == before ? new StackDefinition(cells) : null;
+            return errors.Count == before ? new LoopDefinition(rows, width, pick, feeders, initial) : null;
         }
 
         private static List<IReadOnlyList<CapColor>> ReadLanes(JsonValue root, LevelContent c, List<string> errors)
@@ -288,7 +300,7 @@ namespace Game.Domain
         /// <summary>How a message names a colour: its number and its name, e.g. <c>3 (Blue)</c>.</summary>
         public static string Name(CapColor c) => $"{(int)c} ({c})";
 
-        // ── writer (generator output, format v2) — stable, diff-friendly layout: one stack row / one lane per line ──
+        // ── writer (generator output, format v3) — stable, diff-friendly layout: one feeder row / one lane per line ──
         public static string Write(LevelDefinition level)
         {
             var sb = new StringBuilder();
@@ -298,34 +310,32 @@ namespace Game.Domain
             sb.Append($"  \"formatVersion\": {LevelDefinition.CurrentFormatVersion},\n");
             sb.Append($"  \"id\": {Q(level.Id)},\n");
             sb.Append($"  \"slots\": {level.Slots},\n");
+            sb.Append($"  \"extraSlots\": {level.ExtraSlots},\n");
             sb.Append($"  \"trayCapacity\": {level.TrayCapacity},\n");
             sb.Append("  \"colors\": [").Append(Numbers(level.Colors)).Append("],\n");
 
-            var st = level.Stack;
-            sb.Append("  \"stack\": {\n");
-            sb.Append($"    \"cols\": {st.Cols},\n    \"rows\": {st.Rows},\n    \"layers\": [\n");
-            var hidden = new List<string>();
-            for (int k = 0; k < st.LayerCount; k++)
+            var lp = level.Loop;
+            sb.Append("  \"loop\": {\n");
+            sb.Append($"    \"rows\": {lp.Rows},\n    \"width\": {lp.Width},\n    \"pickRows\": {lp.PickRows},\n    \"feeders\": [\n");
+            for (int f = 0; f < lp.Feeders.Count; f++)
             {
-                sb.Append("      [\n");
-                for (int r = 0; r < st.Rows; r++)
+                var fd = lp.Feeders[f];
+                sb.Append($"      {{ \"mergeAt\": {fd.MergeAt}, \"bottles\": [\n");
+                // one feeder row (width bottles) per line: the file reads like the queue looks
+                for (int i = 0; i < fd.Bottles.Count; i += lp.Width)
                 {
-                    var row = new List<string>();
-                    for (int x = 0; x < st.Cols; x++)
-                    {
-                        var cell = st.At(k, r, x);
-                        row.Add(((int)cell.Color).ToString(CultureInfo.InvariantCulture));
-                        if (cell.Hidden) hidden.Add($"{{ \"layer\": {k}, \"row\": {r}, \"col\": {x} }}");
-                    }
-                    sb.Append("        [").Append(string.Join(", ", row)).Append(r < st.Rows - 1 ? "],\n" : "]\n");
+                    var row = new List<CapColor>();
+                    for (int k = i; k < Math.Min(i + lp.Width, fd.Bottles.Count); k++) row.Add(fd.Bottles[k]);
+                    sb.Append("        ").Append(Numbers(row)).Append(i + lp.Width < fd.Bottles.Count ? ",\n" : "\n");
                 }
-                sb.Append("      ]").Append(k < st.LayerCount - 1 ? ",\n" : "\n");
+                sb.Append("      ] }").Append(f < lp.Feeders.Count - 1 ? ",\n" : "\n");
             }
-            sb.Append(hidden.Count > 0 ? "    ],\n" : "    ]\n");
-            if (hidden.Count > 0)
+            sb.Append(lp.Initial != null ? "    ],\n" : "    ]\n");
+            if (lp.Initial != null)
             {
-                sb.Append("    \"hidden\": [\n");
-                for (int i = 0; i < hidden.Count; i++) sb.Append("      ").Append(hidden[i]).Append(i < hidden.Count - 1 ? ",\n" : "\n");
+                sb.Append("    \"initial\": [\n");
+                for (int r = 0; r < lp.Initial.Count; r++)
+                    sb.Append("      [").Append(Numbers(lp.Initial[r])).Append(r < lp.Initial.Count - 1 ? "],\n" : "]\n");
                 sb.Append("    ]\n");
             }
             sb.Append("  },\n");
@@ -357,7 +367,7 @@ namespace Game.Domain
                 }
                 sb.Append("  ],\n");
             }
-            sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)}, \"stackScale\": {level.StackScale.ToString("0.###", CultureInfo.InvariantCulture)} }}");
+            sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)} }}");
             var meta = new List<string>();
             if (level.Name != null) meta.Add($"\"name\": {Q(level.Name)}");
             if (level.Difficulty != null) meta.Add($"\"difficulty\": {Q(level.Difficulty)}");
@@ -425,6 +435,5 @@ namespace Game.Domain
             return v.String;
         }
 
-        /// <summary>A lane tray: a colour code, lowercase = hidden (R17) — the stack's spelling.</summary>
     }
 }

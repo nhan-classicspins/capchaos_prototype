@@ -1,30 +1,51 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 2,
+  "formatVersion": 3,
   "id": "level_0006",
-  "slots": 3,
+  "slots": 4,
+  "extraSlots": 2,
   "trayCapacity": 4,
   "colors": [1, 2, 3, 4],
-  "stack": {
-    "cols": 8,
-    "rows": 7,
-    "layers": [
-      [
-        [0, 0, 0, 1, 2, 0, 0, 0],
-        [0, 0, 2, 2, 1, 3, 0, 0],
-        [0, 3, 4, 4, 1, 3, 3, 0],
-        [1, 2, 4, 4, 1, 3, 3, 1],
-        [0, 3, 4, 4, 1, 1, 3, 0],
-        [0, 0, 4, 2, 2, 2, 0, 0],
-        [0, 0, 0, 2, 4, 0, 0, 0]
-      ]
+  "loop": {
+    "rows": 20,
+    "width": 4,
+    "pickRows": 5,
+    "feeders": [
+      { "mergeAt": 18, "bottles": [
+        2, 2, 2, 2,
+        1, 1, 1, 1,
+        3, 3, 3, 3,
+        3, 3, 3, 3,
+        3, 3, 3, 3,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        4, 4, 4, 4,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2
+      ] },
+      { "mergeAt": 9, "bottles": [
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        3, 3, 3, 3,
+        3, 3, 3, 3,
+        3, 3, 3, 3,
+        1, 1, 1, 1,
+        1, 1, 1, 1
+      ] }
     ]
   },
   "lanes": [
-    [{ "color": 2 }, { "color": 2 }, { "color": 3 }],
-    [{ "color": 4 }, { "color": 3 }, { "color": 1 }],
-    [{ "color": 1 }, { "color": 4 }]
+    [{ "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 1 }, { "color": 1 }, { "color": 2 }, { "color": 1 }],
+    [{ "color": 1 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 2 }, { "color": 1 }, { "color": 4 }, { "color": 3 }, { "color": 4 }],
+    [{ "color": 3 }, { "color": 1 }, { "color": 4 }, { "color": 4 }, { "color": 3 }, { "color": 2 }, { "color": 3 }, { "color": 2 }]
   ],
-  "view": { "cameraPreset": "default", "stackScale": 1 },
-  "meta": { "name": "Diamond", "difficulty": "easy", "solution": [2, 0, 1, 1, 2, 0, 0, 1] }
+  "view": { "cameraPreset": "default" },
+  "meta": { "name": "Two Queues", "difficulty": "easy", "notes": "Teaches: two queues join the oval at different points.", "solution": [0, 2, 1, 2, 0, 1, 1, 0, 1, 0, 2, 0, 1, 2, 0, 2, 1, 2, 2, 1, 2, 1, 0, 1] }
 }

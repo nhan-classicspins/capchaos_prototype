@@ -21,6 +21,8 @@ namespace Game.Views
         LockShackle,
         Rope,
         RopeOutline,
+        SlotLocked,
+        SlotPlus,
     }
 
     /// <summary>
@@ -88,6 +90,8 @@ namespace Game.Views
                 TintToken.LockShackle => DesignTokens.LockShackle,
                 TintToken.Rope        => DesignTokens.Rope,
                 TintToken.RopeOutline => DesignTokens.RopeOutline,
+                TintToken.SlotLocked  => DesignTokens.SlotLocked,
+                TintToken.SlotPlus    => DesignTokens.SlotPlus,
                 _                     => Color.magenta,
             };
         }

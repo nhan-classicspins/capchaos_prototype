@@ -36,7 +36,7 @@
 | Projection | Perspective, FOV dọc ~35° | [QS] có thu nhỏ theo chiều sâu |
 | Góc nhìn | Pitch ~50° xuống, yaw 0° | [QS] thấy cả đỉnh lẫn thân chai |
 | Đơn vị | **1 unit = chiều cao một chai** | Ruler 3D riêng (GDD §10.1) |
-| Framing | Khối chai chiếm 5–40 % chiều cao màn hình, tự fit theo `stack.cols/rows/layers` × `view.stackScale` | Level to hay nhỏ đều vừa khung |
+| Framing | Băng oval chiếm 5–40 % chiều cao màn hình, tự fit theo `loop.rows/pickRows` (`LoopMaxWidth × LoopMaxDepth`) | Level to hay nhỏ đều vừa khung |
 | Ánh sáng | 1 directional light (từ trên-trái, ấm nhẹ) + ambient gradient (trời lavender, đất navy) | [QS] bóng đổ về trái-sau |
 | Bóng | Soft shadow cho chai, khay trong slot và thùng. Băng chuyền không đổ bóng | [QS] |
 | Hậu kỳ | Bloom nhẹ (threshold 1.1, cường độ 0.3) cho highlight nhựa và VFX. Không dùng DOF | |
@@ -115,22 +115,29 @@ Quy ước chung:
 - **Poly:** ≤ 600 tris.
 - **Trạng thái:** `Idle` · `Exposed` (rim sáng hơn 15 %, [GĐ]) · `Flying` · `Capped` · `Hidden` (§4.2).
 
-### 4.2 Hidden Bottle — chai ẩn, cầu vồng (D3)
-- **Cùng mesh** với Bottle, chỉ khác material: `M_Rainbow`.
-- **Texture `T_Rainbow`** (512×512, tạo bằng code):
-  - các **dải chéo 30°**, 7 hue: đỏ, cam, vàng, lục, lam, chàm, tím;
-  - saturation 0.8, value 0.95;
-  - mỗi dải rộng khoảng 1/6 chiều cao chai;
-  - rắc vài chấm lấp lánh trắng.
-- **Shader:**
-  - UV cuộn chậm theo trục dọc (0,15 vòng/s);
-  - mỗi chai lệch pha ngẫu nhiên nhưng **tất định**, seed theo toạ độ ô, để cả khối không cuộn đồng bộ;
-  - fresnel rim trắng.
-- **Đọc được:** người chơi phải thấy ngay "chai này chưa biết màu". Không chai lộ màu nào dùng quá một hue.
-- **Reveal** khi chai chạm đất: cầu vồng tan trong 0,25 s, dissolve theo chiều từ dưới lên, sang màu thật,
-  kèm VFX `vfx.reveal` (§6).
-- Video gốc dùng màu tối `#2F364E`–`#3D4765` ([`refs/07_hidden_stack.jpg`](design/refs/07_hidden_stack.jpg)).
-  **Không dùng** tông tối đó (D3).
+### 4.2 ~~Chai ẩn (cầu vồng)~~ — bỏ 2026-10-02
+Chai ẩn đã bỏ cùng khối chai (GDD D3, D6). Prefab `BottleHidden`, `M_Rainbow`, `T_Rainbow` không còn được sinh.
+
+### 4.2b Băng oval và hàng chờ (2026-10-02)
+- Băng oval dựng lúc chạy (`LoopBeltView`) từ hai mặt cắt: **mặt băng** dùng `M_Belt` + token `LaneBelt` (sọc cuộn
+  theo pha băng, 1 chu kỳ sọc = 1 hàng chai), **gờ hai bên** dùng `M_Matte` + token `LaneRail`. Cùng vật liệu với băng
+  khay, nên cả bàn đọc như một dây chuyền.
+- Chai đứng **hàng 4**, khoảng cách 0,40 ngang × 0,42 dọc (chai rộng 0,38): đông như đám đông trong video tham chiếu.
+- Hình oval = hai cạnh thẳng dài bằng vùng lấy + hai khúc cua; mỗi khúc cua = ¼ tròn + đoạn thẳng đứng + ¼ tròn, để oval
+  sâu gấp `LoopDepthStretch` (1,5) lần một hình sân vận động cùng số hàng; hàng chai ở khúc cua chỉ giãn ra. Khúc cua không bao giờ hẹp hơn mức track trong
+  cùng cho phép (`LoopInnerPitch`, `LoopMinHole`), nên chai ở mép trong không chồng lên nhau; track ngoài thì giãn ra. Cả
+  oval co cho vừa khung `LoopMaxWidth × LoopMaxDepth` và luôn **nằm giữa** theo chiều ngang.
+- Hàng chờ là một **làn nhập**: đi vào từ ngoài màn hình (thẳng), rồi một đường cong Bézier rẽ vào oval và hạ tiếp tuyến
+  với băng qua một đoạn ngắn (`FeederMergeRun`), tạo thành một miệng nhập. Các hàng chờ xếp thành **cột đi xuống từ mép
+  trên**, trái → phải đúng thứ tự trên băng: từ 2 hàng trở lên thì chia **đều và đối xứng** trên bề ngang safe rect (cách mép
+  `FeederEdgeMargin`); chỉ 1 hàng thì đi xuống ngay phía trên điểm nhập (`FeederSwing`, `FeederTopLead`). Hàng nhập ở nửa dưới
+  khúc cua trái (băng đang đi lên) thì đi vào từ mép trái (`FeederSideDrop`). Gờ mở theo hình học thật: gờ trong của hàng
+  chờ dừng ở chỗ chạm mặt oval; gờ ngoài của hàng chờ dừng trước đường trượt của chai từ đầu hàng xuống oval; gờ ngoài của
+  oval mở trên đoạn mặt hàng chờ phủ lên, và (khi gờ hàng chờ bị cắt) tới quá điểm nhập `FeederLandRows` hàng, để không gờ
+  nào chắn chỗ thả chai.
+- Cây object: `Loop/Belt` (kèm các gờ của nó), `Loop/Bottles`, `Loop/FeederN/{Belt (kèm gờ), Queue}`. Mặt băng hàng chờ thấp hơn một chút (`FeederBeltSink`) để mặt oval nằm trên. Đầu hàng chờ đứng ở chỗ hai băng
+  vừa chạm; mỗi chai của hàng vừa nhập **tự đi tới điểm đích riêng** của nó (ô của nó trên oval, đang chạy theo băng): trễ xuất phát ngẫu nhiên tới `BottleJoinDelayMax`, tốc độ `BottleJoinSpeed` ± `BottleJoinSpeedSpread`, nên 4 chai tới nơi lệch nhau như người bước lên băng.
+- Camera orthographic (ADR-001 §7): khung hình do `ViewHeight` (11,6) quyết định, tính theo chiều cao safe rect.
 
 ### 4.3 Cap — nắp
 - Nắp vặn có răng cưa ở vành; mặt trên trơn và **không in chữ** (D2); có một vòng gờ đồng tâm để bắt sáng.

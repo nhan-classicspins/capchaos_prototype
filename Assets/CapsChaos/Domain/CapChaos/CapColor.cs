@@ -7,8 +7,8 @@ namespace Game.Domain
     /// <summary>
     /// A flavour colour (GDD §4). ONE colour is shared by everything that matches: a bottle, the tray that
     /// takes it, the caps on that tray and the box it ships in. Hex values live in DesignTokens, never here.
-    /// <see cref="None"/> is "no colour" (an empty slot, an empty lane, an empty stack cell).
-    /// <para>The NUMBERS are the level file's spelling (format v2, GDD §6.2) — designers' tools write them, so a value
+    /// <see cref="None"/> is "no colour" (an empty slot, an empty lane, an empty belt spot).
+    /// <para>The NUMBERS are the level file's spelling (GDD §6.2) — designers' tools write them, so a value
     /// is never renumbered or reused; a new colour takes the next number.</para>
     /// </summary>
     public enum CapColor : byte
@@ -25,15 +25,15 @@ namespace Game.Domain
     }
 
     /// <summary>
-    /// One uppercase letter per <see cref="CapColor"/>: level format v1's spelling (read by <c>LevelFormatV1</c>), the
-    /// LevelTool spec, the solver's state key and terse test levels. Format v2 files use the enum's numbers.
+    /// One uppercase letter per <see cref="CapColor"/>: the
+    /// LevelTool spec, the solver's state key and terse test levels. Level files use the enum's numbers.
     /// </summary>
     public static class CapColorCodes
     {
         /// <summary>Colour codes in enum order: <c>Codes[i]</c> is <c>(CapColor)(i + 1)</c>.</summary>
         public const string Codes = "ROBGPYCN";
 
-        /// <summary>An empty stack cell in a level row string.</summary>
+        /// <summary>An empty belt spot in a state key or a terse test row.</summary>
         public const char Empty = '.';
 
         private static readonly CapColor[] AllColors =
@@ -77,39 +77,5 @@ namespace Game.Domain
             foreach (var c in colors) sb.Append(ToCode(c));
             return sb.ToString();
         }
-    }
-
-    /// <summary>One authored stack cell: empty, or a bottle of <see cref="Color"/> that may start hidden.</summary>
-    public readonly struct StackCell : IEquatable<StackCell>
-    {
-        public readonly CapColor Color;
-        public readonly bool Hidden;
-
-        public StackCell(CapColor color, bool hidden) { Color = color; Hidden = hidden && color != CapColor.None; }
-
-        public static StackCell Empty => default;
-        public bool IsEmpty => Color == CapColor.None;
-
-        /// <summary>'.' empty · uppercase code visible · lowercase code hidden.</summary>
-        public char ToCode()
-        {
-            char c = CapColorCodes.ToCode(Color);
-            return Hidden ? char.ToLowerInvariant(c) : c;
-        }
-
-        /// <summary>The inverse of <see cref="ToCode"/>.</summary>
-        public static bool TryParse(char code, out StackCell cell)
-        {
-            cell = Empty;
-            if (code == CapColorCodes.Empty) return true;
-            if (!CapColorCodes.TryParse(char.ToUpperInvariant(code), out var color)) return false;
-            cell = new StackCell(color, char.IsLower(code));
-            return true;
-        }
-
-        public bool Equals(StackCell other) => Color == other.Color && Hidden == other.Hidden;
-        public override bool Equals(object obj) => obj is StackCell o && Equals(o);
-        public override int GetHashCode() => ((int)Color << 1) | (Hidden ? 1 : 0);
-        public override string ToString() => ToCode().ToString();
     }
 }

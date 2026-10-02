@@ -47,6 +47,9 @@ namespace Game.Views
         public static readonly Color LaneBeltA  = Hex("D5E0EE");
         public static readonly Color LaneBeltB  = Hex("CAD2DF");
         public static readonly Color Tape       = Hex("F4F1EA");
+        /// <summary>A locked extra slot (R20): a dimmer tile with a green plus — decided here (rule 17), after the reference.</summary>
+        public static readonly Color SlotLocked = Hex("353C62");
+        public static readonly Color SlotPlus   = Hex("5BD45B");
 
         // ── Gameplay colours (art §3.2) — indexed by TintFlavor ────────────────────────────────
         public readonly struct FlavorColors
@@ -97,20 +100,54 @@ namespace Game.Views
         public static readonly Color Rope         = Hex("EBD5A4");
         public static readonly Color RopeOutline  = Hex("5A4630");
 
-        // ── Hidden bottle rainbow (art §4.2) — consumed by the rainbow material at runtime ────
-        public const float RainbowScrollPerSecond = 0.15f;
-
         // ── 3D board layout (ADR-001 §5, art §2) — board-local units, 1 = one bottle's height ───
         // Mirrors Editor/ArtGen/ArtShapes + ArtPreview (Game.Editor may not reference Game.Views, so the
         // generator keeps its own copy of the prop dimensions; the LAYOUT lives only here).
         public static class Board
         {
-            /// <summary>Camera → board pose: the board tilts instead of the camera (GamePlay camera stays level).</summary>
-            public const float ViewDistance = 19.5f, TiltDegrees = -60f, FocusZ = 1.2f;
-            public const float CellPitch = 0.42f;          // bottle spacing on the stack grid
-            public const float LayerHeight = 0.92f;        // a stacked bottle stands on the one below's shoulders
-            public const float StackFrontZ = 3.45f;        // front row of the stack
-            public const float StackMaxWidth = 3.8f, StackMaxDepth = 2.9f;   // auto-fit bounds before level stackScale
+            /// <summary>Camera → board pose (ADR-001 rev. 2026-10-02: orthographic GamePlay camera). The camera stays level;
+            /// the board tilts, sits ViewDistance WORLD units in front of it (the canvas plane), with its focus point
+            /// (0, 0, FocusZ) on the view axis, and scales so ViewHeight BOARD units fill the SAFE RECT's height (a taller
+            /// screen shows more board above and below; the safe width, ViewHeight × SafeAspect, is always on screen).</summary>
+            public const float ViewDistance = 1000f, TiltDegrees = -60f, FocusZ = 1.2f, ViewHeight = 11.6f;
+            /// <summary>The safe rect's width / height (1080 × 1920).</summary>
+            public const float SafeAspect = 1080f / 1920f;
+            /// <summary>Oval belt (GDD R1–R4), loop-local units before the fit: a row every LoopRowPitch along a straight,
+            /// LoopTrackSpacing between the bottles of a row (a bottle is 0.38 across). On a bend the INNER track keeps rows
+            /// at least LoopInnerPitch apart (so bottles never overlap there) and leaves a hole of at least LoopMinHole.</summary>
+            public const float LoopRowPitch = 0.44f, LoopTrackSpacing = 0.42f, LoopInnerPitch = 0.40f, LoopMinHole = 0.45f;
+            public const float LoopBeltMargin = 0.12f, LoopBeltTop = 0.03f;
+            public const float LoopRailWidth = 0.1f, LoopRailHeight = 0.16f;
+            /// <summary>Mesh segments per row of path — enough that the bends read round.</summary>
+            public const int LoopRowSegments = 6;
+            /// <summary>Path length per mesh segment along a feeder's curve.</summary>
+            public const float LoopMeshStep = 0.12f;
+            /// <summary>The front edge of the belt (board z) and the box the whole oval shrinks to fit (board units).</summary>
+            public const float LoopFrontZ = 2.6f;
+            /// The oval is always centred across the board.</summary>
+            public const float LoopMaxWidth = 4.0f, LoopMaxDepth = 5.55f;
+            /// <summary>The oval stands this many times as deep as a plain stadium of the same rows: each bend gets an
+            /// upright straight between its two quarter circles.</summary>
+            public const float LoopDepthStretch = 1.5f;
+            /// <summary>A feeder queue (an on-ramp merging into the oval) — how many rows of it are drawn. Where it comes in
+            /// (board units): from the top edge it starts FeederSwing beyond a belt's width out from the merge point and
+            /// FeederTopLead upstream of it; from the left edge it starts FeederSideDrop below the merge point.</summary>
+            public const int FeederVisibleRows = 12;
+            public const float FeederSwing = 0.3f, FeederTopLead = 0.6f, FeederSideDrop = 0.35f;
+            /// <summary>How long (board units) a queue runs along the oval's tangent as it lands on it.</summary>
+            public const float FeederMergeRun = 0.5f;
+            /// <summary>Queues sharing the top edge stand as evenly spread columns; the outer ones keep this clear of the
+            /// safe rect's side (board units).</summary>
+            public const float FeederEdgeMargin = 0.25f;
+            /// <summary>Rows past the merge row a joining bottle may still be sliding over (the belt keeps moving); a rail
+            /// never stands there.</summary>
+            public const float FeederLandRows = 1f;
+            /// <summary>A bottle's radius (0.38 across) — the clearance a rail keeps from a sliding bottle.</summary>
+            public const float BottleRadius = 0.19f;
+            /// <summary>Rows past the merge row where the queue has fully merged into the oval (tangent to it).</summary>
+            public const float FeederMergeRows = 0.5f;
+            /// <summary>The queue's belt sits this much under the oval's, so the oval's wins where they overlap.</summary>
+            public const float FeederBeltSink = 0.006f;
             public const float ColumnSpacing = 1.12f;      // slot / lane spacing along X
             public const float SlotZ = 1.55f, SlotTop = 0.05f;
             public const float SlotBandDepth = 1.35f;
@@ -127,6 +164,10 @@ namespace Game.Views
             public const float TrayHitCenterY = 0.12f;
             public const float TrayCellHalf = 0.21f, TrayCupY = 0.052f, CapOnNeckY = 0.925f, CapOnTrayScale = 2f;
             public const float BoxExitX = 3.5f, BoxExitY = 4.5f;
+            /// <summary>The "+" on a locked slot (R20), slot-tile-local: arm length, arm width, thickness, height; and the
+            /// tile's tap box.</summary>
+            public const float SlotPlusLength = 0.46f, SlotPlusWidth = 0.13f, SlotPlusThickness = 0.03f, SlotPlusY = 0.04f;
+            public static readonly Vector3 SlotHitSize = new Vector3(1.02f, 0.3f, 0.98f);
             /// <summary>Tray-local heights over the caps' tops (≈ 0.2): the lock icon, the rope's ends; and how far
             /// the rope arcs up between them.</summary>
             public const float LockY = 0.42f, RopeY = 0.24f, RopeArc = 0.16f;
@@ -137,11 +178,23 @@ namespace Game.Views
         public static class Motion
         {
             public const float TrayToSlot = 0.20f, LaneAdvance = 0.20f;
-            public const float BottleFlight = 0.30f, BottleStagger = 0.12f, BottleArcHeight = 1.2f;
-            public const float StackDrop = 0.18f, Reveal = 0.25f;
+            public const float BottleFlight = 0.30f, BottleArcHeight = 1.2f;
+            /// <summary>Oval belt speed (≈ the reference video's crowd), a feeder bottle sliding onto the belt, a feeder queue
+            /// moving up one row; how far ahead of the last fixed tick the belt may be drawn.</summary>
+            public const float BeltRowsPerSecond = 3.5f, FeederStep = 0.2f, BeltExtrapolateMax = 0.06f;
+            /// <summary>A bottle stepping from a feeder onto the belt walks to its own spot on its own (art §4.2b): it
+            /// waits up to BottleJoinDelayMax, takes BottleJoinRamp to reach its pace — BottleJoinSpeed board units/s,
+            /// ± BottleJoinSpeedSpread of it, well above the belt's own ~0.75 — and chases the spot as it moves.
+            /// BottleJoinMax is the safety cap after which it simply snaps.</summary>
+            public const float BottleJoinSpeed = 2.2f, BottleJoinSpeedSpread = 0.25f, BottleJoinDelayMax = 0.12f;
+            public const float BottleJoinRamp = 0.08f, BottleJoinMax = 1.5f;
+            /// <summary>Bottles picked in one belt step leave one after another, this far apart.</summary>
+            public const float PickStagger = 0.04f;
             public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
             public const float BoxHold = 0.35f, BoxDrop = 0.25f, BoxFlaps = 0.25f, BoxExit = 0.40f;
             public const float RoundEndPause = 1.0f;
+            /// <summary>A locked slot opening: its "+" shrinks away while the tile pops.</summary>
+            public const float SlotUnlock = 0.3f;
             /// <summary>Tray modifiers: the hidden tray's colour pop, a lock's count pop, the unlock (shackle lift + vanish), the rope letting go.</summary>
             public const float TrayReveal = 0.25f, LockTick = 0.2f, Unlock = 0.3f, LinkRelease = 0.15f;
         }
@@ -218,8 +271,36 @@ namespace Game.Views
             public const float ResultGap = 5 * Unit;            // 60 — panel → button
             public const float FontResultTitle = 124f, FontResultButton = 104f, FontResultSubtitle = 46f;
 
+            /// <summary>The coin offer's button while the price is out of reach.</summary>
+            public const float OfferUnaffordableAlpha = 0.45f;
+
             /// <summary>Rounded-rect sprite corner radius in texture px (== canvas px at PPU 1).</summary>
             public const float CornerRadius = 40f;
+        }
+
+        /// <summary>
+        /// The "one more slot" offers (GDD R20 — refs: Parking Slot / Out of Slot popups) and the HUD coin pill. Not in the
+        /// art spec — decided here (rule 17), read off the reference: a royal-blue panel under a banner with a gold rim, a
+        /// cream card, a yellow FREE button and a green coin button, each over a darker lip; a red round ✕. Defaults only —
+        /// the live values are in the UiPalette asset.
+        /// </summary>
+        public static class Offer
+        {
+            public static readonly Color Panel = Hex("1F6FE0"), PanelLip = Hex("0E47A8");
+            public static readonly Color Banner = Hex("2A63D8"), BannerRim = Hex("FFC21A");
+            public static readonly Color Card = Hex("FDF0D9");
+            public static readonly Color FreeTop = Hex("FFC928"), FreeLip = Hex("D98A00");
+            public static readonly Color CoinsTop = Hex("5ED42A"), CoinsLip = Hex("2E9A12");
+            public static readonly Color Close = Hex("E8323C"), CloseRim = Hex("FFFFFF");
+            public static readonly Color Coin = Hex("FFC21A"), CoinShine = Hex("FFE680");
+            /// <summary>Out of Slot's illustration: the slot bar's asphalt, an empty slot, the "+" of a locked one, two trays.</summary>
+            public static readonly Color ArtGround = Hex("7E86A6"), ArtSlot = Hex("5D6587"), ArtPlus = Hex("5BD45B");
+            public static readonly Color ArtTrayWarm = Hex("F7C520"), ArtTrayHot = Hex("EF2B86");
+            /// <summary>The dark glyph on a light fill (the ad clapper).</summary>
+            public static readonly Color IconDark = Hex("1E2433");
+            /// <summary>Text outlines (baked into the offer font materials by the prefab build): banner title and Restart,
+            /// the FREE label, the price label.</summary>
+            public static readonly Color TitleOutline = Hex("0E3A8C"), FreeOutline = Hex("A65100"), CoinsOutline = Hex("1E7A0E");
         }
 
         public static readonly ResultTheme Win  = new("57935B", "4B9B8B", "5DB987", "89D851", "86D64F", "75C34C", "428C66");

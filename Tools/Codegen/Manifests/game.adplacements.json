@@ -1,0 +1,14 @@
+{
+  "namespace": "Game.Gen",
+  "container": "AdPlacements",
+  "valueType": "AdPlacement",
+  "usings": [
+    "ClassicSpins.PrototypeFramework.Domain"
+  ],
+  "summary": "Typed AdPlacement VALUES for the SKU: rewarded ads that open an extra slot — chosen by the player (Parking Slot) or offered when the open slots ran out (Out of Slot). Codegen-owned; never hand-edit.",
+  "outputPath": "Assets/CapsChaos/Gen/AdPlacements.gen.cs",
+  "entries": [
+    { "id": "SlotUnlockRewarded", "value": "slot_unlock_rewarded", "order": 0 },
+    { "id": "SlotRescueRewarded", "value": "slot_rescue_rewarded", "order": 1 }
+  ]
+}

@@ -11,15 +11,15 @@ namespace Game.Views
     /// <summary>The generated prop prefabs (art-direction §9.1) the board is built from.</summary>
     public sealed class BoardPrefabs
     {
-        public GameObject Bottle, BottleHidden, Cap, CapTray, Box, Slot, Lane, Floor;
+        public GameObject Bottle, Cap, CapTray, Box, Slot, Lane, Floor;
         /// <summary>Tray modifiers (GDD R18, R19): the padlock on a locked tray, the rope between linked trays. Optional — without one, that modifier just does not draw.</summary>
         public GameObject TrayLock, TrayLink;
     }
 
     /// <summary>
-    /// The 3D board — stack, slot bar, conveyors — and every animation on it (GDD §8, art §6–7).
-    /// Humble view: it is told WHERE things are and WHAT to animate in primitives (column, depth, lane,
-    /// slot, colour code); it never sees a rule, a level or a service. Every method is callable in any
+    /// The 3D board — the oval bottle belt and its feeders (<see cref="LoopBeltView"/>), slot bar, tray conveyors —
+    /// and every animation on it (GDD §8, art §6–7). Humble view: it is told WHERE things are and WHAT to animate in
+    /// primitives (belt row and track, lane, slot, colour code); it never sees a rule, a level or a service. Every method is callable in any
     /// order in a gallery scene (pass a no-op stamp), so it passes both View tests.
     /// Animations return when their visible beat is done; bottle flights overlap (stagger) and a pack
     /// waits for the flights of its own slot.
@@ -28,9 +28,7 @@ namespace Game.Views
     {
         private BoardPrefabs _p;
         private Action<GameObject> _stamp;
-        private Transform _stackRoot;
-        private int _cols, _depth;
-        private readonly Dictionary<(int x, int z), List<GameObject>> _piles = new Dictionary<(int, int), List<GameObject>>();
+        private LoopBeltView _loop;
         private readonly List<List<GameObject>> _lanes = new List<List<GameObject>>();
         private readonly List<Renderer> _belts = new List<Renderer>();
         private readonly List<float> _beltOffset = new List<float>();
@@ -47,6 +45,8 @@ namespace Game.Views
         private readonly Dictionary<int, TrayRec> _trays = new Dictionary<int, TrayRec>();
         private GameObject[] _slotTray = Array.Empty<GameObject>();       // per visual slot
         private bool[] _slotLeaving = Array.Empty<bool>();                // per visual slot: a box is still on it
+        private GameObject[] _slotTile = Array.Empty<GameObject>();       // per slot: the tile
+        private GameObject[] _slotPlus = Array.Empty<GameObject>();       // per LOCKED slot: its "+" (R20); null = open
         private int _slotCount;
         private readonly Dictionary<GameObject, TrayLockView> _locks = new Dictionary<GameObject, TrayLockView>();
         private readonly List<TrayLinkView> _links = new List<TrayLinkView>();
@@ -69,21 +69,32 @@ namespace Game.Views
             sun.shadowStrength = 0.55f;
         }
 
-        /// <summary>ADR-001 §5: the camera stays level; the board tilts in front of it.</summary>
-        public void PlaceInFrontOf(Camera cam)
+        /// <summary>
+        /// ADR-001 (rev. 2026-10-02, orthographic): the camera stays level; the board tilts in front of it and SCALES so
+        /// that <see cref="DesignTokens.Board.ViewHeight"/> board units fill the safe rect's height (taller screens add
+        /// bleed above and below, never crop the sides). <paramref name="safeHalfHeight"/> is the safe rect's half height
+        /// in world units (the viewport's, read live — never a constant). Call again whenever it may have changed; it is cheap.
+        /// </summary>
+        public void PlaceInFrontOf(Camera cam, float safeHalfHeight)
         {
             var ct = cam.transform;
+            float scale = 2f * safeHalfHeight / B.ViewHeight;
             var rot = ct.rotation * Quaternion.Euler(B.TiltDegrees, 0f, 0f);
-            transform.SetPositionAndRotation(ct.position + ct.forward * B.ViewDistance - rot * new Vector3(0f, 0f, B.FocusZ), rot);
+            var parentScale = transform.parent != null ? transform.parent.lossyScale.x : 1f;
+            transform.localScale = Vector3.one * (scale / Mathf.Max(parentScale, 1e-6f));
+            transform.SetPositionAndRotation(ct.position + ct.forward * B.ViewDistance - rot * new Vector3(0f, 0f, B.FocusZ * scale), rot);
         }
 
         // ── build ────────────────────────────────────────────────────────────────────────────
-        public void BuildTable(int slotCount, int laneCount)
+        /// <summary>The floor, the slot bar — <paramref name="openSlots"/> slots, then <paramref name="lockedSlots"/> locked
+        /// ones on the right (R20: a dim tile with a green "+", tappable) — and <paramref name="laneCount"/> tray belts.</summary>
+        public void BuildTable(int openSlots, int lockedSlots, int laneCount)
         {
             Spawn(_p.Floor, transform, Vector3.zero);
 
-            // The slot count comes from the level (1..5). The row keeps full-size slots up to
+            // The slot count comes from the level (open + locked, ≤ 6). The row keeps full-size slots up to
             // SlotRowMaxWidth and shrinks uniformly beyond it — spacing, tile, tray and box alike.
+            int slotCount = openSlots + lockedSlots;
             _slotCount = Mathf.Max(1, slotCount);
             _slotScale = Mathf.Min(1f, B.SlotRowMaxWidth / (_slotCount * B.ColumnSpacing));
             _slotSpacing = B.ColumnSpacing * _slotScale;
@@ -93,10 +104,14 @@ namespace Game.Views
 
             _slotTray = new GameObject[_slotCount];
             _slotLeaving = new bool[_slotCount];
+            _slotTile = new GameObject[_slotCount];
+            _slotPlus = new GameObject[_slotCount];
             for (int s = 0; s < _slotCount; s++)
             {
                 var tile = Spawn(_p.Slot, transform, SlotPos(s) + Vector3.up * (0.02f - B.SlotTop));
                 tile.transform.localScale = Vector3.one * _slotScale;
+                _slotTile[s] = tile;
+                if (s >= openSlots) Lock(s);
             }
 
             for (int j = 0; j < laneCount; j++)
@@ -112,25 +127,89 @@ namespace Game.Views
             }
         }
 
-        /// <summary>Stack grid: <paramref name="depth"/> rows, z = 0 is the front. Auto-fits, then applies <paramref name="scale"/>.</summary>
-        public void BuildStack(int cols, int depth, float scale)
+        /// <summary>Slot <paramref name="slot"/> starts locked: dim tile, a green "+" on it, and a hit box for the tap.</summary>
+        private void Lock(int slot)
         {
-            _cols = cols; _depth = depth;
-            _stackRoot = new GameObject("Stack").transform;
-            _stackRoot.SetParent(transform, false);
-            _stackRoot.localPosition = new Vector3(0f, 0f, B.StackFrontZ);
-            float fit = Mathf.Min(1f, B.StackMaxWidth / (cols * B.CellPitch), B.StackMaxDepth / (depth * B.CellPitch));
-            _stackRoot.localScale = Vector3.one * fit * scale;
-            _stamp(_stackRoot.gameObject);
+            var tile = _slotTile[slot];
+            tile.GetComponent<TokenTint>()?.SetToken(TintToken.SlotLocked);
+            var plus = new GameObject("Plus");
+            plus.transform.SetParent(tile.transform, false);
+            plus.transform.localPosition = Vector3.up * B.SlotPlusY;
+            var mat = tile.GetComponent<Renderer>() != null ? tile.GetComponent<Renderer>().sharedMaterial : null;
+            foreach (float yaw in new[] { 0f, 90f })
+            {
+                var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(bar.GetComponent<Collider>());
+                bar.name = "Bar";
+                bar.transform.SetParent(plus.transform, false);
+                bar.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                bar.transform.localScale = new Vector3(B.SlotPlusLength, B.SlotPlusThickness, B.SlotPlusWidth);
+                if (mat != null) bar.GetComponent<Renderer>().sharedMaterial = mat;
+                bar.AddComponent<TokenTint>().SetToken(TintToken.SlotPlus);
+            }
+            var hit = tile.AddComponent<BoxCollider>();
+            hit.size = B.SlotHitSize;
+            hit.center = new Vector3(0f, B.SlotHitSize.y * 0.5f, 0f);
+            _stamp(plus);
+            _slotPlus[slot] = plus;
         }
 
-        public void AddBottle(int x, int z, int height, TintFlavor color, bool hidden)
+        /// <summary>Which LOCKED slot a collider is (R20). False if none.</summary>
+        public bool TryGetLockedSlot(Collider c, out int slot)
         {
-            var go = Spawn(hidden ? _p.BottleHidden : _p.Bottle, _stackRoot, CellLocal(x, z, height));
-            go.transform.localRotation = Quaternion.Euler(0f, (x * 7 + z * 3 + height) * 37f, 0f);
-            if (!hidden) Tint(go, color);
-            Pile(x, z).Add(go);
+            for (slot = 0; slot < _slotTile.Length; slot++)
+                if (_slotPlus[slot] != null && _slotTile[slot] != null && _slotTile[slot].GetComponent<Collider>() == c) return true;
+            slot = -1;
+            return false;
         }
+
+        /// <summary>Locked slot <paramref name="slot"/> opens (R20): the "+" shrinks away, the tile lights up and pops.</summary>
+        public async UniTask UnlockSlot(int slot)
+        {
+            if (slot < 0 || slot >= _slotPlus.Length || _slotPlus[slot] == null) return;
+            var plus = _slotPlus[slot];
+            _slotPlus[slot] = null;
+            var tile = _slotTile[slot];
+            var hit = tile.GetComponent<Collider>();
+            if (hit != null) Destroy(hit);
+            tile.GetComponent<TokenTint>()?.SetToken(TintToken.SlotEmpty);
+            var pt = plus.transform;
+            var tt = tile.transform;
+            var baseScale = tt.localScale;
+            await UniTask.WhenAll(
+                LMotion.Create(1f, 0f, M.SlotUnlock).WithEase(Ease.InBack)
+                    .Bind(k => { if (pt != null) pt.localScale = Vector3.one * k; }).AddTo(plus).ToUniTask(destroyCancellationToken),
+                LMotion.Create(1.15f, 1f, M.SlotUnlock).WithEase(Ease.OutBack)
+                    .Bind(k => { if (tt != null) tt.localScale = baseScale * k; }).AddTo(tile).ToUniTask(destroyCancellationToken));
+            if (plus != null) Destroy(plus);
+        }
+
+        /// <summary>The oval belt: <paramref name="rows"/> rows of <paramref name="width"/> bottles; the first
+        /// <paramref name="pickRows"/> track positions are the front straight in front of the slots.</summary>
+        public void BuildLoop(int rows, int width, int pickRows)
+        {
+            _loop = new GameObject("Loop").AddComponent<LoopBeltView>();
+            _loop.transform.SetParent(transform, false);
+            _stamp(_loop.gameObject);
+            _loop.Build(rows, width, pickRows, _p.Bottle, _p.Lane, _stamp);
+        }
+
+        /// <summary>A feeder joining the oval at track position <paramref name="mergeAt"/>; <paramref name="tracks"/>[k] is
+        /// the queue on track k, head first.</summary>
+        public void AddFeeder(int mergeAt, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks) => _loop.AddFeeder(mergeAt, tracks);
+
+        /// <summary>Close the oval once every feeder is added: lay out the feeders, then its outer rail, open where each joins.</summary>
+        public void FinishLoop() => _loop.Finish();
+
+        /// <summary>A bottle on belt (row, track) as the round starts.</summary>
+        public void AddBeltBottle(int row, int track, TintFlavor color) => _loop.AddBottle(row, track, color);
+
+        /// <summary>The belt has travelled <paramref name="phase"/> rows and runs at <paramref name="rowsPerSecond"/>.</summary>
+        public void SetBeltPhase(float phase, float rowsPerSecond) => _loop.SetPhase(phase, rowsPerSecond);
+
+        /// <summary>The next bottle of feeder <paramref name="feeder"/>'s track <paramref name="track"/> steps onto belt row
+        /// <paramref name="row"/>; that track of the queue moves up.</summary>
+        public void FeedBottle(int feeder, int track, int row) => _loop.Feed(feeder, track, row);
 
         /// <summary>Append a tray to the visible tail of <paramref name="lane"/>.</summary>
         public void AddLaneTray(int lane, TrayLook look)
@@ -232,21 +311,23 @@ namespace Game.Views
             await UniTask.WhenAll(moves);
         }
 
-        /// <summary>A bottle leaves the stack for tray <paramref name="trayId"/>'s cell <paramref name="cell"/> (0..3);
-        /// the cell's cap pops up to meet it. Returns after the stagger — the flight continues.</summary>
-        public async UniTask FlyBottle(int x, int z, int trayId, int cell)
+        /// <summary>The bottle on belt (row, track) leaves for tray <paramref name="trayId"/>'s cell <paramref name="cell"/>
+        /// (0..3) after <paramref name="delay"/> seconds; the cell's cap pops up to meet it. A pack of that tray waits for
+        /// the flight.</summary>
+        public void FlyBottle(int row, int track, int trayId, int cell, float delay)
         {
-            var pile = Pile(x, z);
-            if (pile.Count == 0 || !_trays.TryGetValue(trayId, out var rec) || rec.Go == null) return;
-            var bottle = pile[0];
-            pile.RemoveAt(0);
-            rec.Flights.Add(Flight(bottle, rec.Go, Mathf.Clamp(cell, 0, 3)));
-            await UniTask.Delay(TimeSpan.FromSeconds(M.BottleStagger), cancellationToken: destroyCancellationToken);
+            var bottle = _loop.Take(row, track);
+            if (bottle == null) return;
+            if (!_trays.TryGetValue(trayId, out var rec) || rec.Go == null) { Destroy(bottle); return; }
+            rec.Flights.Add(Flight(bottle, rec.Go, Mathf.Clamp(cell, 0, 3), delay));
         }
 
-        private async UniTask Flight(GameObject bottle, GameObject tray, int cell)
+        private async UniTask Flight(GameObject bottle, GameObject tray, int cell, float delay)
         {
             var t = bottle.transform;
+            t.SetParent(transform, true);                                           // off the belt: it stops riding it
+            if (delay > 0f) await UniTask.Delay(TimeSpan.FromSeconds(delay), cancellationToken: destroyCancellationToken);
+            if (t == null || tray == null) return;
             t.SetParent(tray.transform, true);
             var from = t.localPosition;
             var to = CellOnTray(cell);
@@ -272,32 +353,6 @@ namespace Game.Views
                     cap.localRotation = Quaternion.Euler(0f, k * 360f, 0f);
                 }
             }).AddTo(gameObject).ToUniTask(destroyCancellationToken);
-        }
-
-        /// <summary>The pile at (x, z) settles one level (R3) with a small squash.</summary>
-        public async UniTask DropPile(int x, int z)
-        {
-            var pile = Pile(x, z);
-            var moves = new List<UniTask>();
-            for (int h = 0; h < pile.Count; h++)
-                moves.Add(Move(pile[h].transform, pile[h].transform.localPosition, CellLocal(x, z, h), M.StackDrop, Ease.OutBack));
-            await UniTask.WhenAll(moves);
-        }
-
-        /// <summary>The hidden (rainbow) ground bottle at (x, z) turns out to be <paramref name="color"/> (R4).</summary>
-        public async UniTask Reveal(int x, int z, TintFlavor color)
-        {
-            var pile = Pile(x, z);
-            if (pile.Count == 0) return;
-            var old = pile[0];
-            var go = Spawn(_p.Bottle, _stackRoot, old.transform.localPosition);
-            go.transform.localRotation = old.transform.localRotation;
-            Tint(go, color);
-            pile[0] = go;
-            Destroy(old);
-            var t = go.transform;
-            await LMotion.Create(1.25f, 1f, M.Reveal).WithEase(Ease.OutBack)
-                .Bind(s => { if (t != null) t.localScale = Vector3.one * s; }).AddTo(go).ToUniTask(destroyCancellationToken);
         }
 
         /// <summary>Box full tray <paramref name="trayId"/> and ship it (R13): drop, fold, tape, fly away.</summary>
@@ -377,7 +432,7 @@ namespace Game.Views
         }
 
         // claim and assignment happen with no await between them, so "no tray and no box" is the whole test
-        private bool VisualFree(int v) => _slotTray[v] == null && !_slotLeaving[v];
+        private bool VisualFree(int v) => _slotTray[v] == null && !_slotLeaving[v] && _slotPlus[v] == null;
 
         /// <summary>
         /// True when at least one slot is clear ON SCREEN: no tray sits on it and no box is still being packed
@@ -489,15 +544,6 @@ namespace Game.Views
         {
             foreach (var t in go.GetComponentsInChildren<TokenTint>(true)) t.SetFlavor(color);
         }
-
-        private List<GameObject> Pile(int x, int z)
-        {
-            if (!_piles.TryGetValue((x, z), out var list)) _piles[(x, z)] = list = new List<GameObject>();
-            return list;
-        }
-
-        private Vector3 CellLocal(int x, int z, int h) =>
-            new Vector3((x - (_cols - 1) * 0.5f) * B.CellPitch, h * B.LayerHeight, z * B.CellPitch);
 
         private static float ColumnX(int i, int count) => (i - (count - 1) * 0.5f) * B.ColumnSpacing;
         private Vector3 SlotPos(int s) => new Vector3((s - (_slotCount - 1) * 0.5f) * _slotSpacing, B.SlotTop, B.SlotZ);

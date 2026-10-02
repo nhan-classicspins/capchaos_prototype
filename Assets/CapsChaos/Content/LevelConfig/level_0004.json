@@ -1,33 +1,45 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 2,
+  "formatVersion": 3,
   "id": "level_0004",
   "slots": 4,
+  "extraSlots": 2,
   "trayCapacity": 4,
   "colors": [1, 2, 3],
-  "stack": {
-    "cols": 6,
-    "rows": 4,
-    "layers": [
-      [
-        [3, 3, 1, 2, 1, 1],
-        [3, 3, 1, 2, 3, 2],
-        [1, 3, 1, 1, 3, 2],
-        [1, 3, 2, 1, 2, 2]
-      ],
-      [
-        [0, 0, 0, 0, 0, 0],
-        [0, 2, 1, 2, 2, 0],
-        [0, 1, 1, 2, 2, 0],
-        [0, 0, 0, 0, 0, 0]
-      ]
+  "loop": {
+    "rows": 16,
+    "width": 4,
+    "pickRows": 4,
+    "feeders": [
+      { "mergeAt": 14, "bottles": [
+        3, 3, 3, 3,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        2, 2, 2, 2,
+        3, 3, 3, 3,
+        3, 3, 3, 3,
+        3, 3, 3, 3,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        2, 2, 2, 2,
+        3, 3, 3, 3,
+        3, 3, 3, 3
+      ] }
     ]
   },
   "lanes": [
-    [{ "color": 3 }, { "color": 2 }, { "color": 1 }],
-    [{ "color": 2 }, { "color": 1 }, { "color": 2 }],
-    [{ "color": 1 }, { "color": 3 }]
+    [{ "color": 2 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 2 }, { "color": 1 }, { "color": 2 }],
+    [{ "color": 1 }, { "color": 2 }, { "color": 1 }, { "color": 3 }, { "color": 3 }, { "color": 1 }],
+    [{ "color": 2 }, { "color": 3 }, { "color": 1 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 3 }]
   ],
-  "view": { "cameraPreset": "default", "stackScale": 1 },
-  "meta": { "name": "Second Floor", "difficulty": "easy", "notes": "Teaches: bottles on top drop down when the one below is taken.", "solution": [1, 2, 0, 1, 0, 0, 2, 1] }
+  "view": { "cameraPreset": "default" },
+  "meta": { "name": "Joining In", "difficulty": "easy", "notes": "Teaches: the queue joins the oval wherever a picked bottle left a gap.", "solution": [2, 1, 0, 0, 0, 2, 1, 1, 0, 2, 1, 2, 1, 0, 2, 0, 2, 1, 0, 2] }
 }

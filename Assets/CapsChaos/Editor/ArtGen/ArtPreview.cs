@@ -143,21 +143,28 @@ namespace Game.Editor
                         Quaternion.identity, Vector3.one, FlavorOf(lanes[l][t]));
             }
 
-            // ── bottle stack: ground visible, upper layers hidden (rainbow) ──
-            string[] ground = { "GOOBOOG", "GOBBBOG", "GRROYRG", "BBRORBB" };   // last row = FRONT
-            const int cols = 7;
-            float pitch = ArtShapes.CellPitch, stackFrontZ = 3.45f;
-            for (int r = 0; r < ground.Length; r++)
-                for (int c = 0; c < cols; c++)
+            // ── oval belt: rows of 4 bottles round a stadium (the runtime loop's geometry, BoardView/LoopBeltView) ──
+            const int rows = 28, pick = 6, width = 4;
+            const float rowPitch = 0.42f, trackSpacing = 0.4f, fit = 0.62f, frontZ = 2.65f;
+            float straight = pick * rowPitch, radius = (rows * rowPitch - 2f * straight) / (2f * Mathf.PI);
+            var centre = new Vector3(0f, 0f, frontZ + (radius + width * trackSpacing * 0.5f + 0.2f) * fit);
+            string blocks = "RRRRBBBBBOOOGGGGRRBBBOOOOGGG";
+            for (int r = 0; r < rows; r++)
+            {
+                if (r % 9 == 4) continue;                                     // a hole left by a picked row
+                float s = (r + 0.5f) * rowPitch, h = straight * 0.5f, bend = Mathf.PI * radius;
+                Vector3 p, o;
+                if (s < straight) { p = new Vector3(h - s, 0f, -radius); o = Vector3.back; }
+                else if ((s -= straight) < bend) { float a = s / radius; p = new Vector3(-h - radius * Mathf.Sin(a), 0f, -radius * Mathf.Cos(a)); o = new Vector3(-Mathf.Sin(a), 0f, -Mathf.Cos(a)); }
+                else if ((s -= bend) < straight) { p = new Vector3(-h + s, 0f, radius); o = Vector3.forward; }
+                else { float b = (s - straight) / radius; p = new Vector3(h + radius * Mathf.Sin(b), 0f, radius * Mathf.Cos(b)); o = new Vector3(Mathf.Sin(b), 0f, Mathf.Cos(b)); }
+                for (int k = 0; k < width; k++)
                 {
-                    var basePos = new Vector3((c - (cols - 1) * 0.5f) * pitch, 0f,
-                        stackFrontZ + (ground.Length - 1 - r) * pitch);
-                    Place(scene, "Bottle", basePos, Quaternion.identity, Vector3.one, FlavorOf(ground[r][c]));
-                    int layers = r == ground.Length - 1 ? (c % 3 == 0 ? 1 : 0) : (r == 0 ? 2 : 1);
-                    for (int k = 1; k <= layers; k++)
-                        Place(scene, "BottleHidden", basePos + Vector3.up * k * ArtShapes.BottleHeight * 0.92f,
-                            Quaternion.Euler(0f, (r * 7 + c) * 37f, 0f), Vector3.one);
+                    var local = p + o * ((k - (width - 1) * 0.5f) * trackSpacing);
+                    Place(scene, "Bottle", centre + local * fit, Quaternion.Euler(0f, (r * 7 + k) * 37f, 0f), Vector3.one * fit,
+                        FlavorOf(blocks[r]));
                 }
+            }
         }
 
         private static GameObject Place(Scene scene, string prefab, Vector3 pos, Quaternion rot, Vector3 scale, string flavor = null)

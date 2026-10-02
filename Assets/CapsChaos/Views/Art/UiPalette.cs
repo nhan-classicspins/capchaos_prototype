@@ -48,6 +48,27 @@ namespace Game.Views
         [SerializeField] private Color _loseButtonBottom = DesignTokens.Lose.ButtonBottom;
         [SerializeField] private Color _loseButtonLip = DesignTokens.Lose.ButtonLip;
 
+        [Header("Slot offers (R20) and the coin pill")]
+        [SerializeField] private Color _offerPanel = DesignTokens.Offer.Panel;
+        [SerializeField] private Color _offerPanelLip = DesignTokens.Offer.PanelLip;
+        [SerializeField] private Color _offerBanner = DesignTokens.Offer.Banner;
+        [SerializeField] private Color _offerBannerRim = DesignTokens.Offer.BannerRim;
+        [SerializeField] private Color _offerCard = DesignTokens.Offer.Card;
+        [SerializeField] private Color _offerFreeTop = DesignTokens.Offer.FreeTop;
+        [SerializeField] private Color _offerFreeLip = DesignTokens.Offer.FreeLip;
+        [SerializeField] private Color _offerCoinsTop = DesignTokens.Offer.CoinsTop;
+        [SerializeField] private Color _offerCoinsLip = DesignTokens.Offer.CoinsLip;
+        [SerializeField] private Color _offerClose = DesignTokens.Offer.Close;
+        [SerializeField] private Color _offerCloseRim = DesignTokens.Offer.CloseRim;
+        [SerializeField] private Color _coin = DesignTokens.Offer.Coin;
+        [SerializeField] private Color _coinShine = DesignTokens.Offer.CoinShine;
+        [SerializeField] private Color _offerArtGround = DesignTokens.Offer.ArtGround;
+        [SerializeField] private Color _offerArtSlot = DesignTokens.Offer.ArtSlot;
+        [SerializeField] private Color _offerArtPlus = DesignTokens.Offer.ArtPlus;
+        [SerializeField] private Color _offerArtTrayWarm = DesignTokens.Offer.ArtTrayWarm;
+        [SerializeField] private Color _offerArtTrayHot = DesignTokens.Offer.ArtTrayHot;
+        [SerializeField] private Color _iconDark = DesignTokens.Offer.IconDark;
+
         [Header("Icons on a fill")]
         [SerializeField] private Color _textOnFill = DesignTokens.TextOnFill;
 
@@ -111,6 +132,25 @@ namespace Game.Views
             UiToken.LoseButtonTop    => _loseButtonTop,
             UiToken.LoseButtonBottom => _loseButtonBottom,
             UiToken.LoseButtonLip    => _loseButtonLip,
+            UiToken.OfferPanel => _offerPanel,
+            UiToken.OfferPanelLip => _offerPanelLip,
+            UiToken.OfferBanner => _offerBanner,
+            UiToken.OfferBannerRim => _offerBannerRim,
+            UiToken.OfferCard => _offerCard,
+            UiToken.OfferFreeTop => _offerFreeTop,
+            UiToken.OfferFreeLip => _offerFreeLip,
+            UiToken.OfferCoinsTop => _offerCoinsTop,
+            UiToken.OfferCoinsLip => _offerCoinsLip,
+            UiToken.OfferClose => _offerClose,
+            UiToken.OfferCloseRim => _offerCloseRim,
+            UiToken.Coin => _coin,
+            UiToken.CoinShine => _coinShine,
+            UiToken.OfferArtGround => _offerArtGround,
+            UiToken.OfferArtSlot => _offerArtSlot,
+            UiToken.OfferArtPlus => _offerArtPlus,
+            UiToken.OfferArtTrayWarm => _offerArtTrayWarm,
+            UiToken.OfferArtTrayHot => _offerArtTrayHot,
+            UiToken.IconDark => _iconDark,
             UiToken.Invisible       => DesignTokens.Invisible,   // a raycast-only surface is never a colour choice
             _                       => Color.magenta,
         };
@@ -137,6 +177,7 @@ namespace Game.Views
         private void ResetToDesignTokens()
         {
             _ground = DesignTokens.Ground; _hudPill = DesignTokens.HudPill; _hudPillLip = DesignTokens.HudPillLip;
+            _offerPanel = DesignTokens.Offer.Panel; _offerPanelLip = DesignTokens.Offer.PanelLip; _offerBanner = DesignTokens.Offer.Banner; _offerBannerRim = DesignTokens.Offer.BannerRim; _offerCard = DesignTokens.Offer.Card; _offerFreeTop = DesignTokens.Offer.FreeTop; _offerFreeLip = DesignTokens.Offer.FreeLip; _offerCoinsTop = DesignTokens.Offer.CoinsTop; _offerCoinsLip = DesignTokens.Offer.CoinsLip; _offerClose = DesignTokens.Offer.Close; _offerCloseRim = DesignTokens.Offer.CloseRim; _coin = DesignTokens.Offer.Coin; _coinShine = DesignTokens.Offer.CoinShine; _offerArtGround = DesignTokens.Offer.ArtGround; _offerArtSlot = DesignTokens.Offer.ArtSlot; _offerArtPlus = DesignTokens.Offer.ArtPlus; _offerArtTrayWarm = DesignTokens.Offer.ArtTrayWarm; _offerArtTrayHot = DesignTokens.Offer.ArtTrayHot; _iconDark = DesignTokens.Offer.IconDark;
             _hudButton = DesignTokens.HudButton; _hudButtonRim = DesignTokens.HudButtonRim; _hudButtonShadow = DesignTokens.HudButtonShadow;
             _textOnFill = DesignTokens.TextOnFill;
             _winHeader = DesignTokens.Win.Header; _winBody = DesignTokens.Win.Body; _winBand = DesignTokens.Win.Band;

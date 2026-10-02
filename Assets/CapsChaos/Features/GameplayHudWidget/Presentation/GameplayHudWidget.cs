@@ -53,6 +53,9 @@ namespace Game.Presentation
 
         public void SetVisible(bool visible) => _view?.SetVisible(visible);
 
+        /// <summary>The coin pill shows <paramref name="text"/> (the balance, localized by the caller).</summary>
+        public void SetCoins(string text) => _view?.SetCoins(text);
+
         /// <summary>Paused (app lost focus, or covered): stay on screen, just stop taking taps.</summary>
         public void SetInteractable(bool interactable) => _view?.SetInteractable(interactable);
 

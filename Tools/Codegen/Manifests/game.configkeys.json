@@ -1,0 +1,16 @@
+{
+  "namespace": "Game.Gen",
+  "container": "GameConfigKeys",
+  "valueType": "ConfigKey",
+  "usings": [
+    "ClassicSpins.PrototypeFramework.Domain"
+  ],
+  "summary": "Typed ConfigKey<T> VALUES for the SKU (GDD §9): the coin economy and the price of an extra slot. Defaults are registered once in CapsChaosFrameworkSettings. Codegen-owned; never hand-edit.",
+  "outputPath": "Assets/CapsChaos/Gen/GameConfigKeys.gen.cs",
+  "entries": [
+    { "id": "EconomyStartCoins",   "type": "int", "value": "economy.startCoins",   "order": 0 },
+    { "id": "EconomyWinReward",    "type": "int", "value": "economy.winReward",    "order": 1 },
+    { "id": "SlotUnlockPrice",     "type": "int", "value": "slots.unlockPrice",    "order": 2 },
+    { "id": "SlotRescuePrice",     "type": "int", "value": "slots.rescuePrice",    "order": 3 }
+  ]
+}
