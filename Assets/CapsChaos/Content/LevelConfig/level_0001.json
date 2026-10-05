@@ -1,22 +1,18 @@
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 3,
+  "formatVersion": 4,
   "id": "level_0001",
+  "conveyor": "oval_16_1f",
   "slots": 4,
   "extraSlots": 2,
   "trayCapacity": 4,
   "colors": [1, 2],
-  "loop": {
-    "rows": 16,
-    "width": 4,
-    "pickRows": 4,
-    "feeders": [
-      { "mergeAt": 11, "bottles": [
-        2, 2, 2, 2,
-        1, 1, 1, 1
-      ] }
-    ]
-  },
+  "feeders": [
+    { "bottles": [
+      2, 2, 2, 2,
+      1, 1, 1, 1
+    ] }
+  ],
   "lanes": [
     [{ "color": 1 }],
     [{ "color": 2 }]

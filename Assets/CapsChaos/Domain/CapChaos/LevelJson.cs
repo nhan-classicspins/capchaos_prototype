@@ -30,32 +30,35 @@ namespace Game.Domain
     /// Level JSON ⇄ <see cref="LevelDefinition"/>. <see cref="Parse"/> is validator leg V1: every
     /// structural rule of <c>docs/design/level.schema.json</c>, reported all at once with a JSON path.
     /// The schema file is the contract; this class mirrors it and a headless test pins the two together.
-    /// <para>Format v3 (2026-10-02) replaced the bottle stack with the oval belt (<c>loop</c>: rows, width, pick zone,
-    /// feeders, optional initial rows). Every colour is the NUMBER of its <see cref="CapColor"/> (0 = empty spot), and
-    /// every flag is a named field — <c>hidden</c> / <c>lockTurns</c> on a tray object, <c>links</c> by
-    /// <c>{lane, tray}</c>. v1/v2 files describe a stack, which has no belt equivalent: they are rejected with a
-    /// pointer to the generator, never guessed at.</para>
+    /// <para>Format v4 (2026-10-05) splits a level in two: the top conveyor's LAYOUT (rows, width, pick zone, shape,
+    /// merge points) is a shared file in <c>Conveyors/</c> that the level names by id (<c>conveyor</c>, see
+    /// <see cref="ConveyorJson"/>); the level file keeps the ITEMS — the bottles in each feeder (<c>feeders</c>, one
+    /// per conveyor feeder, in its order), optional <c>initial</c> rows, the lanes and their trays. Every colour is the
+    /// NUMBER of its <see cref="CapColor"/> (0 = empty spot), and every flag is a named field — <c>hidden</c> /
+    /// <c>lockTurns</c> on a tray object, <c>links</c> by <c>{lane, tray}</c>. v3 files (conveyor inline) are rejected
+    /// with a pointer to the split; v1/v2 files describe a stack, which has no belt equivalent: they are rejected with
+    /// a pointer to the generator, never guessed at.</para>
     /// </summary>
     public static class LevelJson
     {
         private static readonly HashSet<string> RootKeys = new HashSet<string>(StringComparer.Ordinal)
-            { "$schema", "formatVersion", "id", "slots", "extraSlots", "trayCapacity", "colors", "loop", "lanes", "links", "view", "meta" };
-        private static readonly HashSet<string> LoopKeys = new HashSet<string>(StringComparer.Ordinal) { "rows", "width", "pickRows", "feeders", "initial" };
-        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "mergeAt", "bottles" };
+            { "$schema", "formatVersion", "id", "conveyor", "slots", "extraSlots", "trayCapacity", "colors", "feeders", "initial", "lanes", "links", "view", "meta" };
+        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "bottles" };
         private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "size", "hidden", "lockTurns" };
         private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
         private static readonly HashSet<string> RefKeys = new HashSet<string>(StringComparer.Ordinal) { "lane", "tray" };
-        private static readonly HashSet<string> ShapeKeys = new HashSet<string>(StringComparer.Ordinal) { "points", "radius" };
-        private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset", "loopShape" };
+        private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset" };
         private static readonly HashSet<string> MetaKeys = new HashSet<string>(StringComparer.Ordinal) { "name", "difficulty", "notes", "solution" };
         private static readonly string[] CameraPresets = { "default", "tall", "wide" };
         private static readonly string[] Difficulties = { "tutorial", "easy", "medium", "hard", "breather" };
         public const int MaxLockTurns = 99;
-        public const int MinRows = 8, MaxRows = 64, MaxWidth = 6, MaxFeeders = 2;
         private const int MaxColorId = 8;
 
-        public static LevelParseResult Parse(string json)
+        /// <summary>Parse a level file; the conveyor it names is looked up in <paramref name="conveyors"/> (an unknown id
+        /// is a V1 error on <c>$.conveyor</c>).</summary>
+        public static LevelParseResult Parse(string json, ConveyorLibrary conveyors)
         {
+            if (conveyors == null) throw new ArgumentNullException(nameof(conveyors));
             var errors = new List<string>();
             JsonValue root;
             try { root = JsonReader.Parse(json); }
@@ -65,6 +68,12 @@ namespace Game.Domain
 
             int formatVersion = Int(root, "formatVersion", "$", errors, required: true, min: 1, max: LevelDefinition.CurrentFormatVersion,
                 fallback: LevelDefinition.CurrentFormatVersion);
+            if (formatVersion == 3)
+            {
+                errors.Add($"$.formatVersion: 3 keeps the conveyor inside the level (loop, view.loopShape); format {LevelDefinition.CurrentFormatVersion} " +
+                           $"moves its layout to a shared file in {ConveyorJson.Folder}/ that the level names (\"conveyor\") — see GDD §6.2");
+                return new LevelParseResult(null, errors);
+            }
             if (formatVersion < LevelDefinition.CurrentFormatVersion)
             {
                 errors.Add($"$.formatVersion: {formatVersion} describes a bottle stack, which format {LevelDefinition.CurrentFormatVersion} replaced " +
@@ -80,10 +89,9 @@ namespace Game.Domain
             if (slots + extra > LevelDefinition.MaxSlots) errors.Add($"$.extraSlots: slots {slots} + extraSlots {extra} > {LevelDefinition.MaxSlots}");
             int cap = Int(root, "trayCapacity", "$", errors, required: false, min: 2, max: 6, fallback: LevelDefinition.DefaultTrayCapacity);
 
-            var content = ReadContent(root, errors);
+            var content = ReadContent(root, conveyors, errors);
             var lanes = content.Lanes;
             string preset = "default";
-            LoopShape shape = null;
             if (root.TryGet("view", out var view))
             {
                 if (view.Kind != JsonKind.Object) errors.Add("$.view: must be an object");
@@ -92,7 +100,6 @@ namespace Game.Domain
                     Unknown(view, ViewKeys, "$.view", errors);
                     var p = Str(view, "cameraPreset", "$.view", errors, required: false);
                     if (p != null) { if (Array.IndexOf(CameraPresets, p) < 0) errors.Add($"$.view.cameraPreset: '{p}' not in [default, tall, wide]"); else preset = p; }
-                    if (view.TryGet("loopShape", out var ls)) shape = ReadShape(ls, errors);
                 }
             }
 
@@ -130,62 +137,12 @@ namespace Game.Domain
 
             if (errors.Count > 0 || id == null || content.Loop == null || lanes == null) return new LevelParseResult(null, errors);
             var level = new LevelDefinition(id, slots, cap, content.Colors, content.Loop, lanes, preset, name, difficulty, notes,
-                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, shape, content.Sizes);
+                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, content.Sizes);
             return new LevelParseResult(level, errors);
         }
 
-        /// <summary><c>view.loopShape</c>: a preset name, or <c>{ "points": [[x, z], …], "radius": r | [r, …] }</c> (V9).</summary>
-        private static LoopShape ReadShape(JsonValue v, List<string> errors)
-        {
-            const string path = "$.view.loopShape";
-            if (v.Kind == JsonKind.String)
-            {
-                if (Array.IndexOf(LoopShape.Presets, v.String) >= 0) return LoopShape.Named(v.String);
-                errors.Add($"{path}: '{v.String}' not in [{string.Join(", ", LoopShape.Presets)}]");
-                return null;
-            }
-            if (v.Kind != JsonKind.Object) { errors.Add($"{path}: a preset name or {{ points, radius }}"); return null; }
-            Unknown(v, ShapeKeys, path, errors);
-            var xs = new List<double>(); var zs = new List<double>(); var radii = new List<double>();
-            if (!v.TryGet("points", out var pts) || pts.Kind != JsonKind.Array) { errors.Add($"{path}.points: required, an array of [x, z]"); return null; }
-            for (int i = 0; i < pts.Items.Count; i++)
-            {
-                var pt = pts.Items[i];
-                if (pt.Kind != JsonKind.Array || pt.Items.Count != 2 || pt.Items[0].Kind != JsonKind.Number || pt.Items[1].Kind != JsonKind.Number)
-                { errors.Add($"{path}.points[{i}]: must be [x, z]"); return null; }
-                xs.Add(pt.Items[0].Number); zs.Add(pt.Items[1].Number);
-            }
-            if (!v.TryGet("radius", out var rad)) { errors.Add($"{path}.radius: required, a number or one per corner"); return null; }
-            if (rad.Kind == JsonKind.Number) foreach (var _ in xs) radii.Add(rad.Number);
-            else if (rad.Kind == JsonKind.Array)
-            {
-                foreach (var r in rad.Items)
-                {
-                    if (r.Kind != JsonKind.Number) { errors.Add($"{path}.radius: numbers only"); return null; }
-                    radii.Add(r.Number);
-                }
-            }
-            else { errors.Add($"{path}.radius: a number or one per corner"); return null; }
-            var problems = LoopShape.Check(xs, zs, radii, path);
-            if (problems.Count > 0) { errors.AddRange(problems); return null; }
-            return LoopShape.Custom(xs, zs, radii);
-        }
-
-        private static string WriteShape(LoopShape shape)
-        {
-            if (shape.Preset != null) return Q(shape.Preset);
-            var pts = new List<string>();
-            for (int i = 0; i < shape.Xs.Count; i++) pts.Add($"[{Num(shape.Xs[i])}, {Num(shape.Zs[i])}]");
-            var radii = new List<string>();
-            bool same = true;
-            for (int i = 0; i < shape.Radii.Count; i++) { radii.Add(Num(shape.Radii[i])); same &= shape.Radii[i] == shape.Radii[0]; }
-            return $"{{ \"points\": [{string.Join(", ", pts)}], \"radius\": {(same ? radii[0] : "[" + string.Join(", ", radii) + "]")} }}";
-        }
-
-        private static string Num(double d) => d.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-
         // ── content ───────────────────────────────────────────────────────────────────────────
-        private static LevelContent ReadContent(JsonValue root, List<string> errors)
+        private static LevelContent ReadContent(JsonValue root, ConveyorLibrary conveyors, List<string> errors)
         {
             var c = new LevelContent();
             if (!root.TryGet("colors", out var colorsNode)) errors.Add("$.colors: required");
@@ -201,69 +158,85 @@ namespace Game.Domain
                     else c.Colors.Add(col);
                 }
             }
-            c.Loop = ReadLoop(root, errors);
+            c.Loop = ReadBelt(root, conveyors, errors);
             c.Lanes = ReadLanes(root, c, errors);
             c.Links = ReadLinks(root, errors);
             return c;
         }
 
-        // whether merge points, the pick zone and the bottle counts make sense together is V8/V4 (LevelValidator)
-        private static LoopDefinition ReadLoop(JsonValue root, List<string> errors)
+        /// <summary>The conveyor a level file names, or null when it names none (or is not JSON) — so a loader can fetch
+        /// the conveyor files before it parses the levels.</summary>
+        public static string ConveyorIdOf(string json)
         {
-            if (!root.TryGet("loop", out var lp)) { errors.Add("$.loop: required"); return null; }
-            if (lp.Kind != JsonKind.Object) { errors.Add("$.loop: must be an object"); return null; }
-            int before = errors.Count;
-            Unknown(lp, LoopKeys, "$.loop", errors);
-            int rows = Int(lp, "rows", "$.loop", errors, required: true, min: MinRows, max: MaxRows, fallback: 0);
-            int width = Int(lp, "width", "$.loop", errors, required: false, min: 1, max: MaxWidth, fallback: LoopDefinition.DefaultWidth);
-            int pick = Int(lp, "pickRows", "$.loop", errors, required: true, min: 1, max: MaxRows, fallback: 0);
-
-            var feeders = new List<FeederDefinition>();
-            if (!lp.TryGet("feeders", out var fn)) errors.Add("$.loop.feeders: required");
-            else if (fn.Kind != JsonKind.Array) errors.Add("$.loop.feeders: must be an array");
-            else
+            try
             {
-                if (fn.Items.Count > MaxFeeders) errors.Add($"$.loop.feeders: 0..{MaxFeeders} feeders");
-                for (int f = 0; f < fn.Items.Count; f++)
-                {
-                    var o = fn.Items[f];
-                    string fp = $"$.loop.feeders[{f}]";
-                    if (o.Kind != JsonKind.Object) { errors.Add(fp + ": must be { mergeAt, bottles }"); continue; }
-                    Unknown(o, FeederKeys, fp, errors);
-                    int merge = Int(o, "mergeAt", fp, errors, required: true, min: 0, max: MaxRows - 1, fallback: -1);
-                    var bottles = new List<CapColor>();
-                    if (!o.TryGet("bottles", out var bn)) errors.Add(fp + ".bottles: required");
-                    else if (bn.Kind != JsonKind.Array) errors.Add(fp + ".bottles: must be an array of colour numbers");
-                    else for (int i = 0; i < bn.Items.Count; i++)
-                    {
-                        var col = ColorId(bn.Items[i], $"{fp}.bottles[{i}]", errors, allowEmpty: false);
-                        if (col != CapColor.None) bottles.Add(col);
-                    }
-                    feeders.Add(new FeederDefinition(merge, bottles));
-                }
+                var root = JsonReader.Parse(json);
+                return root.Kind == JsonKind.Object && root.TryGet("conveyor", out var v) && v.Kind == JsonKind.String ? v.String : null;
             }
+            catch (JsonParseException) { return null; }
+        }
 
-            List<IReadOnlyList<CapColor>> initial = null;
-            if (lp.TryGet("initial", out var init))
+        // the conveyor's own rules (pick zone, merge points, shape) are V8/V9 (ConveyorValidator); here: the level's
+        // bottles fit the conveyor it names — one queue per feeder, initial rows of the belt's size
+        private static LoopDefinition ReadBelt(JsonValue root, ConveyorLibrary conveyors, List<string> errors)
+        {
+            int before = errors.Count;
+            string id = Str(root, "conveyor", "$", errors, required: true);
+            ConveyorDefinition conveyor = null;
+            if (id != null && !conveyors.TryGet(id, out conveyor))
+                errors.Add($"$.conveyor: '{id}' is not a conveyor ({ConveyorJson.FileOf(id)} not found)");
+
+            var feeders = new List<IReadOnlyList<CapColor>>();
+            if (root.TryGet("feeders", out var fn))
             {
-                if (init.Kind != JsonKind.Array) errors.Add("$.loop.initial: must be an array of rows");
+                if (fn.Kind != JsonKind.Array) errors.Add("$.feeders: must be an array of { bottles }");
                 else
                 {
-                    if (rows > 0 && init.Items.Count != rows) errors.Add($"$.loop.initial: {init.Items.Count} rows ≠ rows {rows}");
+                    for (int f = 0; f < fn.Items.Count; f++)
+                    {
+                        var o = fn.Items[f];
+                        string fp = $"$.feeders[{f}]";
+                        if (o.Kind != JsonKind.Object) { errors.Add(fp + ": must be { bottles }"); continue; }
+                        Unknown(o, FeederKeys, fp, errors);
+                        var bottles = new List<CapColor>();
+                        if (!o.TryGet("bottles", out var bn)) errors.Add(fp + ".bottles: required");
+                        else if (bn.Kind != JsonKind.Array) errors.Add(fp + ".bottles: must be an array of colour numbers");
+                        else for (int i = 0; i < bn.Items.Count; i++)
+                        {
+                            var col = ColorId(bn.Items[i], $"{fp}.bottles[{i}]", errors, allowEmpty: false);
+                            if (col != CapColor.None) bottles.Add(col);
+                        }
+                        feeders.Add(bottles);
+                    }
+                    if (conveyor != null && fn.Items.Count != conveyor.FeederCount)
+                        errors.Add($"$.feeders: {fn.Items.Count} queue(s), but conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s) — one queue per feeder, in its order");
+                }
+            }
+            else if (conveyor != null && conveyor.FeederCount > 0)
+                errors.Add($"$.feeders: required — conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s)");
+
+            List<IReadOnlyList<CapColor>> initial = null;
+            if (root.TryGet("initial", out var init))
+            {
+                if (init.Kind != JsonKind.Array) errors.Add("$.initial: must be an array of rows");
+                else
+                {
+                    if (conveyor != null && init.Items.Count != conveyor.Rows)
+                        errors.Add($"$.initial: {init.Items.Count} rows ≠ rows {conveyor.Rows} of conveyor '{conveyor.Id}'");
                     initial = new List<IReadOnlyList<CapColor>>();
                     for (int r = 0; r < init.Items.Count; r++)
                     {
                         var row = init.Items[r];
-                        string rp = $"$.loop.initial[{r}]";
+                        string rp = $"$.initial[{r}]";
                         if (row.Kind != JsonKind.Array) { errors.Add(rp + ": must be an array of colour numbers"); continue; }
-                        if (row.Items.Count != width) { errors.Add($"{rp}: {row.Items.Count} spots ≠ width {width}"); continue; }
+                        if (conveyor != null && row.Items.Count != conveyor.Width) { errors.Add($"{rp}: {row.Items.Count} spots ≠ width {conveyor.Width}"); continue; }
                         var spots = new List<CapColor>();
-                        for (int k = 0; k < width; k++) spots.Add(ColorId(row.Items[k], $"{rp}[{k}]", errors, allowEmpty: true));
+                        for (int k = 0; k < row.Items.Count; k++) spots.Add(ColorId(row.Items[k], $"{rp}[{k}]", errors, allowEmpty: true));
                         initial.Add(spots);
                     }
                 }
             }
-            return errors.Count == before ? new LoopDefinition(rows, width, pick, feeders, initial) : null;
+            return errors.Count == before && conveyor != null ? new LoopDefinition(conveyor, feeders, initial) : null;
         }
 
         private static List<IReadOnlyList<CapColor>> ReadLanes(JsonValue root, LevelContent c, List<string> errors)
@@ -359,45 +332,54 @@ namespace Game.Domain
         /// <summary>How a message names a colour: its number and its name, e.g. <c>3 (Blue)</c>.</summary>
         public static string Name(CapColor c) => $"{(int)c} ({c})";
 
-        // ── writer (generator output, format v3) — stable, diff-friendly layout: one feeder row / one lane per line ──
+        // ── writer (generator output, format v4) — stable, diff-friendly layout: one feeder row / one lane per line ──
+        /// <summary>The level file. Its conveyor is written separately (<see cref="ConveyorJson.Write"/>) — the level only
+        /// names it, so a level whose conveyor was built in code (no id) can not be written.</summary>
         public static string Write(LevelDefinition level)
         {
+            if (level.Conveyor.Id == null)
+                throw new InvalidOperationException($"{level.Id}: its conveyor was built in code (no id), so the level file could not name it");
             var sb = new StringBuilder();
             sb.Append("{\n");
             // levels live in Assets/CapsChaos/Content/LevelConfig/ — four levels below the repo root
             sb.Append("  \"$schema\": \"../../../../docs/design/level.schema.json\",\n");
             sb.Append($"  \"formatVersion\": {LevelDefinition.CurrentFormatVersion},\n");
             sb.Append($"  \"id\": {Q(level.Id)},\n");
+            sb.Append($"  \"conveyor\": {Q(level.Conveyor.Id)},\n");
             sb.Append($"  \"slots\": {level.Slots},\n");
             sb.Append($"  \"extraSlots\": {level.ExtraSlots},\n");
             sb.Append($"  \"trayCapacity\": {level.TrayCapacity},\n");
             sb.Append("  \"colors\": [").Append(Numbers(level.Colors)).Append("],\n");
 
             var lp = level.Loop;
-            sb.Append("  \"loop\": {\n");
-            sb.Append($"    \"rows\": {lp.Rows},\n    \"width\": {lp.Width},\n    \"pickRows\": {lp.PickRows},\n    \"feeders\": [\n");
-            for (int f = 0; f < lp.Feeders.Count; f++)
+            sb.Append("  \"feeders\": [");
+            if (lp.Feeders.Count == 0) sb.Append("]");
+            else
             {
-                var fd = lp.Feeders[f];
-                sb.Append($"      {{ \"mergeAt\": {fd.MergeAt}, \"bottles\": [\n");
-                // one feeder row (width bottles) per line: the file reads like the queue looks
-                for (int i = 0; i < fd.Bottles.Count; i += lp.Width)
+                sb.Append("\n");
+                for (int f = 0; f < lp.Feeders.Count; f++)
                 {
-                    var row = new List<CapColor>();
-                    for (int k = i; k < Math.Min(i + lp.Width, fd.Bottles.Count); k++) row.Add(fd.Bottles[k]);
-                    sb.Append("        ").Append(Numbers(row)).Append(i + lp.Width < fd.Bottles.Count ? ",\n" : "\n");
+                    var fd = lp.Feeders[f];
+                    sb.Append("    { \"bottles\": [\n");
+                    // one feeder row (width bottles) per line: the file reads like the queue looks
+                    for (int i = 0; i < fd.Bottles.Count; i += lp.Width)
+                    {
+                        var row = new List<CapColor>();
+                        for (int k = i; k < Math.Min(i + lp.Width, fd.Bottles.Count); k++) row.Add(fd.Bottles[k]);
+                        sb.Append("      ").Append(Numbers(row)).Append(i + lp.Width < fd.Bottles.Count ? ",\n" : "\n");
+                    }
+                    sb.Append("    ] }").Append(f < lp.Feeders.Count - 1 ? ",\n" : "\n");
                 }
-                sb.Append("      ] }").Append(f < lp.Feeders.Count - 1 ? ",\n" : "\n");
+                sb.Append("  ]");
             }
-            sb.Append(lp.Initial != null ? "    ],\n" : "    ]\n");
+            sb.Append(",\n");
             if (lp.Initial != null)
             {
-                sb.Append("    \"initial\": [\n");
+                sb.Append("  \"initial\": [\n");
                 for (int r = 0; r < lp.Initial.Count; r++)
-                    sb.Append("      [").Append(Numbers(lp.Initial[r])).Append(r < lp.Initial.Count - 1 ? "],\n" : "]\n");
-                sb.Append("    ]\n");
+                    sb.Append("    [").Append(Numbers(lp.Initial[r])).Append(r < lp.Initial.Count - 1 ? "],\n" : "]\n");
+                sb.Append("  ],\n");
             }
-            sb.Append("  },\n");
 
             sb.Append("  \"lanes\": [\n");
             for (int j = 0; j < level.Lanes.Count; j++)
@@ -428,8 +410,7 @@ namespace Game.Domain
                 }
                 sb.Append("  ],\n");
             }
-            sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)}")
-              .Append(level.Shape.IsDefault ? "" : ", \"loopShape\": " + WriteShape(level.Shape)).Append(" }");
+            sb.Append($"  \"view\": {{ \"cameraPreset\": {Q(level.CameraPreset)} }}");
             var meta = new List<string>();
             if (level.Name != null) meta.Add($"\"name\": {Q(level.Name)}");
             if (level.Difficulty != null) meta.Add($"\"difficulty\": {Q(level.Difficulty)}");
@@ -455,7 +436,7 @@ namespace Game.Domain
         }
 
         // ── helpers ───────────────────────────────────────────────────────────────────────────
-        private static string Q(string s)
+        internal static string Q(string s)
         {
             var sb = new StringBuilder("\"");
             foreach (char c in s)

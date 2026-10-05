@@ -39,11 +39,8 @@ Material:
     m_Ints: []
     m_Floats:
     - _NormalsSource: 0
-    - _OutlineMaxWidth: 10
-    - _OutlineMinWidth: 2
     - _OutlinePixelSizeType: 3
     - _OutlineTextureType: 0
-    - _OutlineWidth: 10
     - _RampSmoothing: 0.36
     - _RampThreshold: 0.75
     - _SpecularRoughness: 0.18
@@ -51,7 +48,7 @@ Material:
     - _SpecularType: 0
     - _UseSpecular: 1
     m_Colors:
-    - _OutlineColor: {r: 0.41620427, g: 0, b: 0.7075472, a: 1}
+    - _OutlineColor: {r: 0.2277777, g: 0, b: 0.38679248, a: 1}
     - _SColor: {r: 0.123117715, g: 0.102794595, b: 0.3962264, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Game.Views
 {
     /// <summary>
-    /// The belt's centre line as a closed ROUNDED CONVEX POLYGON (art §4.2b, level <c>view.loopShape</c>): straight
+    /// The belt's centre line as a closed ROUNDED CONVEX POLYGON (art §4.2b, conveyor <c>shape</c>): straight
     /// edges joined by circular arcs, walked clockwise seen from above, starting at the front edge (corner 0 → 1). Plain
     /// geometry — it knows nothing of rows or bottles; the caller scales it and picks where along it a row stands.
     /// Coordinates are on the board plane (x, z), centred on the shape's bounding box.

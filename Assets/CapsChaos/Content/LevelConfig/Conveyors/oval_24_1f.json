@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../../../docs/design/conveyor.schema.json",
+  "formatVersion": 1,
+  "id": "oval_24_1f",
+  "rows": 24,
+  "width": 4,
+  "pickRows": 6,
+  "shape": "oval",
+  "feeders": [
+    { "mergeAt": 18 }
+  ]
+}

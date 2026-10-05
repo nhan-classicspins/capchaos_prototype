@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Game.Domain
 {
     /// <summary>
-    /// The SHAPE of the belt's loop (GDD R1, level <c>view.loopShape</c>) — presentation data only: the rules never read
+    /// The SHAPE of the belt's loop (GDD R1, conveyor <c>shape</c>) — presentation data only: the rules never read
     /// it (a row is a row wherever it is drawn). A shape is a ROUNDED CONVEX POLYGON on the board plane (x right, z away
     /// from the player): corners in belt order — clockwise seen from above — each rounded with its own radius. The
     /// first edge, corner 0 → corner 1, is the FRONT edge: the lowest, running right → left, in front of the slots; the

@@ -156,14 +156,14 @@ Material:
     - _OutlineDepthOffset: 0
     - _OutlineLightingType: 0
     - _OutlineLightingTypeURP: 0
-    - _OutlineMaxWidth: 0
-    - _OutlineMinWidth: 0
+    - _OutlineMaxWidth: 3
+    - _OutlineMinWidth: 2
     - _OutlinePixelSizeType: 3
     - _OutlineStencilComp: 8
     - _OutlineStencilReadMask: 255
     - _OutlineTextureLOD: 5
     - _OutlineTextureType: 0
-    - _OutlineWidth: 0
+    - _OutlineWidth: 10
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _RampBands: 4

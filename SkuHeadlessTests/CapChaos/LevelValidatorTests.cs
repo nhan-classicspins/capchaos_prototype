@@ -28,7 +28,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var l = Level(new[] { "RRRR" }, new[] { "R" }, colors: "OB");
             var e = LevelValidator.Validate(l);
-            Assert.That(e, Has.Some.StartsWith("V5 loop.initial[0][0]: colour 1 (Red) is not in colors"));
+            Assert.That(e, Has.Some.StartsWith("V5 initial[0][0]: colour 1 (Red) is not in colors"));
             Assert.That(e, Has.Some.StartsWith("V5 colors: 2 (Orange) is declared but never used"));
         }
 
@@ -38,16 +38,16 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var l = Level(new[] { "RRRR" }, new[] { "R", "R", "R", "R" }, pickRows: 1,
                 feeders: new[] { "RRRR", "RRRR", "RRRR" }, mergeAt: new[] { 0, 9, 9 });
             var e = LevelValidator.Validate(l);
-            Assert.That(e, Has.Some.Contains("V8 loop.feeders[0].mergeAt: 0 is inside the pick zone 0..0"));
-            Assert.That(e, Has.Some.Contains("V8 loop.feeders[1].mergeAt: 9 is not a track position 0..7"));
-            Assert.That(e, Has.Some.Contains("V8 loop.feeders[2].mergeAt: 9 is another feeder's merge point"));
+            Assert.That(e, Has.Some.Contains("V8 conveyor test_loop.feeders[0].mergeAt: 0 is inside the pick zone 0..0"));
+            Assert.That(e, Has.Some.Contains("V8 conveyor test_loop.feeders[1].mergeAt: 9 is not a track position 0..7"));
+            Assert.That(e, Has.Some.Contains("V8 conveyor test_loop.feeders[2].mergeAt: 9 is another feeder's merge point"));
         }
 
         [Test]
         public void V8_the_pick_zone_leaves_room_for_the_back_straight_and_the_bends()
         {
             var l = Level(new[] { "RRRR" }, new[] { "R" }, rows: 8, pickRows: 2);
-            Assert.That(LevelValidator.Validate(l), Has.Some.StartsWith("V8 loop.pickRows: 2 pick rows need rows ≥ 10"));
+            Assert.That(LevelValidator.Validate(l), Has.Some.StartsWith("V8 conveyor test_loop.pickRows: 2 pick rows need rows ≥ 10"));
         }
 
         [Test]

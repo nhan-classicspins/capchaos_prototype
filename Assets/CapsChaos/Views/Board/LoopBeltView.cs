@@ -11,7 +11,7 @@ namespace Game.Views
     /// which bottle stands on which (row, track), and the belt's PHASE (rows travelled, fractional) — it never sees a rule.
     /// A row's place on the loop is <c>(row + phase) mod rows</c> track positions from the start of the pick zone (on the
     /// front edge, nearest the slots); the belt runs clockwise seen from above, right→left along the front.
-    /// <para>Shape: a rounded convex polygon (<see cref="LoopPath"/>, level <c>view.loopShape</c>). Rows stand EVENLY
+    /// <para>Shape: a rounded convex polygon (<see cref="LoopPath"/>, conveyor <c>shape</c>). Rows stand EVENLY
     /// round it: the shape is scaled so its length is <c>rows</c> pitches, the pitch never under
     /// <see cref="DesignTokens.Board.LoopRowPitch"/>, and large enough that at the tightest corner the INNER track's
     /// rows stay <see cref="DesignTokens.Board.LoopInnerPitch"/> apart (a little overlap is fine) round a hole of at least

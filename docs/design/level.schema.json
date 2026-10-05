@@ -1,21 +1,32 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://classicspins.local/capschaos/level.schema.json",
-  "title": "Cap Chaos level — format v3",
-  "description": "One level, fully data-driven (GDD §6). Written for designers and their own tools: every colour is a NUMBER (see $defs.colorId), every flag is a named field. Structural checks live here; semantic checks (colour balance, solvability, link targets, merge points and pick zone) are LevelValidator V4–V8. Format v1/v2 files describe a bottle stack and no longer load: regenerate them.",
+  "title": "Cap Chaos level — format v4",
+  "description": "One level's ITEMS, fully data-driven (GDD §6): the bottles each feeder carries, the lanes and their trays. The top conveyor's LAYOUT (rows, width, pick zone, shape, merge points) is a shared file the level names by id (`conveyor`, see conveyor.schema.json) — many levels reuse one. Written for designers and their own tools: every colour is a NUMBER (see $defs.colorId), every flag is a named field. Structural checks live here; semantic checks (colour balance, solvability, link targets, merge points and pick zone, shape) are LevelValidator V4–V9. Format v3 kept the conveyor inline and v1/v2 describe a bottle stack: none of them load.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["formatVersion", "id", "colors", "loop", "lanes"],
+  "required": ["formatVersion", "id", "conveyor", "colors", "lanes"],
   "properties": {
     "$schema": { "type": "string" },
-    "formatVersion": { "const": 3 },
+    "formatVersion": { "const": 4 },
     "id": {
       "type": "string",
       "pattern": "^level_[0-9]{4}$",
       "description": "Must equal the file name without extension."
     },
+    "conveyor": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,47}$",
+      "description": "The shared top-conveyor layout this level runs on: Conveyors/<conveyor>.json next to the level files."
+    },
     "slots": { "type": "integer", "minimum": 1, "maximum": 6, "default": 4, "description": "Slots open from the start." },
-    "extraSlots": { "type": "integer", "minimum": 0, "maximum": 5, "default": 2, "description": "Locked slots right of the open ones (R20): each opens for coins or a rewarded ad, for this round only. slots + extraSlots ≤ 6." },
+    "extraSlots": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5,
+      "default": 2,
+      "description": "Locked slots right of the open ones (R20): each opens for coins or a rewarded ad, for this round only. slots + extraSlots ≤ 6."
+    },
     "trayCapacity": { "type": "integer", "minimum": 2, "maximum": 6, "default": 4 },
     "colors": {
       "type": "array",
@@ -25,51 +36,35 @@
       "items": { "$ref": "#/$defs/colorId" },
       "description": "Palette subset used by this level. Hex values live in DesignTokens, never here."
     },
-    "loop": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["rows", "pickRows", "feeders"],
-      "description": "The oval conveyor (R1–R4). Track position 0 is the first row of the pick zone (the front straight, in front of the slots); positions grow in the direction of travel. The view derives the oval's shape from rows and pickRows: two straights of pickRows rows, the rest is the two bends.",
-      "properties": {
-        "rows": { "type": "integer", "minimum": 8, "maximum": 64, "description": "Rows of belt round the oval." },
-        "width": { "type": "integer", "minimum": 1, "maximum": 6, "default": 4, "description": "Bottle spots per row." },
-        "pickRows": { "type": "integer", "minimum": 1, "description": "Rows of the pick zone, track positions 0..pickRows-1. V8: rows ≥ 2 × pickRows + 6." },
-        "feeders": {
-          "type": "array",
-          "maxItems": 2,
-          "description": "At most 2 queues of bottles that join the loop (R4), a whole queue row at a time: mergeAt is the queue's entrance, and its front row steps onto the free belt row nearest it (within 2 rows either way, outside the pick zone) that is empty on every track it needs.",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["mergeAt", "bottles"],
-            "properties": {
-              "mergeAt": { "type": "integer", "minimum": 0, "description": "Track position the feeder joins at. V8: outside the pick zone, one feeder per position." },
-              "bottles": {
-                "type": "array",
-                "minItems": 1,
-                "items": { "$ref": "#/$defs/colorId" },
-                "description": "The queue, front first, row by row: bottle i waits in queue row i / width on track i % width. The generator paints every queue row one colour."
-              }
-            }
+    "feeders": {
+      "type": "array",
+      "maxItems": 2,
+      "description": "One queue per feeder of the named conveyor, in its feeder order (R4) — required when the conveyor has feeders. A queue joins the belt a whole row at a time at that feeder's mergeAt.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bottles"],
+        "properties": {
+          "bottles": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/colorId" },
+            "description": "The queue, front first, row by row: bottle i waits in queue row i / width on track i % width. The generator paints every queue row one colour."
           }
-        },
-        "initial": {
-          "type": "array",
-          "description": "Optional: the belt at the start, one array of `width` cellIds per row (row r starts at track position r). Absent = the belt starts empty; every bottle waits in a feeder and joins while the belt runs.",
-          "items": { "type": "array", "items": { "$ref": "#/$defs/cellId" } }
         }
       }
+    },
+    "initial": {
+      "type": "array",
+      "description": "Optional: the belt at the start, one array of the conveyor's `width` cellIds per row, as many rows as the conveyor has (row r starts at track position r). Absent = the belt starts empty; every bottle waits in a feeder and joins while the belt runs.",
+      "items": { "type": "array", "items": {"$ref": "#/$defs/cellId"} }
     },
     "lanes": {
       "type": "array",
       "minItems": 1,
       "maxItems": 4,
       "description": "Conveyor queues left→right. Element [0] of each lane is the tappable front tray.",
-      "items": {
-        "type": "array",
-        "minItems": 1,
-        "items": { "$ref": "#/$defs/tray" }
-      }
+      "items": { "type": "array", "minItems": 1, "items": {"$ref": "#/$defs/tray"} }
     },
     "links": {
       "type": "array",
@@ -78,39 +73,13 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["a", "b"],
-        "properties": {
-          "a": { "$ref": "#/$defs/trayRef" },
-          "b": { "$ref": "#/$defs/trayRef" }
-        }
+        "properties": { "a": {"$ref": "#/$defs/trayRef"}, "b": {"$ref": "#/$defs/trayRef"} }
       }
     },
     "view": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "cameraPreset": { "type": "string", "enum": ["default", "tall", "wide"], "default": "default" },
-        "loopShape": {
-          "description": "How the belt loop is drawn (presentation only; the rules never read it). A preset, or a rounded convex polygon: corners [x, z] clockwise seen from above, corner 0 → 1 the front edge (level, lowest, right → left, in front of the slots), each rounded by its radius (V9). Absent = oval.",
-          "default": "oval",
-          "oneOf": [
-            { "type": "string", "enum": ["oval", "circle", "triangle"] },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["points", "radius"],
-              "properties": {
-                "points": { "type": "array", "minItems": 3, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } },
-                "radius": {
-                  "oneOf": [
-                    { "type": "number", "exclusiveMinimum": 0 },
-                    { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 } }
-                  ]
-                }
-              }
-            }
-          ]
-        }
-      }
+      "properties": { "cameraPreset": {"type": "string", "enum": ["default", "tall", "wide"], "default": "default"} }
     },
     "meta": {
       "type": "object",
@@ -144,9 +113,23 @@
       "required": ["color"],
       "properties": {
         "color": { "$ref": "#/$defs/colorId" },
-        "hidden": { "type": "boolean", "default": false, "description": "Hidden tray (R17): tray and caps show '?' until the tray reaches the front of its lane." },
-        "size": { "type": "integer", "enum": [1, 2, 3, 4], "default": 1, "description": "Container size (R21): 1 S · 2 M · 3 L · 4 XL. Takes size × trayCapacity items (trayCapacity 4: 4 / 8 / 12 / 16)." },
-        "lockTurns": { "type": "integer", "minimum": 1, "maximum": 99, "description": "Locked tray (R18): opens after this many trays fly to the slots while it stands at the front." }
+        "hidden": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hidden tray (R17): tray and caps show '?' until the tray reaches the front of its lane."
+        },
+        "size": {
+          "type": "integer",
+          "enum": [1, 2, 3, 4],
+          "default": 1,
+          "description": "Container size (R21): 1 S · 2 M · 3 L · 4 XL. Takes size × trayCapacity items (trayCapacity 4: 4 / 8 / 12 / 16)."
+        },
+        "lockTurns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99,
+          "description": "Locked tray (R18): opens after this many trays fly to the slots while it stands at the front."
+        }
       }
     },
     "trayRef": {

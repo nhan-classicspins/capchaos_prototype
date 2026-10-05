@@ -7,20 +7,22 @@ using ClassicSpins.PrototypeFramework.Application;
 using ClassicSpins.PrototypeFramework.Domain;
 using ClassicSpins.PrototypeFramework.Presentation;
 using Game.Application;
+using Game.Domain;
 
 namespace Game.Infrastructure
 {
     /// <summary>
-    /// Loads EVERY level during the Loading stage: <c>levels.index.json</c> first, then each level it lists,
-    /// all through Addressables, and hands the text to <see cref="LevelCatalog.Populate"/> (parse + V1–V5).
+    /// Loads EVERY level during the Loading stage: <c>levels.index.json</c> first, then each level it lists, then
+    /// every shared conveyor file those levels name (<c>Conveyors/&lt;id&gt;.json</c>), all through Addressables, and
+    /// hands the text to <see cref="LevelCatalog.Populate"/> (parse + V1–V9).
     /// Emits <see cref="GameBootCaps.LevelsLoaded"/>, which the first-scene node is gated on — so Gameplay
     /// never waits on, or fails at, a level load.
     /// </summary>
     /// <remarks>
     /// <para><b>Addressing.</b> <c>Assets/CapsChaos/Content/LevelConfig/</c> is ONE Addressables folder
     /// entry with the address <see cref="Folder"/>, so each file inside is addressable as
-    /// <c>LevelConfig/&lt;file&gt;.json</c> — a level the LevelTool writes tomorrow is covered without
-    /// touching the group. The level ids come from data (the index), so the keys are built here rather than
+    /// <c>LevelConfig/&lt;file&gt;.json</c> (a conveyor <c>LevelConfig/Conveyors/&lt;id&gt;.json</c> — the folder
+    /// entry takes its subfolders too) — a level the LevelTool writes tomorrow is covered without touching the group. The level ids come from data (the index), so the keys are built here rather than
     /// generated.</para>
     /// <para><b>Three-tier law.</b> A boot node because it is awaited (I/O), can fail meaningfully (a
     /// broken level), and needs external ordering (before the first scene). App-wide, not a feature scope:
@@ -77,9 +79,23 @@ namespace Game.Infrastructure
 
                 var byId = new Dictionary<string, string>(order.Count, StringComparer.Ordinal);
                 for (int i = 0; i < order.Count; i++) if (texts[i] != null) byId[order[i]] = texts[i];
-                _catalog.Populate(order, byId);
 
-                Debug.Log($"[LevelConfig] {_catalog.Count} levels loaded from {Folder}/.");
+                // only the conveyors some level names — a layout nobody plays is never loaded
+                var conveyorIds = new List<string>();
+                foreach (var text in byId.Values)
+                {
+                    string id = LevelJson.ConveyorIdOf(text);
+                    if (id != null && ConveyorDefinition.IsConveyorId(id) && !conveyorIds.Contains(id)) conveyorIds.Add(id);
+                }
+                var conveyorReads = new UniTask<string>[conveyorIds.Count];
+                for (int i = 0; i < conveyorIds.Count; i++) conveyorReads[i] = ReadAsync(ConveyorJson.FileOf(conveyorIds[i]), ct);
+                var conveyorTexts = await UniTask.WhenAll(conveyorReads);
+                var conveyors = new Dictionary<string, string>(conveyorIds.Count, StringComparer.Ordinal);
+                for (int i = 0; i < conveyorIds.Count; i++) if (conveyorTexts[i] != null) conveyors[conveyorIds[i]] = conveyorTexts[i];
+
+                _catalog.Populate(order, byId, conveyors);
+
+                Debug.Log($"[LevelConfig] {_catalog.Count} levels on {conveyors.Count} conveyors loaded from {Folder}/.");
                 return BootNodeResult.Succeeded;
             }
             catch (OperationCanceledException)

@@ -180,9 +180,10 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [Test]
         public void Slots_are_read_from_the_level_json()
         {
-            var json = LevelJson.Write(Level(new[] { "RRRR" }, new[] { "R" }, slots: 5));
+            var level = Level(new[] { "RRRR" }, new[] { "R" }, slots: 5);
+            var json = LevelJson.Write(level);
             Assert.That(json, Does.Contain("\"slots\": 5"));
-            var game = new CapChaosGame(LevelJson.Parse(json).Level!);
+            var game = new CapChaosGame(LevelJson.Parse(json, Conveyors(level)).Level!);
             Assert.That(game.SlotCount, Is.EqualTo(5));
         }
 

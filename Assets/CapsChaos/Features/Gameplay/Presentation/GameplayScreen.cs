@@ -260,7 +260,7 @@ namespace Game.Presentation
             _input.TrayTapped += OnTrayTapped;
             _input.LockedSlotTapped += OnLockedSlotTapped;
 
-            _log.Info($"[GameplayScreen] round {_level.Id}: {belt.Count} bottles on a {belt.Rows}×{belt.Width} belt, " +
+            _log.Info($"[GameplayScreen] round {_level.Id}: {belt.Count} bottles on conveyor {_level.Conveyor.Id ?? "(built in code)"} ({belt.Rows}×{belt.Width}), " +
                       $"{belt.FeederRemainingTotal} in {belt.FeederCount} feeder(s), {_level.Lanes.Count} lanes, {_level.Slots} slots.");
         }
 

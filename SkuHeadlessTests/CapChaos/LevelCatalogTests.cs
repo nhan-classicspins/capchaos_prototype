@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Game.Application;
+using Game.Domain;
 using NUnit.Framework;
 
 namespace CapsChaos.SkuHeadlessTests.CapChaos
@@ -16,10 +17,14 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var order = LevelCatalog.ParseOrder(File.ReadAllText(Path.Combine(Dir, LevelCatalog.IndexFile)));
             var texts = order.Where(id => File.Exists(Path.Combine(Dir, id + ".json")))
                              .ToDictionary(id => id, id => File.ReadAllText(Path.Combine(Dir, id + ".json")));
+            var conveyors = texts.Values.Select(LevelJson.ConveyorIdOf).Distinct()
+                                 .ToDictionary(id => id!, id => File.ReadAllText(Path.Combine(Dir, ConveyorJson.FileOf(id!))));
             var c = new LevelCatalog();
-            c.Populate(order, texts);
+            c.Populate(order, texts, conveyors);
             return c;
         }
+
+        private static Dictionary<string, string> NoConveyors => new Dictionary<string, string>();
 
         private const string Index = "{ \"order\": [\"level_0001\"] }";
 
@@ -44,7 +49,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         public void A_missing_level_is_refused_by_name()
         {
             var e = Assert.Throws<LevelLoadException>(() =>
-                new LevelCatalog().Populate(LevelCatalog.ParseOrder(Index), new Dictionary<string, string>()));
+                new LevelCatalog().Populate(LevelCatalog.ParseOrder(Index), new Dictionary<string, string>(), NoConveyors));
             Assert.That(e!.Message, Does.Contain("level_0001: listed in the index but not found"));
         }
 
@@ -53,14 +58,29 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var texts = new Dictionary<string, string>
             {
-                ["level_0001"] = "{ \"formatVersion\": 3, \"id\": \"level_0001\", \"colors\": [1], " +
-                                 "\"loop\": { \"rows\": 8, \"pickRows\": 1, \"feeders\": [ { \"mergeAt\": 0, \"bottles\": [1, 1] } ] }, " +
-                                 "\"lanes\": [[{ \"color\": 1 }]] }",
+                ["level_0001"] = "{ \"formatVersion\": 4, \"id\": \"level_0001\", \"conveyor\": \"bad_8\", \"colors\": [1], " +
+                                 "\"feeders\": [ { \"bottles\": [1, 1] } ], \"lanes\": [[{ \"color\": 1 }]] }",
+            };
+            var conveyors = new Dictionary<string, string>
+            {
+                ["bad_8"] = "{ \"formatVersion\": 1, \"id\": \"bad_8\", \"rows\": 8, \"pickRows\": 1, \"feeders\": [ { \"mergeAt\": 0 } ] }",
             };
             var c = new LevelCatalog();
-            var e = Assert.Throws<LevelLoadException>(() => c.Populate(LevelCatalog.ParseOrder(Index), texts));
+            var e = Assert.Throws<LevelLoadException>(() => c.Populate(LevelCatalog.ParseOrder(Index), texts, conveyors));
             Assert.That(e!.Message, Does.Contain("V8").And.Contains("V4"));
             Assert.That(c.IsLoaded, Is.False, "all-or-nothing");
+        }
+
+        [Test]
+        public void A_missing_or_broken_conveyor_is_refused_by_file_and_by_the_levels_naming_it()
+        {
+            var texts = new Dictionary<string, string> { ["level_0001"] = LevelJsonTests.Minimal.Replace("level_0007", "level_0001") };
+            var missing = Assert.Throws<LevelLoadException>(() => new LevelCatalog().Populate(LevelCatalog.ParseOrder(Index), texts, NoConveyors));
+            Assert.That(missing!.Message, Does.Contain("level_0001: $.conveyor: 'test_8_1f' is not a conveyor"));
+
+            var broken = new Dictionary<string, string> { ["test_8_1f"] = "{ \"formatVersion\": 1, \"id\": \"other\", \"rows\": 8, \"pickRows\": 1, \"feeders\": [] }" };
+            var e = Assert.Throws<LevelLoadException>(() => new LevelCatalog().Populate(LevelCatalog.ParseOrder(Index), texts, broken));
+            Assert.That(e!.Message, Does.Contain("Conveyors/test_8_1f.json: file declares id 'other'"));
         }
 
         [TestCase("{ \"order\": [] }", "lists no levels")]

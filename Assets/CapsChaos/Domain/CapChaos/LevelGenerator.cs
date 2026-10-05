@@ -16,15 +16,13 @@ namespace Game.Domain
         public int TrayCapacity { get; set; } = LevelDefinition.DefaultTrayCapacity;
         public int Lanes { get; set; } = 3;
         public IReadOnlyList<CapColor> Colors { get; set; } = CapColorCodes.ParseList("ROBG");
-        /// <summary>The oval: rows round it, bottles per row, rows in the pick zone.</summary>
-        public int Rows { get; set; } = 24;
-        public int Width { get; set; } = LoopDefinition.DefaultWidth;
-        public int PickRows { get; set; } = 5;
-        /// <summary>How the loop is drawn (presentation only — the generator never reads it).</summary>
-        public LoopShape Shape { get; set; } = LoopShape.Default;
-        /// <summary>Per feeder: where it joins the oval and how many bottles it carries. The belt starts filled from
-        /// the feeders (no authored initial rows).</summary>
-        public List<(int mergeAt, int bottles)> Feeders { get; set; } = new List<(int, int)>();
+        /// <summary>The top conveyor the level runs on (a shared <c>Conveyors/</c> file): rows, width, pick zone, shape
+        /// and merge points. The generator fills its feeders; it never changes the layout.</summary>
+        public ConveyorDefinition Conveyor { get; set; }
+        /// <summary>How many bottles each conveyor feeder carries, in the conveyor's feeder order. The belt starts
+        /// filled from the feeders (no authored initial rows).</summary>
+        public List<int> FeederBottles { get; set; } = new List<int>();
+        internal int Width => Conveyor.Width;
         /// <summary>0..1 — chance each tray is the colour with the most bottles on the belt (easy) rather than any
         /// colour that keeps the level alive (tense).</summary>
         public double Greed { get; set; } = 0.6;
@@ -70,7 +68,7 @@ namespace Game.Domain
                 foreach (var l in lanes) laneViews.Add(l);
                 var colors = new List<CapColor>(spec.Colors);
                 var level = new LevelDefinition(spec.Id, spec.Slots, spec.TrayCapacity, colors, loop, laneViews,
-                    name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution, extraSlots: spec.ExtraSlots, loopShape: spec.Shape);
+                    name: spec.Name, difficulty: spec.Difficulty, notes: spec.Notes, solution: solution, extraSlots: spec.ExtraSlots);
                 return new GeneratedLevel(level, solution, attempt);
             }
             throw new InvalidOperationException($"{spec.Id}: no valid level in {maxAttempts} attempts — relax the spec");
@@ -78,13 +76,16 @@ namespace Game.Domain
 
         private static void Check(LevelSpec spec)
         {
-            if (spec.Feeders.Count == 0) throw new ArgumentException($"{spec.Id}: no feeders");
+            if (spec.Conveyor == null) throw new ArgumentException($"{spec.Id}: no conveyor");
+            if (spec.Conveyor.FeederCount == 0) throw new ArgumentException($"{spec.Id}: conveyor '{spec.Conveyor.Id}' has no feeders");
+            if (spec.FeederBottles.Count != spec.Conveyor.FeederCount)
+                throw new ArgumentException($"{spec.Id}: {spec.FeederBottles.Count} feeder bottle count(s) for conveyor '{spec.Conveyor.Id}' with {spec.Conveyor.FeederCount} feeder(s)");
             int bottles = 0;
-            foreach (var f in spec.Feeders)
+            foreach (int count in spec.FeederBottles)
             {
-                if (f.bottles % spec.Width != 0)
-                    throw new ArgumentException($"{spec.Id}: a feeder of {f.bottles} bottles is not whole rows of {spec.Width}");
-                bottles += f.bottles;
+                if (count % spec.Width != 0)
+                    throw new ArgumentException($"{spec.Id}: a feeder of {count} bottles is not whole rows of {spec.Width}");
+                bottles += count;
             }
             int unit = ColourUnit(spec);
             if (bottles % unit != 0)
@@ -109,7 +110,7 @@ namespace Game.Domain
         private LoopDefinition Paint(LevelSpec spec)
         {
             int total = 0;
-            foreach (var f in spec.Feeders) total += f.bottles;
+            foreach (int count in spec.FeederBottles) total += count;
             int rowsPerUnit = ColourUnit(spec) / spec.Width;
             int units = total / ColourUnit(spec);
             var bag = new List<CapColor>();
@@ -117,9 +118,9 @@ namespace Game.Domain
                 for (int i = 0; i < rowsPerUnit; i++) bag.Add(spec.Colors[u % spec.Colors.Count]);
             _rng.Shuffle(bag);
 
-            var feeders = new List<FeederDefinition>();
+            var feeders = new List<IReadOnlyList<CapColor>>();
             CapColor previous = CapColor.None;
-            foreach (var (mergeAt, count) in spec.Feeders)
+            foreach (int count in spec.FeederBottles)
             {
                 var bottles = new List<CapColor>(count);
                 for (int row = 0; row < count / spec.Width; row++)
@@ -134,9 +135,9 @@ namespace Game.Domain
                     for (int k = 0; k < spec.Width; k++) bottles.Add(pick);
                     previous = pick;
                 }
-                feeders.Add(new FeederDefinition(mergeAt, bottles));
+                feeders.Add(bottles);
             }
-            return new LoopDefinition(spec.Rows, spec.Width, spec.PickRows, feeders);
+            return new LoopDefinition(spec.Conveyor, feeders);
         }
 
         private bool Construct(LevelSpec spec, LoopDefinition loop, List<List<CapColor>> lanes, List<int> solution)

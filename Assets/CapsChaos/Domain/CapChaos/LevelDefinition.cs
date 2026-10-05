@@ -3,8 +3,9 @@ using System.Collections.Generic;
 
 namespace Game.Domain
 {
-    /// <summary>A feeder as authored (GDD R4): it joins the oval at track position <see cref="MergeAt"/>; its
-    /// <see cref="Bottles"/> queue row by row — bottle <c>i</c> on track <c>i % width</c>, bottle 0 joins first.</summary>
+    /// <summary>A feeder as played (GDD R4): it joins the loop at track position <see cref="MergeAt"/> (from the
+    /// conveyor); its <see cref="Bottles"/> (from the level) queue row by row — bottle <c>i</c> on track
+    /// <c>i % width</c>, bottle 0 joins first.</summary>
     public sealed class FeederDefinition
     {
         public int MergeAt { get; }
@@ -16,27 +17,51 @@ namespace Game.Domain
         }
     }
 
-    /// <summary>The oval conveyor as authored (GDD R1–R4). Immutable.</summary>
+    /// <summary>
+    /// The top conveyor as played (GDD R1–R4): a shared <see cref="ConveyorDefinition"/> (the layout — rows, pick zone,
+    /// shape, merge points) filled with ONE level's bottles (each feeder's queue, optional initial rows). Immutable.
+    /// </summary>
     public sealed class LoopDefinition
     {
         public const int DefaultWidth = 4;
 
-        /// <summary>Rows of belt round the oval.</summary>
-        public int Rows { get; }
+        /// <summary>The layout this belt runs on — the conveyor file the level names.</summary>
+        public ConveyorDefinition Conveyor { get; }
+        /// <summary>Rows of belt round the loop.</summary>
+        public int Rows => Conveyor.Rows;
         /// <summary>Bottle spots per row.</summary>
-        public int Width { get; }
+        public int Width => Conveyor.Width;
         /// <summary>The pick zone: track positions <c>0 .. PickRows−1</c>, the front straight in front of the slots.</summary>
-        public int PickRows { get; }
+        public int PickRows => Conveyor.PickRows;
+        /// <summary>One per conveyor feeder, in its order: the merge point and this level's bottles for it.</summary>
         public IReadOnlyList<FeederDefinition> Feeders { get; }
         /// <summary>Optional: the belt's content at the start, <c>Initial[row][track]</c> (None = empty spot). Null =
         /// the feeders fill the belt as it turns once round before the round starts.</summary>
         public IReadOnlyList<IReadOnlyList<CapColor>> Initial { get; }
 
+        /// <summary>A level's bottles on a shared conveyor: <paramref name="feederBottles"/>[f] is what conveyor feeder
+        /// f carries — exactly one entry per conveyor feeder.</summary>
+        public LoopDefinition(ConveyorDefinition conveyor, IReadOnlyList<IReadOnlyList<CapColor>> feederBottles,
+            IReadOnlyList<IReadOnlyList<CapColor>> initial = null)
+        {
+            Conveyor = conveyor ?? throw new ArgumentNullException(nameof(conveyor));
+            if (feederBottles == null) throw new ArgumentNullException(nameof(feederBottles));
+            if (feederBottles.Count != conveyor.FeederCount)
+                throw new ArgumentException($"{feederBottles.Count} feeder queue(s) for a conveyor with {conveyor.FeederCount} feeder(s)", nameof(feederBottles));
+            var feeders = new List<FeederDefinition>(feederBottles.Count);
+            for (int f = 0; f < feederBottles.Count; f++) feeders.Add(new FeederDefinition(conveyor.MergeAt[f], feederBottles[f]));
+            Feeders = feeders;
+            Initial = initial;
+        }
+
+        /// <summary>A belt whose layout is built in code (tests): an anonymous oval conveyor — playable, not writable.</summary>
         public LoopDefinition(int rows, int width, int pickRows, IReadOnlyList<FeederDefinition> feeders,
             IReadOnlyList<IReadOnlyList<CapColor>> initial = null)
         {
-            Rows = rows; Width = width; PickRows = pickRows;
             Feeders = feeders ?? throw new ArgumentNullException(nameof(feeders));
+            var mergeAt = new List<int>(feeders.Count);
+            foreach (var f in feeders) mergeAt.Add(f.MergeAt);
+            Conveyor = new ConveyorDefinition(null, rows, width, pickRows, mergeAt);
             Initial = initial;
         }
 
@@ -93,7 +118,7 @@ namespace Game.Domain
     /// <summary>One level, fully data-driven (GDD §6). Immutable; build it with <see cref="LevelJson.Parse"/>.</summary>
     public sealed class LevelDefinition
     {
-        public const int CurrentFormatVersion = 3;
+        public const int CurrentFormatVersion = 4;
         public const int DefaultSlots = 4;
         public const int DefaultExtraSlots = 2;
         /// <summary>Open plus locked slots never exceed this (the slot bar's width).</summary>
@@ -112,8 +137,10 @@ namespace Game.Domain
         /// <summary><c>Lanes[j][0]</c> is the tappable front tray of conveyor j.</summary>
         public IReadOnlyList<IReadOnlyList<CapColor>> Lanes { get; }
         public string CameraPreset { get; }
-        /// <summary>How the loop is drawn (presentation only; <see cref="LoopShape.Default"/> = the oval).</summary>
-        public LoopShape Shape { get; }
+        /// <summary>The shared top-conveyor layout this level runs on (<c>Conveyors/&lt;id&gt;.json</c>).</summary>
+        public ConveyorDefinition Conveyor => Loop.Conveyor;
+        /// <summary>How the loop is drawn (presentation only; the conveyor's; <see cref="LoopShape.Default"/> = the oval).</summary>
+        public LoopShape Shape => Loop.Conveyor.Shape;
         public string Name { get; }
         public string Difficulty { get; }
         public string Notes { get; }
@@ -135,10 +162,9 @@ namespace Game.Domain
             string name = null, string difficulty = null, string notes = null,
             int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null,
             IEnumerable<TrayRef> hiddenTrays = null, IReadOnlyList<TrayLock> locks = null, IReadOnlyList<TrayLink> links = null,
-            int extraSlots = 0, LoopShape loopShape = null, IReadOnlyDictionary<TrayRef, TraySize> traySizes = null)
+            int extraSlots = 0, IReadOnlyDictionary<TrayRef, TraySize> traySizes = null)
         {
             TraySizes = traySizes ?? new Dictionary<TrayRef, TraySize>();
-            Shape = loopShape ?? LoopShape.Default;
             ExtraSlots = extraSlots;
             _hidden = hiddenTrays != null ? new HashSet<TrayRef>(hiddenTrays) : new HashSet<TrayRef>();
             HiddenTrays = _hidden;

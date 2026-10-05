@@ -11,8 +11,9 @@ namespace Game.Application
 
     /// <summary>
     /// The play order and every level, parsed and validated ONCE at boot (GDD §6). The boot node
-    /// (<c>LevelConfigNode</c>) fetches the raw text from <c>Content/LevelConfig/</c> and hands it to
-    /// <see cref="Populate"/>; after that <see cref="Get"/> is a plain lookup — no I/O, no parsing mid-game.
+    /// (<c>LevelConfigNode</c>) fetches the raw text from <c>Content/LevelConfig/</c> — the levels, then the shared
+    /// conveyor files they name (<c>Conveyors/</c>) — and hands it to <see cref="Populate"/>; after that
+    /// <see cref="Get"/> is a plain lookup — no I/O, no parsing mid-game.
     /// A level that fails V1–V5 is REFUSED with every problem named, and a refused level fails the whole
     /// load: the runtime never plays a malformed level. V6 (solvability) is CI's job
     /// (ContentLevelsTests / LevelTool validate), not a boot cost.
@@ -62,20 +63,25 @@ namespace Game.Application
         /// one <see cref="LevelLoadException"/> naming every broken level, and the catalog stays as it was.
         /// </summary>
         /// <param name="levelTexts">Level id → JSON text; a missing id is a "listed but not found" problem.</param>
-        public void Populate(IReadOnlyList<string> order, IReadOnlyDictionary<string, string> levelTexts)
+        /// <param name="conveyorTexts">Conveyor id → JSON text, for (at least) every conveyor the levels name; a
+        /// conveyor a level names but that is missing here is that level's problem.</param>
+        public void Populate(IReadOnlyList<string> order, IReadOnlyDictionary<string, string> levelTexts,
+            IReadOnlyDictionary<string, string> conveyorTexts)
         {
             if (order == null) throw new ArgumentNullException(nameof(order));
             if (levelTexts == null) throw new ArgumentNullException(nameof(levelTexts));
+            if (conveyorTexts == null) throw new ArgumentNullException(nameof(conveyorTexts));
             if (order.Count == 0) throw new LevelLoadException(IndexFile + " lists no levels");
 
             var problems = new List<string>();
+            var conveyors = ParseConveyors(conveyorTexts, problems);
             var levels = new List<LevelDefinition>(order.Count);
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (string id in order)
             {
                 if (!seen.Add(id)) { problems.Add($"{id}: listed twice in {IndexFile}"); continue; }
                 if (!levelTexts.TryGetValue(id, out var text) || text == null) { problems.Add($"{id}: listed in the index but not found"); continue; }
-                var parsed = LevelJson.Parse(text);
+                var parsed = LevelJson.Parse(text, conveyors);
                 if (!parsed.Ok) { problems.Add($"{id}: " + string.Join("; ", parsed.Errors)); continue; }
                 var semantic = LevelValidator.Validate(parsed.Level);
                 if (semantic.Count > 0) { problems.Add($"{id}: " + string.Join("; ", semantic)); continue; }
@@ -87,6 +93,22 @@ namespace Game.Application
             _order = new List<string>(order);
             _levels = levels;
             IsLoaded = true;
+        }
+
+        /// <summary>Every conveyor text → the library the levels are parsed against. A broken conveyor is reported
+        /// once, by file, and left out — the levels naming it then fail on their own <c>$.conveyor</c>.</summary>
+        private static ConveyorLibrary ParseConveyors(IReadOnlyDictionary<string, string> texts, List<string> problems)
+        {
+            var library = new ConveyorLibrary();
+            foreach (var pair in texts)
+            {
+                string file = ConveyorJson.FileOf(pair.Key);
+                var parsed = ConveyorJson.Parse(pair.Value);
+                if (!parsed.Ok) { problems.Add($"{file}: " + string.Join("; ", parsed.Errors)); continue; }
+                if (parsed.Conveyor.Id != pair.Key) { problems.Add($"{file}: file declares id '{parsed.Conveyor.Id}'"); continue; }
+                library.Add(parsed.Conveyor);
+            }
+            return library;
         }
     }
 }

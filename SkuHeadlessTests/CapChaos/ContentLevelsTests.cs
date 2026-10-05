@@ -7,8 +7,9 @@ using NUnit.Framework;
 namespace CapsChaos.SkuHeadlessTests.CapChaos
 {
     /// <summary>
-    /// The shipped level content (Assets/CapsChaos/Content/LevelConfig) passes V1–V6 and the play order is
-    /// consistent. Derived from the folder, so a level added tomorrow is covered without editing this file.
+    /// The shipped level content (Assets/CapsChaos/Content/LevelConfig) passes V1–V9 and the play order is
+    /// consistent; every shared conveyor in <c>Conveyors/</c> is valid and named by its file. Derived from the folders,
+    /// so a level or conveyor added tomorrow is covered without editing this file.
     /// </summary>
     public sealed class ContentLevelsTests
     {
@@ -19,6 +20,26 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
                 ? Directory.GetFiles(Dir, "level_*.json").OrderBy(f => f, System.StringComparer.Ordinal).Select(Path.GetFileName)!
                 : Enumerable.Empty<string>();
 
+        private static string ConveyorDir => Path.Combine(Dir, ConveyorJson.Folder);
+
+        private static IEnumerable<string> ConveyorFiles() =>
+            Directory.Exists(ConveyorDir)
+                ? Directory.GetFiles(ConveyorDir, "*.json").OrderBy(f => f, System.StringComparer.Ordinal).Select(Path.GetFileName)!
+                : Enumerable.Empty<string>();
+
+        private static ConveyorLibrary Library() =>
+            new ConveyorLibrary(ConveyorFiles().Select(f => ConveyorJson.Parse(File.ReadAllText(Path.Combine(ConveyorDir, f))).Conveyor)
+                                               .Where(c => c != null)!);
+
+        [TestCaseSource(nameof(ConveyorFiles))]
+        public void Conveyor_is_valid_and_named_by_its_file(string file)
+        {
+            var parsed = ConveyorJson.Parse(File.ReadAllText(Path.Combine(ConveyorDir, file)));
+            Assert.That(parsed.Errors, Is.Empty, "V1");
+            Assert.That(parsed.Conveyor!.Id, Is.EqualTo(Path.GetFileNameWithoutExtension(file)), "V1 id = file name");
+            Assert.That(ConveyorValidator.Validate(parsed.Conveyor), Is.Empty, "V8–V9");
+        }
+
         [Test]
         public void There_is_content()
         {
@@ -28,10 +49,10 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [TestCaseSource(nameof(LevelFiles))]
         public void Level_is_valid_and_provably_solvable(string file)
         {
-            var parsed = LevelJson.Parse(File.ReadAllText(Path.Combine(Dir, file)));
+            var parsed = LevelJson.Parse(File.ReadAllText(Path.Combine(Dir, file)), Library());
             Assert.That(parsed.Errors, Is.Empty, "V1");
             Assert.That(parsed.Level!.Id, Is.EqualTo(Path.GetFileNameWithoutExtension(file)), "V1 id = file name");
-            Assert.That(LevelValidator.Validate(parsed.Level), Is.Empty, "V2–V5");
+            Assert.That(LevelValidator.Validate(parsed.Level), Is.Empty, "V2–V5, V7–V9");
             var proof = LevelSolver.Prove(parsed.Level);
             Assert.That(proof.Status, Is.EqualTo(SolveStatus.Solvable), $"V6 ({proof.NodesExplored} nodes)");
         }

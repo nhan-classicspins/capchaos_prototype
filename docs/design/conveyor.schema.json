@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://classicspins.local/capschaos/conveyor.schema.json",
+  "title": "Cap Chaos top conveyor — format v1",
+  "description": "The LAYOUT of the top conveyor (GDD R1–R4, §6.2b), shared by every level that names it (`conveyor` in level.schema.json): the loop's rows, bottles per row, pick zone, drawn shape and where each feeder merges. No bottles — a level supplies those. One file per layout in Assets/CapsChaos/Content/LevelConfig/Conveyors/<id>.json. Structural checks live here; V8 (pick zone, merge points) and V9 (shape) are ConveyorValidator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "id", "rows", "pickRows", "feeders"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "formatVersion": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,47}$",
+      "description": "Must equal the file name without extension. Convention: <shape>_<rows>_<feeders>f, e.g. oval_16_1f."
+    },
+    "rows": {
+      "type": "integer",
+      "minimum": 8,
+      "maximum": 64,
+      "description": "Rows of belt round the loop. Track position 0 is the first row of the pick zone (the front edge, in front of the slots); positions grow in the direction of travel."
+    },
+    "width": { "type": "integer", "minimum": 1, "maximum": 6, "default": 4, "description": "Bottle spots per row." },
+    "pickRows": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Rows of the pick zone, track positions 0..pickRows-1. V8: rows ≥ 2 × pickRows + 6."
+    },
+    "shape": {
+      "description": "How the loop is drawn (presentation only; the rules never read it). A preset, or a rounded convex polygon: corners [x, z] clockwise seen from above, corner 0 → 1 the front edge (level, lowest, right → left, in front of the slots), each rounded by its radius (V9). Absent = oval.",
+      "default": "oval",
+      "oneOf": [
+        { "type": "string", "enum": ["oval", "circle", "triangle"] },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["points", "radius"],
+          "properties": {
+            "points": {
+              "type": "array",
+              "minItems": 3,
+              "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"} }
+            },
+            "radius": {
+              "oneOf": [
+                { "type": "number", "exclusiveMinimum": 0 },
+                { "type": "array", "items": {"type": "number", "exclusiveMinimum": 0} }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "feeders": {
+      "type": "array",
+      "maxItems": 2,
+      "description": "At most 2 queues that join the loop (R4), a whole queue row at a time: mergeAt is the queue's entrance, and its front row steps onto the free belt row nearest it (within 2 rows either way, outside the pick zone) that is empty on every track it needs. A level gives one bottle queue per feeder, in this order.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mergeAt"],
+        "properties": {
+          "mergeAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Track position the feeder joins at. V8: outside the pick zone, one feeder per position."
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "name": {"type": "string"}, "notes": {"type": "string"} }
+    }
+  }
+}

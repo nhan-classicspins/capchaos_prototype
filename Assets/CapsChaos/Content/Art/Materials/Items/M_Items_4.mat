@@ -46,6 +46,6 @@ Material:
     - _UseMobileMode: 1
     m_Colors:
     - _EmissionColor: {r: 0.5, g: 0.43399382, b: 0.12971699, a: 1}
-    - _OutlineColor: {r: 0.4056604, g: 0.29983595, b: 0, a: 1}
+    - _OutlineColor: {r: 0.8207547, g: 0.60384095, b: 0, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -11,8 +11,9 @@ namespace CapsChaos.LevelTool
 {
     /// <summary>
     ///   LevelTool generate [--specs P] [--out DIR] [--check]   build seed levels (--check: exit 1 if any file would change)
-    ///   LevelTool validate [--dir DIR] [--budget N]            V1–V7 over every level_*.json + the index
-    ///   LevelTool migrate  [--dir DIR] [--check]               rewrite every level_*.json in the current format, content unchanged
+    ///   LevelTool validate [--dir DIR] [--budget N]            V1–V9 over every Conveyors/*.json, every level_*.json + the index
+    ///   LevelTool migrate  [--dir DIR] [--check]               rewrite every conveyor and level file in the current format, content unchanged
+    /// Levels name a shared conveyor layout in DIR/Conveyors/&lt;id&gt;.json (GDD §6.2b); generate never writes one.
     /// Exit codes (framework CLI contract): 0 Ok · 1 Drift · 2 Error.
     /// </summary>
     public static class Program
@@ -33,6 +34,8 @@ namespace CapsChaos.LevelTool
                 {
                     case "generate":
                         return Generate(Path.Combine(root, Get(opts, "specs", DefaultSpecs)), Path.Combine(root, Get(opts, "out", DefaultDir)), opts.ContainsKey("check"));
+                    case "conveyors":
+                        return Conveyors(Path.Combine(root, Get(opts, "dir", DefaultDir)));
                     case "validate":
                         return Validate(Path.Combine(root, Get(opts, "dir", DefaultDir)),
                             int.Parse(Get(opts, "budget", LevelSolver.DefaultNodeBudget.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture));
@@ -53,18 +56,19 @@ namespace CapsChaos.LevelTool
 
         private static int Usage()
         {
-            Console.Error.WriteLine("usage: LevelTool generate [--specs P] [--out DIR] [--check] | validate [--dir DIR] [--budget N] | migrate [--dir DIR] [--check] | stats [--dir DIR] [--plays N]");
+            Console.Error.WriteLine("usage: LevelTool generate [--specs P] [--out DIR] [--check] | validate [--dir DIR] [--budget N] | migrate [--dir DIR] [--check] | stats [--dir DIR] [--plays N] | conveyors [--dir DIR]");
             return Error;
         }
 
         // ── generate ─────────────────────────────────────────────────────────────────────────
         private static int Generate(string specsPath, string outDir, bool check)
         {
-            var specs = ReadSpecs(specsPath);
+            var library = LoadLibrary(outDir);
+            var specs = ReadSpecs(specsPath, library);
             Directory.CreateDirectory(outDir);
             var drift = new List<string>();
             var ids = new List<string>();
-            Console.WriteLine($"{"id",-11} {"seed",6} {"colors",-6} {"bottles",7} {"trays",5} {"rows",4} {"feeders",7} {"tries",5}  lanes");
+            Console.WriteLine($"{"id",-11} {"seed",6} {"colors",-6} {"bottles",7} {"trays",5} {"conveyor",-15} {"tries",5}  lanes");
             foreach (var (spec, seed) in specs)
             {
                 var gen = new LevelGenerator(new Pcg32(seed)).Generate(spec);
@@ -78,7 +82,7 @@ namespace CapsChaos.LevelTool
                 ids.Add(spec.Id);
 
                 int bottles = gen.Level.Loop.AllBottles().Count();
-                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {bottles / spec.TrayCapacity,5} {gen.Level.Loop.Rows,4} {gen.Level.Loop.Feeders.Count,7} {gen.Attempts,5}  " +
+                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {bottles / spec.TrayCapacity,5} {spec.Conveyor.Id,-15} {gen.Attempts,5}  " +
                                   string.Join(" ", gen.Level.Lanes.Select(l => l.Count)));
             }
             int generated = ids.Count;
@@ -110,17 +114,30 @@ namespace CapsChaos.LevelTool
 
         // ── migrate ──────────────────────────────────────────────────────────────────────────
         /// <summary>
-        /// Read every level in whatever format it is in and write it back in the current one (LevelJson.Write). The
-        /// level itself does not change — hand edits, hand-authored levels and solutions survive. --check: exit 1 if a
-        /// file is not in the current format yet.
+        /// Read every conveyor and level and write it back in the current layout (ConveyorJson.Write / LevelJson.Write).
+        /// Nothing changes but the formatting — hand edits, hand-authored levels and solutions survive. --check: exit 1
+        /// if a file is not in the current layout yet.
         /// </summary>
         private static int Migrate(string dir, bool check)
         {
             var drift = new List<string>();
             int failed = 0;
+            var library = new ConveyorLibrary();
+            foreach (var f in ConveyorFiles(dir))
+            {
+                var parsed = ConveyorJson.Parse(File.ReadAllText(f));
+                if (!parsed.Ok)
+                {
+                    failed++;
+                    foreach (var e in parsed.Errors) Console.WriteLine($"FAIL {ConveyorJson.Folder}/{Path.GetFileName(f)}: {e}");
+                    continue;
+                }
+                library.Add(parsed.Conveyor);
+                Emit(f, ConveyorJson.Write(parsed.Conveyor), check, drift);
+            }
             foreach (var f in Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal))
             {
-                var parsed = LevelJson.Parse(File.ReadAllText(f));
+                var parsed = LevelJson.Parse(File.ReadAllText(f), library);
                 if (!parsed.Ok)
                 {
                     failed++;
@@ -140,16 +157,29 @@ namespace CapsChaos.LevelTool
         private static int Validate(string dir, int budget)
         {
             int bad = 0;
+            var library = new ConveyorLibrary();
+            var conveyorFiles = ConveyorFiles(dir);
+            foreach (var f in conveyorFiles)
+            {
+                var problems = ConveyorProblems(f, out var conveyor);
+                if (conveyor != null && problems.Count == 0) library.Add(conveyor);
+                Console.WriteLine($"{(problems.Count == 0 ? "ok  " : "FAIL")} {ConveyorJson.Folder}/{Path.GetFileName(f)}");
+                foreach (var p in problems) Console.WriteLine("       " + p);
+                if (problems.Count > 0) bad++;
+            }
+
+            var used = new HashSet<string>(StringComparer.Ordinal);
             var files = Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal).ToList();
             foreach (var f in files)
             {
                 var problems = new List<string>();
-                var parsed = LevelJson.Parse(File.ReadAllText(f));
+                var parsed = LevelJson.Parse(File.ReadAllText(f), library);
                 problems.AddRange(parsed.Errors.Select(e => "V1 " + e));
                 string idFromFile = Path.GetFileNameWithoutExtension(f);
                 SolveReport proof = null;
                 if (parsed.Ok)
                 {
+                    used.Add(parsed.Level.Conveyor.Id);
                     if (parsed.Level.Id != idFromFile) problems.Add($"V1 $.id: '{parsed.Level.Id}' ≠ file name '{idFromFile}'");
                     problems.AddRange(LevelValidator.Validate(parsed.Level));
                     if (problems.Count == 0)
@@ -168,7 +198,9 @@ namespace CapsChaos.LevelTool
             foreach (var p in indexProblems) Console.WriteLine("FAIL index: " + p);
             if (indexProblems.Count > 0) bad++;
 
-            Console.WriteLine(bad == 0 ? $"ok: {files.Count} levels valid and solvable" : $"{bad} problem file(s)");
+            foreach (var c in library.All.Where(c => !used.Contains(c.Id)).OrderBy(c => c.Id, StringComparer.Ordinal))
+                Console.WriteLine($"note: conveyor '{c.Id}' is not used by any level");
+            Console.WriteLine(bad == 0 ? $"ok: {conveyorFiles.Count} conveyors and {files.Count} levels valid, every level solvable" : $"{bad} problem file(s)");
             return bad == 0 ? Ok : Error;
         }
 
@@ -180,9 +212,10 @@ namespace CapsChaos.LevelTool
             const long seed = 20260930;
             Console.WriteLine($"random-play seed {seed}, {plays} plays per level");
             Console.WriteLine($"{"id",-11} {"difficulty",-9} {"trays",5} {"random win",10} {"solver nodes",12} {"dead-end",8}");
+            var library = LoadLibrary(dir);
             foreach (var f in Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal))
             {
-                var level = LevelJson.Parse(File.ReadAllText(f)).Level;
+                var level = LevelJson.Parse(File.ReadAllText(f), library).Level;
                 if (level == null) { Console.WriteLine($"{Path.GetFileName(f)}: does not parse (run validate)"); continue; }
                 var rng = new Pcg32(seed);
                 int wins = 0;
@@ -221,8 +254,65 @@ namespace CapsChaos.LevelTool
             return problems;
         }
 
+        // ── conveyors ───────────────────────────────────────────────────────────────────────
+        /// <summary>Every conveyor and how many levels run on it — which layouts there are to reuse.</summary>
+        private static int Conveyors(string dir)
+        {
+            var library = LoadLibrary(dir);
+            var uses = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var f in Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal))
+            {
+                string id = LevelJson.ConveyorIdOf(File.ReadAllText(f)) ?? "?";
+                if (!uses.TryGetValue(id, out var list)) uses[id] = list = new List<string>();
+                list.Add(Path.GetFileNameWithoutExtension(f));
+            }
+            Console.WriteLine($"{"conveyor",-15} {"shape",-8} {"rows",4} {"width",5} {"pick",4} {"mergeAt",-9} levels");
+            foreach (var c in library.All.OrderBy(c => c.Id, StringComparer.Ordinal))
+            {
+                var levels = uses.TryGetValue(c.Id, out var l) ? l : new List<string>();
+                Console.WriteLine($"{c.Id,-15} {c.Shape.Preset ?? "custom",-8} {c.Rows,4} {c.Width,5} {c.PickRows,4} {string.Join(",", c.MergeAt),-9} " +
+                                  (levels.Count == 0 ? "(unused)" : string.Join(" ", levels)));
+            }
+            return Ok;
+        }
+
+        private static List<string> ConveyorFiles(string dir)
+        {
+            string folder = Path.Combine(dir, ConveyorJson.Folder);
+            return Directory.Exists(folder)
+                ? Directory.GetFiles(folder, "*.json").OrderBy(f => f, StringComparer.Ordinal).ToList()
+                : new List<string>();
+        }
+
+        /// <summary>V1 (structure, id = file name) and V8/V9 for one conveyor file.</summary>
+        private static List<string> ConveyorProblems(string file, out ConveyorDefinition conveyor)
+        {
+            var problems = new List<string>();
+            var parsed = ConveyorJson.Parse(File.ReadAllText(file));
+            conveyor = parsed.Conveyor;
+            problems.AddRange(parsed.Errors.Select(e => "V1 " + e));
+            if (conveyor == null) return problems;
+            string idFromFile = Path.GetFileNameWithoutExtension(file);
+            if (conveyor.Id != idFromFile) problems.Add($"V1 $.id: '{conveyor.Id}' ≠ file name '{idFromFile}'");
+            problems.AddRange(ConveyorValidator.Validate(conveyor));
+            return problems;
+        }
+
+        /// <summary>The conveyor library under DIR; any broken conveyor file is an error (run validate for the detail).</summary>
+        private static ConveyorLibrary LoadLibrary(string dir)
+        {
+            var library = new ConveyorLibrary();
+            foreach (var f in ConveyorFiles(dir))
+            {
+                var problems = ConveyorProblems(f, out var conveyor);
+                if (problems.Count > 0) throw new InvalidDataException($"{ConveyorJson.Folder}/{Path.GetFileName(f)}: {string.Join("; ", problems)}");
+                library.Add(conveyor);
+            }
+            return library;
+        }
+
         // ── specs ────────────────────────────────────────────────────────────────────────────
-        private static List<(LevelSpec spec, long seed)> ReadSpecs(string path)
+        private static List<(LevelSpec spec, long seed)> ReadSpecs(string path, ConveyorLibrary library)
         {
             var root = JsonReader.Parse(File.ReadAllText(path));
             if (!root.TryGet("levels", out var levels)) throw new InvalidDataException("specs: 'levels' missing");
@@ -238,13 +328,14 @@ namespace CapsChaos.LevelTool
                     Lanes = (int)N(l, "lanes", 3),
                     Greed = N(l, "greed", 0.6),
                     Clustering = N(l, "clustering", 0.3),
-                    Rows = (int)N(l, "rows", 24),
-                    Width = (int)N(l, "width", LoopDefinition.DefaultWidth),
-                    PickRows = (int)N(l, "pickRows", 5),
-                    Shape = LoopShape.Named(S(l, "shape") ?? LoopShape.Oval),
                 };
-                if (!l.TryGet("feeders", out var feeders)) throw new InvalidDataException($"{spec.Id}: 'feeders' missing");
-                foreach (var f in feeders.Items) spec.Feeders.Add(((int)N(f, "mergeAt", -1), (int)N(f, "bottles", 0)));
+                string conveyor = S(l, "conveyor") ?? throw new InvalidDataException($"{spec.Id}: 'conveyor' missing");
+                if (!library.TryGet(conveyor, out var c))
+                    throw new InvalidDataException($"{spec.Id}: conveyor '{conveyor}' not found ({ConveyorJson.FileOf(conveyor)})");
+                spec.Conveyor = c;
+                if (!l.TryGet("feeders", out var feeders) || feeders.Kind != JsonKind.Array)
+                    throw new InvalidDataException($"{spec.Id}: 'feeders' missing — bottles per conveyor feeder, e.g. [64, 32]");
+                foreach (var f in feeders.Items) spec.FeederBottles.Add((int)f.Number);
                 list.Add((spec, (long)N(l, "seed", 1)));
             }
             return list;

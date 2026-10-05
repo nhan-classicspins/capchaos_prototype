@@ -206,7 +206,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var text = LevelJson.Write(l);
             Assert.That(text, Does.Contain("[{ \"color\": 1 }, { \"color\": 2, \"hidden\": true, \"lockTurns\": 3 }]")
                 .And.Contain("{ \"a\": { \"lane\": 1, \"tray\": 0 }, \"b\": { \"lane\": 1, \"tray\": 1 } }"));
-            var back = LevelJson.Parse(text);
+            var back = LevelJson.Parse(text, Conveyors(l));
             Assert.That(back.Errors, Is.Empty);
             Assert.That(back.Level!.IsHiddenTray(new TrayRef(0, 1)), Is.True);
             Assert.That(back.Level.IsHiddenTray(new TrayRef(0, 0)), Is.False);

@@ -10,6 +10,12 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
     /// <c>locks</c> as {lane, tray, turns}, <c>links</c> as {laneA, trayA, laneB, trayB}, <c>sizes</c> as {lane, tray, size 1–4}.</summary>
     internal static class LevelBuilder
     {
+        /// <summary>The conveyor every built level runs on — its layout comes from the builder's arguments.</summary>
+        public const string ConveyorId = "test_loop";
+
+        /// <summary>The library a written built level parses back against: just its own conveyor.</summary>
+        public static ConveyorLibrary Conveyors(LevelDefinition level) => new ConveyorLibrary(new[] { level.Conveyor });
+
         public static LevelDefinition Level(string[] belt, string[] lanes, int slots = 3, int capacity = 4, string colors = null,
             int[][] locks = null, int[][] links = null, int rows = 8, int pickRows = 1, string[] feeders = null, int[] mergeAt = null, int width = 0, int extraSlots = 0, int[][] sizes = null)
         {
@@ -24,9 +30,11 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             for (int r = 0; r < System.Math.Max(rows, belt.Length); r++)
                 initial.Add(Enumerable.Range(0, width)
                     .Select(k => r < belt.Length && belt[r][k] != '.' ? CapColorCodes.Parse(belt[r][k]) : CapColor.None).ToList());
-            var feederList = (feeders ?? new string[0])
-                .Select((f, i) => new FeederDefinition(mergeAt?[i] ?? rows - 1 - i, CapColorCodes.ParseList(f))).ToList();
-            var loop = new LoopDefinition(initial.Count, width, pickRows, feederList, belt.Length > 0 ? initial : null);
+            var feederList = feeders ?? new string[0];
+            var conveyor = new ConveyorDefinition(ConveyorId, initial.Count, width, pickRows,
+                feederList.Select((f, i) => mergeAt?[i] ?? rows - 1 - i).ToList());
+            var loop = new LoopDefinition(conveyor,
+                feederList.Select(f => (IReadOnlyList<CapColor>)CapColorCodes.ParseList(f)).ToList(), belt.Length > 0 ? initial : null);
 
             var laneList = lanes.Select(l => (IReadOnlyList<CapColor>)CapColorCodes.ParseList(l.ToUpperInvariant())).ToList();
             var hidden = new List<TrayRef>();

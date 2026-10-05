@@ -3,8 +3,9 @@ using System.Collections.Generic;
 namespace Game.Domain
 {
     /// <summary>
-    /// Semantic level checks V4, V5, V7, V8 and V9 (GDD §6.4). V1 (structure) is <see cref="LevelJson.Parse"/>; V6
-    /// (solvability) is <see cref="LevelSolver"/>. Every problem is reported, not just the first.
+    /// Semantic level checks V4, V5, V7, V8 and V9 (GDD §6.4) — V8/V9 on the level's conveyor through
+    /// <see cref="ConveyorValidator"/>. V1 (structure) is <see cref="LevelJson.Parse"/>; V6 (solvability) is
+    /// <see cref="LevelSolver"/>. Every problem is reported, not just the first.
     /// </summary>
     public static class LevelValidator
     {
@@ -19,10 +20,10 @@ namespace Game.Domain
             if (lp.Initial != null)
                 for (int r = 0; r < lp.Initial.Count; r++)
                     for (int k = 0; k < lp.Initial[r].Count; k++)
-                        Count(lp.Initial[r][k], $"loop.initial[{r}][{k}]");
+                        Count(lp.Initial[r][k], $"initial[{r}][{k}]");
             for (int f = 0; f < lp.Feeders.Count; f++)
                 for (int i = 0; i < lp.Feeders[f].Bottles.Count; i++)
-                    Count(lp.Feeders[f].Bottles[i], $"loop.feeders[{f}].bottles[{i}]");
+                    Count(lp.Feeders[f].Bottles[i], $"feeders[{f}].bottles[{i}]");
 
             void Count(CapColor c, string where)
             {
@@ -47,33 +48,12 @@ namespace Game.Domain
                 else if (b != t)
                     errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} tray places (trays × size × trayCapacity {level.TrayCapacity})");
             }
-            ValidateLoop(lp, errors);
-            var shape = level.Shape;
-            if (shape.Preset == null) errors.AddRange(LoopShape.Check(shape.Xs, shape.Zs, shape.Radii, "V9 view.loopShape"));
+            errors.AddRange(ConveyorValidator.Validate(lp.Conveyor));
+            for (int f = 0; f < lp.Feeders.Count; f++)
+                if (lp.Feeders[f].Bottles.Count == 0) errors.Add($"V8 feeders[{f}].bottles: a feeder carries at least one bottle");
             ValidateTrayModifiers(level, errors);
             return errors;
         }
-
-        /// <summary>V8: the oval has a straight on each side of its two bends (the pick zone is less than half of it);
-        /// every merge point is on the track, outside the pick zone and used by one feeder only; a feeder carries bottles.</summary>
-        private static void ValidateLoop(LoopDefinition lp, List<string> errors)
-        {
-            if (lp.PickRows * 2 + MinBendRows > lp.Rows)
-                errors.Add($"V8 loop.pickRows: {lp.PickRows} pick rows need rows ≥ {lp.PickRows * 2 + MinBendRows} (two straights + the bends), not {lp.Rows}");
-            var merges = new HashSet<int>();
-            for (int f = 0; f < lp.Feeders.Count; f++)
-            {
-                var fd = lp.Feeders[f];
-                string where = $"V8 loop.feeders[{f}]";
-                if (fd.MergeAt < 0 || fd.MergeAt >= lp.Rows) errors.Add($"{where}.mergeAt: {fd.MergeAt} is not a track position 0..{lp.Rows - 1}");
-                else if (fd.MergeAt < lp.PickRows) errors.Add($"{where}.mergeAt: {fd.MergeAt} is inside the pick zone 0..{lp.PickRows - 1}");
-                if (!merges.Add(fd.MergeAt)) errors.Add($"{where}.mergeAt: {fd.MergeAt} is another feeder's merge point");
-                if (fd.Bottles.Count == 0) errors.Add($"{where}.bottles: a feeder carries at least one bottle");
-            }
-        }
-
-        /// <summary>Rows the two bends of the oval take at least, so the belt can turn round its own width.</summary>
-        public const int MinBendRows = 6;
 
         /// <summary>V7: every lock / link names a real tray; a link joins two neighbours (same lane, consecutive — or
         /// two neighbouring lanes, same position); a tray is in at most one link and is never both linked and locked.</summary>

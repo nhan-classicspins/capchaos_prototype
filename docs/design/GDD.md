@@ -142,7 +142,7 @@ chat 2026-10-02; mô hình dưới đây là bản chuyển sang chai.
   `FeederEntryRows` (3) hàng về phía hạ nguồn. Vị trí nên dùng (B = số hàng mỗi khúc cua): **phải** `rows − B/2 − 3`,
   **trái** là ảnh gương `rows + pickRows − mergeAt(phải) − 2` (vẽ đối xứng gương với hàng phải). Không có hàng nào vừa thì
   hàng chờ đứng yên.
-  - Không khai `loop.initial` ⇒ oval **bắt đầu trống**: mọi chai nằm trong hàng chờ và nhập vào khi oval chạy (sửa
+  - Không khai `initial` ⇒ oval **bắt đầu trống**: mọi chai nằm trong hàng chờ và nhập vào khi oval chạy (sửa
     2026-10-02, trước đây oval được đổ đầy trước khi vào ván).
   - Mọi chai đều lộ màu. **Không còn chai ẩn** (D3).
 
@@ -256,46 +256,55 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 
 ## 6. Level = JSON (bắt buộc)
 
-[CHỐT D5] Một level được mô tả **trọn vẹn** trong **một file JSON**. Scene, prefab và ScriptableObject
-**không chứa** dữ liệu level nào: chúng chỉ là "máy chạy" level. Thêm hoặc sửa một level **không cần mở
-Unity**. Đây là machine zone: diff được, review được, test headless được.
+[CHỐT D5] Một level được mô tả **trọn vẹn** bằng JSON. Scene, prefab và ScriptableObject **không chứa** dữ liệu level
+nào: chúng chỉ là "máy chạy" level. Thêm hoặc sửa một level **không cần mở Unity**. Đây là machine zone: diff được,
+review được, test headless được.
+
+**Hai file cho mỗi level (2026-10-05).** Mỗi level gồm:
+- **file level** (`level_NNNN.json`, phần *items*): chai trong từng hàng chờ, `initial`, các làn khay và khay đặc biệt,
+  số slot, meta;
+- **file conveyor** (`Conveyors/<id>.json`, phần *layout* của băng chuyền trên): số hàng, số chai mỗi hàng, vùng lấy,
+  hình vòng băng, vị trí nhập của từng hàng chờ. **Không chứa chai.**
+
+File conveyor là **thư viện dùng chung**: level ghi `"conveyor": "<id>"`, nhiều level có thể dùng cùng một conveyor
+(22 seed level hiện dùng 9 conveyor). Đổi layout một conveyor thì mọi level dùng nó đổi theo, nên trước khi sửa hãy
+xem level nào đang dùng nó (`LevelTool conveyors`).
 
 ### 6.1 Vị trí file
 
 | File | Vai trò |
 |---|---|
 | `Assets/CapsChaos/Content/LevelConfig/level_0001.json` … | Một file cho mỗi level (TextAsset). Cả folder là **một** entry Addressables, address `LevelConfig`, nên mỗi file có address `LevelConfig/<id>.json` và level mới không cần đăng ký thêm |
+| `Assets/CapsChaos/Content/LevelConfig/Conveyors/<id>.json` | Một file cho mỗi layout băng chuyền trên, dùng chung. Nằm trong cùng entry folder, address `LevelConfig/Conveyors/<id>.json`. Lúc Loading, `LevelConfigNode` chỉ tải các conveyor mà ít nhất một level có tên |
 | `Assets/CapsChaos/Content/LevelConfig/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
 | `Game.Domain.CapColor` | Enum màu, dùng chung cho chai, tray, nắp và hộp. Trong JSON (v2) màu là **số** của enum (bảng §4) |
-| [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12), là nguồn chân lý của định dạng |
+| [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12) của file level, là nguồn chân lý của định dạng |
+| [`docs/design/conveyor.schema.json`](conveyor.schema.json) | JSON Schema của file conveyor |
 
-### 6.2 Định dạng (format v3, đổi 2026-10-02)
+### 6.2 Định dạng file level (format v4, đổi 2026-10-05)
 
-Định dạng viết cho **designer** (họ có thể tự viết tool): màu là **số** (§4), mọi cờ là **field có tên**. Format v3 thay
-`stack` bằng `loop`. File v1/v2 mô tả khối chai, không có cách chuyển tương đương sang oval: loader **từ chối** và chỉ
-về `LevelTool generate` (toàn bộ seed level đã sinh lại 2026-10-02).
+Định dạng viết cho **designer** (họ có thể tự viết tool): màu là **số** (§4), mọi cờ là **field có tên**. Format v4
+tách `loop` của v3 làm hai: layout chuyển sang file conveyor (§6.2b), level chỉ giữ chai. File v3 bị loader **từ chối**,
+kèm lỗi chỉ về cách tách. Toàn bộ 22 level đã được tách 2026-10-05, nội dung giữ nguyên. File v1/v2 mô tả khối chai,
+không có cách chuyển tương đương sang oval: loader **từ chối** và chỉ về `LevelTool generate`.
 
 ```json
 {
   "$schema": "../../../../docs/design/level.schema.json",
-  "formatVersion": 3,
+  "formatVersion": 4,
   "id": "level_0019",
+  "conveyor": "oval_20_2f",
   "slots": 4,
   "trayCapacity": 4,
   "colors": [1, 2, 3],
-  "loop": {
-    "rows": 20,
-    "width": 4,
-    "pickRows": 5,
-    "feeders": [
-      { "mergeAt": 18, "bottles": [
-        1, 1, 1, 1,
-        2, 2, 2, 2,
-        3, 3, 3, 3
-      ] },
-      { "mergeAt": 11, "bottles": [ 2, 2, 1, 1 ] }
-    ]
-  },
+  "feeders": [
+    { "bottles": [
+      1, 1, 1, 1,
+      2, 2, 2, 2,
+      3, 3, 3, 3
+    ] },
+    { "bottles": [ 2, 2, 1, 1 ] }
+  ],
   "lanes": [
     [{ "color": 3 }, { "color": 2, "hidden": true }],
     [{ "color": 1, "lockTurns": 2 }, { "color": 2 }],
@@ -313,25 +322,55 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 
 | Trường | Ý nghĩa |
 |---|---|
-| `formatVersion` | `3`. v1/v2 (khối chai) bị từ chối với lỗi chỉ về `LevelTool generate` |
+| `formatVersion` | `4`. v3 (conveyor nằm trong level) bị từ chối, chỉ về cách tách; v1/v2 (khối chai) bị từ chối, chỉ về `LevelTool generate` |
+| `conveyor` | Id của file conveyor dùng chung (`Conveyors/<id>.json`, §6.2b). Không có file đó ⇒ lỗi V1 `$.conveyor` |
 | `slots` | Số slot mở sẵn, 1–6 (mặc định 4) |
 | `extraSlots` | (tuỳ chọn, mặc định 2) số slot khoá mở được bằng coin / quảng cáo (R20); `slots + extraSlots ≤ 6` |
 | `trayCapacity` | Số nắp mỗi khay (mặc định 4) |
-| `colors` | Tập số màu dùng trong level; mọi màu trong `loop` và `lanes` phải thuộc tập này |
-| `loop.rows` | Số hàng quanh oval, 8–64 |
-| `loop.width` | (tuỳ chọn, mặc định 4) số chai mỗi hàng, 1–6 |
-| `loop.pickRows` | Số hàng của vùng lấy (giữa cạnh trước). V8: `rows ≥ 2 × pickRows + 6`. Với preset `oval`, cạnh thẳng dài đúng `pickRows` hàng; với hình khác, vùng lấy có thể tràn qua góc nếu cạnh trước ngắn hơn |
-| `loop.feeders[f].mergeAt` | Vị trí hàng chờ nhập vào oval. V8: ngoài vùng lấy, mỗi vị trí một hàng chờ |
-| `loop.feeders[f].bottles` | Hàng chờ, chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`) |
-| `loop.initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |
+| `colors` | Tập số màu dùng trong level; mọi màu trong `feeders`, `initial` và `lanes` phải thuộc tập này |
+| `feeders[f].bottles` | Hàng chờ của feeder `f` **của conveyor** (đúng thứ tự trong file conveyor, đúng số lượng feeder), chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`). Bắt buộc nếu conveyor có feeder |
+| `initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số của conveyor (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |
 | `lanes[j]` | Hàng đợi của băng khay `j` (trái → phải), mỗi phần tử là một khay. Phần tử `[0]` là khay đầu làn |
 | `lanes[j][t].color` | Số màu của khay |
 | `lanes[j][t].hidden` | (tuỳ chọn, mặc định `false`) khay **ẩn** (R17) |
 | `lanes[j][t].lockTurns` | (tuỳ chọn) khay **khoá** `n` lượt, 1–99 (R18) |
 | `links` | (tuỳ chọn) cặp khay **nối** (R19): `{ "a": { "lane": 0, "tray": 1 }, "b": { "lane": 1, "tray": 1 } }`, `tray` là chỉ số trong `lanes[lane]` |
-| `view` | (tuỳ chọn) preset camera; `loopShape`: hình vòng băng — `"oval"` (mặc định), `"circle"`, `"triangle"`, hoặc `{ "points": [[x, z], …], "radius": r \| [r, …] }` (đa giác lồi bo góc, các đỉnh theo chiều kim đồng hồ nhìn từ trên, cạnh đỉnh 0 → 1 là cạnh trước). Chỉ để vẽ, luật không đọc |
+| `view` | (tuỳ chọn) preset camera. Hình vòng băng nằm trong file conveyor |
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
 | `meta.solution` | (tuỳ chọn) chuỗi tap thắng (chỉ số làn), do LevelTool ghi. V6 chạy lại theo kiểu "tap rồi chờ bàn đứng yên" để chứng minh level giải được |
+
+### 6.2b Định dạng file conveyor (format v1, thêm 2026-10-05)
+
+Layout của băng chuyền trên (R1–R4), dùng chung giữa các level. Quy ước đặt id: `<hình>_<số hàng>_<số feeder>f`, ví dụ
+`oval_16_1f`, `triangle_28_2f`. Id phải trùng tên file.
+
+```json
+{
+  "$schema": "../../../../../docs/design/conveyor.schema.json",
+  "formatVersion": 1,
+  "id": "oval_20_2f",
+  "rows": 20,
+  "width": 4,
+  "pickRows": 5,
+  "shape": "oval",
+  "feeders": [
+    { "mergeAt": 15 },
+    { "mergeAt": 8 }
+  ],
+  "meta": { "name": "Oval vừa, 2 hàng chờ" }
+}
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `formatVersion` | `1` |
+| `id` | Chữ thường, số và `_`, bắt đầu bằng chữ, tối đa 48 ký tự; trùng tên file |
+| `rows` | Số hàng quanh oval, 8–64 |
+| `width` | (tuỳ chọn, mặc định 4) số chai mỗi hàng, 1–6 |
+| `pickRows` | Số hàng của vùng lấy (giữa cạnh trước). V8: `rows ≥ 2 × pickRows + 6`. Với preset `oval`, cạnh thẳng dài đúng `pickRows` hàng; với hình khác, vùng lấy có thể tràn qua góc nếu cạnh trước ngắn hơn |
+| `shape` | (tuỳ chọn, mặc định `"oval"`) hình vòng băng: `"oval"`, `"circle"`, `"triangle"`, hoặc `{ "points": [[x, z], …], "radius": r \| [r, …] }` (đa giác lồi bo góc, các đỉnh theo chiều kim đồng hồ nhìn từ trên, cạnh đỉnh 0 → 1 là cạnh trước). Chỉ để vẽ, luật không đọc. Writer luôn ghi rõ |
+| `feeders[f].mergeAt` | Tối đa 2 hàng chờ. Vị trí hàng chờ `f` nhập vào oval. V8: ngoài vùng lấy, mỗi vị trí một hàng chờ |
+| `meta` | (tuỳ chọn) `name`, `notes`. Engine bỏ qua |
 
 ### 6.3 Tham số chung (không nằm trong level)
 Timing animation, easing, màu hex và SFX là **config key / design token**, dùng chung cho mọi level (§9,
@@ -339,7 +378,8 @@ Art §10). Một level chỉ mô tả **nội dung** của nó.
 
 ### 6.4 Validator (chặn khi load và chặn trong CI)
 Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load level, trong
-`pf-build.sh validate`, và trong `dotnet test SkuHeadlessTests`.
+`pf-build.sh validate`, và trong `dotnet test SkuHeadlessTests`. V1 của conveyor là `ConveyorJson.Parse`; V8–V9 là
+`ConveyorValidator`, và `LevelValidator` cũng gọi nó cho conveyor của level.
 
 | # | Luật | Lỗi mẫu |
 |---|---|---|
@@ -347,8 +387,8 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
 | V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
-| V8 | Oval: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau; hàng chờ có ít nhất 1 chai | `V8 loop.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
-| V9 | `view.loopShape` tự khai: ≥ 3 đỉnh, theo chiều kim đồng hồ, lồi; cạnh đầu là cạnh trước (nằm ngang, thấp nhất, phải → trái); bán kính > 0 và hai góc kề nhau không bo quá chiều dài cạnh giữa chúng | `$.view.loopShape.radius: corners 0 and 1 are rounded more than their edge (4) allows` |
+| V8 | Conveyor: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau. Level: hàng chờ có ít nhất 1 chai | `V8 conveyor oval_20_2f.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
+| V9 | `shape` tự khai của conveyor: ≥ 3 đỉnh, theo chiều kim đồng hồ, lồi; cạnh đầu là cạnh trước (nằm ngang, thấp nhất, phải → trái); bán kính > 0 và hai góc kề nhau không bo quá chiều dài cạnh giữa chúng | `$.shape.radius: corners 0 and 1 are rounded more than their edge (4) allows` |
 | V6 | **Có lời giải**. Người chơi giả định "tap rồi chờ bàn đứng yên" (`CapChaosGame.Settle`) — mọi chuỗi thắng của người chơi đó cũng là chuỗi thắng thật. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
 
 V6 là cửa CI: level không giải được thì không ship.
@@ -388,14 +428,16 @@ một loại khay đặc biệt: ẩn, khoá, nối (R17–R19). `generate` gi�
 ```sh
 dotnet run --project Tools/LevelTool -- generate          # spec → level JSON + index (giải được theo cách dựng)
 dotnet run --project Tools/LevelTool -- generate --check  # exit 1 nếu output khác file đã commit
-dotnet run --project Tools/LevelTool -- validate          # V1–V6 + index cho mọi level
+dotnet run --project Tools/LevelTool -- validate          # V1–V9 cho mọi conveyor và level + index; báo conveyor không ai dùng
+dotnet run --project Tools/LevelTool -- conveyors         # liệt kê conveyor và các level đang dùng mỗi cái
 dotnet run --project Tools/LevelTool -- stats             # độ khó: tỉ lệ thắng khi tap ngẫu nhiên + effort của solver
-dotnet run --project Tools/LevelTool -- migrate           # ghi lại mọi level theo format hiện tại (v2), nội dung giữ nguyên; --check: exit 1 nếu còn file cũ
+dotnet run --project Tools/LevelTool -- migrate           # ghi lại mọi conveyor và level theo layout hiện tại, nội dung giữ nguyên; --check: exit 1 nếu còn file khác
 ```
 
-- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: oval (`rows`, `width`, `pickRows`), danh sách hàng chờ
-  (`mergeAt`, số chai), bộ màu, `greed` (1 = dễ), `clustering` (1 = khối dài một màu), và `seed`. Tool là nơi giữ
+- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: `conveyor` (id trong `Conveyors/`), `feeders` (số chai cho
+  từng feeder của conveyor đó, theo thứ tự), bộ màu, `greed` (1 = dễ), `clustering` (1 = khối dài một màu), và `seed`. Tool là nơi giữ
   seed (luật #14). Người chơi giả định của `generate`, `validate` và `stats` tap khi bàn đứng yên.
+- `generate` **không bao giờ** ghi file conveyor; muốn layout mới thì tạo file trong `Conveyors/` trước.
 - **⚠ `generate` ghi đè** các level có trong spec. Level nào designer đã sửa tay thì **xoá khỏi spec**
   (hoặc đổi id) trước khi chạy lại. Level viết tay không cần `meta.solution`; V6 sẽ dùng solver.
 

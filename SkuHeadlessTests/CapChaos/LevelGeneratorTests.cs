@@ -12,8 +12,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             Id = "level_0099",
             Colors = CapColorCodes.ParseList("ROBG"),
-            Rows = 20, PickRows = 5,
-            Feeders = new List<(int, int)> { (17, 48), (12, 16) },
+            Conveyor = new ConveyorDefinition("oval_20_2f", 20, 4, 5, new[] { 17, 12 }),
+            FeederBottles = new List<int> { 48, 16 },
             Greed = 0.5, Clustering = 0.3,
         };
 
@@ -40,7 +40,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             }
             Assert.That(game.Status, Is.EqualTo(GameStatus.Won), "tap, wait until the board is quiet, tap the next");
 
-            var reparsed = LevelJson.Parse(LevelJson.Write(gen.Level));
+            var reparsed = LevelJson.Parse(LevelJson.Write(gen.Level), new ConveyorLibrary(new[] { gen.Level.Conveyor }));
             Assert.That(reparsed.Errors, Is.Empty, "the writer emits schema-valid JSON");
         }
 

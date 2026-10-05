@@ -47,13 +47,13 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var l = Level(new[] { "RRRR" }, new[] { "RO" }, capacity: 2, sizes: new[] { new[] { 0, 1, 4 } });
             var text = LevelJson.Write(l);
             Assert.That(text, Does.Contain("[{ \"color\": 1 }, { \"color\": 2, \"size\": 4 }]"), "S is the default and not written");
-            var back = LevelJson.Parse(text);
+            var back = LevelJson.Parse(text, Conveyors(l));
             Assert.That(back.Errors, Is.Empty);
             Assert.That(back.Level!.SizeOf(new TrayRef(0, 1)), Is.EqualTo(TraySize.XL));
             Assert.That(back.Level.SizeOf(new TrayRef(0, 0)), Is.EqualTo(TraySize.S));
             Assert.That(LevelJson.Write(back.Level), Is.EqualTo(text));
 
-            var broken = LevelJson.Parse(text.Replace("\"size\": 4", "\"size\": 5"));
+            var broken = LevelJson.Parse(text.Replace("\"size\": 4", "\"size\": 5"), Conveyors(l));
             Assert.That(broken.Errors, Has.Some.Contains("$.lanes[0][1].size: 5 outside 1..4"));
         }
 
