@@ -97,6 +97,10 @@ namespace CapsChaos.SkuHeadlessTests.Gate
                 "Unity.TextMeshPro",
                 "LitMotion",
                 "UniTask",
+                // spline conveyors (ConveyorBeltView, ported from ConveyorKit) — approved by the product owner 2026-10-05
+                "Unity.Splines",
+                "Unity.Mathematics",
+                "SplineMesh.Runtime",
             }),
             new Row("Assets/CapsChaos/Gen/Game.Gen.asmdef", new string[]
             {

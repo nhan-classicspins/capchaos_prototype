@@ -112,7 +112,6 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
 
         [TestCase("\"conveyor\": \"test_8_1f\",", "", "$.conveyor: required")]
         [TestCase("\"test_8_1f\"", "\"oval_99\"", "$.conveyor: 'oval_99' is not a conveyor (Conveyors/oval_99.json not found)")]
-        [TestCase("\"feeders\": [ { \"bottles\": [1, 2, 1, 2] } ],", "", "$.feeders: required — conveyor 'test_8_1f' has 1 feeder(s)")]
         [TestCase("{ \"bottles\": [1, 2, 1, 2] } ]", "{ \"bottles\": [1, 2] }, { \"bottles\": [1, 2] } ]",
             "$.feeders: 2 queue(s), but conveyor 'test_8_1f' has 1 feeder(s)")]
         public void The_level_must_fit_the_conveyor_it_names(string find, string replace, string expected)
@@ -120,6 +119,16 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var r = Parse(Minimal.Replace(find, replace));
             Assert.That(r.Ok, Is.False);
             Assert.That(r.Errors, Has.Some.Contains(expected));
+        }
+
+        [Test]
+        public void A_level_uses_the_first_N_feeders_of_its_conveyor()
+        {
+            var three = new ConveyorDefinition("three", 16, 2, 4, new[] { 11, 7, 9 });
+            var r = LevelJson.Parse(Minimal.Replace("test_8_1f", "three"), new ConveyorLibrary(new[] { three }));
+            Assert.That(r.Errors, Is.Empty);
+            Assert.That(r.Level!.Loop.Feeders.Select(f => f.MergeAt), Is.EqualTo(new[] { 11 }), "one queue ⇒ the right feeder only");
+            Assert.That(r.Level.Conveyor.FeederCount, Is.EqualTo(3), "the conveyor keeps its other feeders for other levels");
         }
 
         [Test]

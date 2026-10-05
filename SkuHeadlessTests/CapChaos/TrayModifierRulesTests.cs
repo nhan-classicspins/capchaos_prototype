@@ -120,6 +120,32 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
+        public void V7_two_lanes_with_a_lane_between_them_can_link_at_the_same_position_but_not_at_different_ones()
+        {
+            var ok = Level(NoMatch, new[] { "BO", "RY", "GO" }, capacity: 1, links: new[] { new[] { 0, 1, 2, 1 } });
+            Assert.That(LevelValidator.Validate(ok).Where(e => e.StartsWith("V7")), Is.Empty, "lanes 0 and 2, both at position 1");
+            var skew = Level(NoMatch, new[] { "BO", "RY", "GO" }, capacity: 1, links: new[] { new[] { 0, 1, 2, 0 } });
+            Assert.That(LevelValidator.Validate(skew), Has.Some.Contains("V7 links[0]: lanes[0][1] and lanes[2][0] can not be linked"),
+                "different positions would hold each other's belt for ever");
+        }
+
+        [Test]
+        public void R19_a_link_across_a_lane_holds_its_two_belts_and_leaves_the_lane_between_free()
+        {
+            // lane 0: B O, lane 1: R Y, lane 2: G O — lane 0's O (#1) tied to lane 2's O (#1)
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BO", "RY", "GO" }, slots: 6, capacity: 1, links: new[] { new[] { 0, 1, 2, 1 } }));
+            Assert.That(Trace(g.Tap(0).Facts), Is.EqualTo("place(L0->S0:B)"), "lane 0 is held: its O waits for lane 2's O");
+            Assert.That(g.Tap(0).Outcome, Is.EqualTo(TapOutcome.RejectedBeltHeld));
+            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L1->S1:R) advance(L1:1)").And.Not.Contains("advance(L0").And.Not.Contains("advance(L2"),
+                "the lane between is not part of the link: it steps on its own");
+            Assert.That(Trace(g.Tap(2).Facts), Does.StartWith("place(L2->S2:G) advance(L0:1) advance(L2:1)"),
+                "lane 2's front leaves: the two linked belts step together");
+            Assert.That(g.IsAtFront(0, 1) && g.IsAtFront(2, 1), Is.True);
+            Assert.That(Trace(g.Tap(2).Facts), Does.StartWith("place(L0->S3:O) place(L2->S4:O)"),
+                "a tap on either releases both, the left lane first");
+        }
+
+        [Test]
         public void R19_a_lane_without_a_cross_lane_link_never_holds()
         {
             var g = new CapChaosGame(Level(NoMatch, new[] { "BGOR" }, slots: 6, capacity: 1));
@@ -186,14 +212,14 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
-        public void V7_locks_and_links_must_name_real_neighbouring_trays()
+        public void V7_locks_and_links_must_name_real_trays_that_can_be_linked()
         {
             var l = Level(new[] { "RROO" }, new[] { "RO", "RO" }, capacity: 1,
                 locks: new[] { new[] { 0, 5, 1 }, new[] { 1, 1, 2 } },
                 links: new[] { new[] { 0, 0, 1, 1 }, new[] { 0, 1, 1, 1 }, new[] { 0, 1, 0, 0 } });
             var errors = LevelValidator.Validate(l);
             Assert.That(errors, Has.Some.Contains("V7 locks[0]: lanes[0][5] does not exist"));
-            Assert.That(errors, Has.Some.Contains("V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours"));
+            Assert.That(errors, Has.Some.Contains("V7 links[0]: lanes[0][0] and lanes[1][1] can not be linked"));
             Assert.That(errors, Has.Some.Contains("V7 links[1]: lanes[1][1] is locked"));
             Assert.That(errors, Has.Some.Contains("V7 links[2]: lanes[0][1] is already in another link"));
         }

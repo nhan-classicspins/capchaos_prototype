@@ -19,8 +19,8 @@ namespace Game.Domain
         /// <summary>The top conveyor the level runs on (a shared <c>Conveyors/</c> file): rows, width, pick zone, shape
         /// and merge points. The generator fills its feeders; it never changes the layout.</summary>
         public ConveyorDefinition Conveyor { get; set; }
-        /// <summary>How many bottles each conveyor feeder carries, in the conveyor's feeder order. The belt starts
-        /// filled from the feeders (no authored initial rows).</summary>
+        /// <summary>How many bottles each feeder carries — the level uses the conveyor's first N feeders (right, left,
+        /// middle), N = this list's length. The belt starts filled from the feeders (no authored initial rows).</summary>
         public List<int> FeederBottles { get; set; } = new List<int>();
         internal int Width => Conveyor.Width;
         /// <summary>0..1 — chance each tray is the colour with the most bottles on the belt (easy) rather than any
@@ -77,9 +77,9 @@ namespace Game.Domain
         private static void Check(LevelSpec spec)
         {
             if (spec.Conveyor == null) throw new ArgumentException($"{spec.Id}: no conveyor");
-            if (spec.Conveyor.FeederCount == 0) throw new ArgumentException($"{spec.Id}: conveyor '{spec.Conveyor.Id}' has no feeders");
-            if (spec.FeederBottles.Count != spec.Conveyor.FeederCount)
-                throw new ArgumentException($"{spec.Id}: {spec.FeederBottles.Count} feeder bottle count(s) for conveyor '{spec.Conveyor.Id}' with {spec.Conveyor.FeederCount} feeder(s)");
+            if (spec.FeederBottles.Count == 0) throw new ArgumentException($"{spec.Id}: no feeders");
+            if (spec.FeederBottles.Count > spec.Conveyor.FeederCount)
+                throw new ArgumentException($"{spec.Id}: {spec.FeederBottles.Count} feeders, but conveyor '{spec.Conveyor.Id}' has {spec.Conveyor.FeederCount}");
             int bottles = 0;
             foreach (int count in spec.FeederBottles)
             {

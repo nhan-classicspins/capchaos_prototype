@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.anandev.splinemesh": "https://github.com/AnanD3V/SplineMesh.git",
     "com.classicspins.prototype-framework": "file:../../ai_prototype_framework/Packages/com.classicspins.prototype-framework",
     "com.ivanmurzak.unity.mcp": "0.93.2",
     "com.unity.ai.navigation": "2.0.11",

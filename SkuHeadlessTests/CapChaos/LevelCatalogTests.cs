@@ -63,7 +63,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             };
             var conveyors = new Dictionary<string, string>
             {
-                ["bad_8"] = "{ \"formatVersion\": 1, \"id\": \"bad_8\", \"rows\": 8, \"pickRows\": 1, \"feeders\": [ { \"mergeAt\": 0 } ] }",
+                ["bad_8"] = ConveyorJsonTests.Text("bad_8", 8, 1, new[] { 0, 5, 6 }),
             };
             var c = new LevelCatalog();
             var e = Assert.Throws<LevelLoadException>(() => c.Populate(LevelCatalog.ParseOrder(Index), texts, conveyors));
@@ -78,7 +78,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var missing = Assert.Throws<LevelLoadException>(() => new LevelCatalog().Populate(LevelCatalog.ParseOrder(Index), texts, NoConveyors));
             Assert.That(missing!.Message, Does.Contain("level_0001: $.conveyor: 'test_8_1f' is not a conveyor"));
 
-            var broken = new Dictionary<string, string> { ["test_8_1f"] = "{ \"formatVersion\": 1, \"id\": \"other\", \"rows\": 8, \"pickRows\": 1, \"feeders\": [] }" };
+            var broken = new Dictionary<string, string> { ["test_8_1f"] = ConveyorJsonTests.Text("other", 8, 1, new[] { 6, 5, 4 }) };
             var e = Assert.Throws<LevelLoadException>(() => new LevelCatalog().Populate(LevelCatalog.ParseOrder(Index), texts, broken));
             Assert.That(e!.Message, Does.Contain("Conveyors/test_8_1f.json: file declares id 'other'"));
         }

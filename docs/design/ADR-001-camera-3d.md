@@ -131,3 +131,23 @@ chỉ khác cách lấy kích thước:
   `PC_RPAsset` / `Mobile_RPAsset` nâng `m_ShadowDistance` lên **2200**. Các layer 2D không dùng bóng nên không bị ảnh hưởng.
 - **Hệ quả:** không còn phối cảnh (vật ở xa không nhỏ đi). Khung hình được giữ bằng `ViewHeight`; nếu cần to/nhỏ hơn, chỉnh
   token đó.
+
+## 8. Sửa đổi 2026-10-05: board nằm trên mặt phẳng XZ, camera cúi xuống
+
+Product owner yêu cầu gameplay render trên **mặt phẳng XZ của world**, bố cục trên màn hình giữ nguyên. Thay quy ước §5.1
+("camera không nghiêng; board nghiêng"):
+
+- **Board nằm phẳng.** Root board dưới `WorldRoot` có rotation world = identity: x sang phải, z ra xa người chơi, y hướng lên.
+  Vị trí và scale tính như cũ (`scale = SafeRect.height / ViewHeight`; điểm focus `(0, 0, FocusZ)` nằm trên trục nhìn, cách
+  camera `ViewDistance`).
+- **Camera cúi xuống.** `BoardView.Frame` giữ nguyên **vị trí** camera `GamePlay` trong rig, chỉ đặt rotation
+  `Euler(CameraPitchDegrees = 60, 0, 0)`. Tư thế tương đối giữa camera và board y hệt trước (`cam⁻¹·board = Euler(−60, 0, 0)`),
+  và camera orthographic, nên ảnh không đổi. Ánh sáng (`Sun` là con của board), đường bay, rung, nảy đều tính theo toạ độ
+  local của board, nên cũng không đổi.
+- **Camera là của chung, nên phải trả lại.** `GameplayScreen` nhớ rotation của rig khi dựng board lần đầu, và đặt lại khi
+  rời màn (`OnExit`, Home, `OnUnloadAsync`). Rig trong Master scene **không sửa**: 6 camera vẫn nhìn `+z` khi không ở
+  Gameplay.
+- **UI và tap.** `WorldSpaceCanvasScaler` đặt lại `GamePlayHost` theo vị trí và hướng camera mỗi `LateUpdate`
+  (`PositionInFrustum`), nên hit-catcher vẫn phủ kín màn. Tap vẫn là `cam.ScreenPointToRay` + `Physics.Raycast`.
+- **Hệ quả:** `IWorldViewport.SafeRect` chỉ được dùng để lấy **kích thước** (chiều cao), không dùng để lấy vị trí: rect đó nằm
+  trên mặt phẳng canvas, giờ đã nghiêng so với world. Không đặt nội dung 2D theo world-rect lên layer `GamePlay` (§5.2 vẫn giữ).

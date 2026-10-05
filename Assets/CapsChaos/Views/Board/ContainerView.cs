@@ -32,6 +32,9 @@ namespace Game.Views
         [Tooltip("The padlock shown while the tray is locked (R18) — a nested TrayLock, off by default; move it per size.")]
         [SerializeField] private TrayLockView _lock;
 
+        /// <summary>The lid's renderer (<c>BoxLid</c>) — what a tray link's rope hangs off. Null if the model has none.</summary>
+        public Renderer Lid { get { if (_lid == null) Cache(); return _lid; } }
+
         private Vector3 _lidPos;
         private Quaternion _lidRot;
         private bool _lidPose;

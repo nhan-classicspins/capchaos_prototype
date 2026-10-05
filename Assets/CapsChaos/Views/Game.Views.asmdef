@@ -5,7 +5,10 @@
         "ClassicSpins.PrototypeFramework.Views",
         "Unity.TextMeshPro",
         "LitMotion",
-        "UniTask"
+        "UniTask",
+        "Unity.Splines",
+        "Unity.Mathematics",
+        "SplineMesh.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

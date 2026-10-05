@@ -55,8 +55,10 @@ namespace Game.Domain
             return errors;
         }
 
-        /// <summary>V7: every lock / link names a real tray; a link joins two neighbours (same lane, consecutive — or
-        /// two neighbouring lanes, same position); a tray is in at most one link and is never both linked and locked.</summary>
+        /// <summary>V7: every lock / link names a real tray; a link joins two neighbours in one lane (consecutive) or the
+        /// trays at the SAME position of two lanes — any two lanes, side by side or with lanes between them; a tray is in at
+        /// most one link and is never both linked and locked. (Two lanes at different positions would wait on each other
+        /// for ever: each lane's held tray only moves with the other's — R19.)</summary>
         private static void ValidateTrayModifiers(LevelDefinition level, List<string> errors)
         {
             bool Exists(TrayRef t) => t.Lane >= 0 && t.Lane < level.Lanes.Count && t.Index >= 0 && t.Index < level.Lanes[t.Lane].Count;
@@ -76,9 +78,9 @@ namespace Game.Domain
                 string where = $"V7 links[{i}]";
                 if (!Exists(a) || !Exists(b)) { errors.Add($"{where}: {(Exists(a) ? b : a)} does not exist"); continue; }
                 bool sameLane = a.Lane == b.Lane && System.Math.Abs(a.Index - b.Index) == 1;
-                bool sideBySide = System.Math.Abs(a.Lane - b.Lane) == 1 && a.Index == b.Index;
-                if (!sameLane && !sideBySide)
-                    errors.Add($"{where}: {a} and {b} are not neighbours (same lane one apart, or neighbouring lanes at the same position)");
+                bool acrossLanes = a.Lane != b.Lane && a.Index == b.Index;
+                if (!sameLane && !acrossLanes)
+                    errors.Add($"{where}: {a} and {b} can not be linked (same lane one apart, or two lanes at the same position)");
                 foreach (var t in new[] { a, b })
                 {
                     if (!linked.Add(t)) errors.Add($"{where}: {t} is already in another link");

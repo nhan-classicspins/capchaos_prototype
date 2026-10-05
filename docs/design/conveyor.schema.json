@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://classicspins.local/capschaos/conveyor.schema.json",
-  "title": "Cap Chaos top conveyor — format v1",
-  "description": "The LAYOUT of the top conveyor (GDD R1–R4, §6.2b), shared by every level that names it (`conveyor` in level.schema.json): the loop's rows, bottles per row, pick zone, drawn shape and where each feeder merges. No bottles — a level supplies those. One file per layout in Assets/CapsChaos/Content/LevelConfig/Conveyors/<id>.json. Structural checks live here; V8 (pick zone, merge points) and V9 (shape) are ConveyorValidator.",
+  "title": "Cap Chaos top conveyor — format v2",
+  "description": "The LAYOUT of the top conveyor (GDD R1–R4, §6.2b), shared by every level that names it (`conveyor` in level.schema.json): one LOOP and three FEEDER conveyors — right, left, middle, in that order — each a spline of nodes the way ConveyorKit stores a conveyor, plus the rule numbers (rows, bottles per row, pick zone, where each feeder's queue joins). No bottles: a level supplies those, for the first N feeders it uses. One file per layout in Assets/CapsChaos/Content/LevelConfig/Conveyors/<id>.json. Coordinates are BOARD units (x right, z away from the player). Structural checks live here; V8 (pick zone, merge points) and V9 (splines) are ConveyorValidator. Format v1 (preset shapes) no longer loads.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["formatVersion", "id", "rows", "pickRows", "feeders"],
+  "required": ["formatVersion", "id", "rows", "pickRows", "loop", "feeders"],
   "properties": {
     "$schema": { "type": "string" },
-    "formatVersion": { "const": 1 },
+    "formatVersion": { "const": 2 },
     "id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]{0,47}$",
@@ -26,44 +26,42 @@
       "minimum": 1,
       "description": "Rows of the pick zone, track positions 0..pickRows-1. V8: rows ≥ 2 × pickRows + 6."
     },
-    "shape": {
-      "description": "How the loop is drawn (presentation only; the rules never read it). A preset, or a rounded convex polygon: corners [x, z] clockwise seen from above, corner 0 → 1 the front edge (level, lowest, right → left, in front of the slots), each rounded by its radius (V9). Absent = oval.",
-      "default": "oval",
-      "oneOf": [
-        { "type": "string", "enum": ["oval", "circle", "triangle"] },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["points", "radius"],
-          "properties": {
-            "points": {
-              "type": "array",
-              "minItems": 3,
-              "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"} }
-            },
-            "radius": {
-              "oneOf": [
-                { "type": "number", "exclusiveMinimum": 0 },
-                { "type": "array", "items": {"type": "number", "exclusiveMinimum": 0} }
-              ]
-            }
-          }
-        }
-      ]
+    "scale": {
+      "type": "number", "minimum": 0.1, "maximum": 4, "default": 1,
+      "description": "How big the belts and the bottles on them are drawn (1 = full size: 4 tracks 0.42 apart). The knots stay where they are; a long loop that must fit the screen takes a smaller scale. Drawing only — the rules never read it."
+    },
+    "loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes"],
+      "description": "The closed loop the bottles ride, clockwise seen from above. Its FIRST node is track position 0 — where the pick zone starts; the rows stand evenly along the spline from there.",
+      "properties": { "nodes": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/node"}} }
     },
     "feeders": {
       "type": "array",
-      "maxItems": 2,
-      "description": "At most 2 queues that join the loop (R4), a whole queue row at a time: mergeAt is the queue's entrance, and its front row steps onto the free belt row nearest it (within 2 rows either way, outside the pick zone) that is empty on every track it needs. A level gives one bottle queue per feeder, in this order.",
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "Exactly three feeder conveyors, in this order: right, left, middle. A level uses the first N (1 = right, 2 = right + left, 3 = all); the others are not drawn. A queue joins the loop a whole row at a time: mergeAt is its entrance, and its front row steps onto the free belt row nearest it (within 2 rows either way, outside the pick zone).",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["mergeAt"],
+        "required": ["side", "mergeAt", "nodes"],
         "properties": {
+          "side": {
+            "type": "string",
+            "enum": ["right", "left", "middle"],
+            "description": "Must match the feeder's place in the array."
+          },
           "mergeAt": {
             "type": "integer",
             "minimum": 0,
             "description": "Track position the feeder joins at. V8: outside the pick zone, one feeder per position."
+          },
+          "nodes": {
+            "type": "array",
+            "minItems": 2,
+            "items": { "$ref": "#/$defs/node" },
+            "description": "The feeder's open spline, far end (off-screen) first; its last node is where it lands on the loop. The queue's head row waits where it is a bottle clear of the loop."
           }
         }
       }
@@ -72,6 +70,28 @@
       "type": "object",
       "additionalProperties": false,
       "properties": { "name": {"type": "string"}, "notes": {"type": "string"} }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "z"],
+      "properties": {
+        "x": { "type": "number", "description": "Board units, + right." },
+        "z": { "type": "number", "description": "Board units, + away from the player." },
+        "yRotation": {
+          "type": "number",
+          "default": 0,
+          "description": "Heading of the belt at this knot, degrees round Y: 0 = +z, 90 = +x, 180 = toward the player. A smooth knot's handles run along it, sized from the distance to its neighbours."
+        },
+        "tangentMode": {
+          "type": "integer",
+          "enum": [0, 1],
+          "default": 0,
+          "description": "0 = smooth (Bezier along yRotation), 1 = sharp corner (Linear). As ConveyorKit's TangentMode."
+        }
+      }
     }
   }
 }

@@ -107,11 +107,12 @@ namespace Game.Views
         // generator keeps its own copy of the prop dimensions; the LAYOUT lives only here).
         public static class Board
         {
-            /// <summary>Camera → board pose (ADR-001 rev. 2026-10-02: orthographic GamePlay camera). The camera stays level;
-            /// the board tilts, sits ViewDistance WORLD units in front of it (the canvas plane), with its focus point
-            /// (0, 0, FocusZ) on the view axis, and scales so ViewHeight BOARD units fill the SAFE RECT's height (a taller
-            /// screen shows more board above and below; the safe width, ViewHeight × SafeAspect, is always on screen).</summary>
-            public const float ViewDistance = 1000f, TiltDegrees = -60f, FocusZ = 1.2f, ViewHeight = 11.6f;
+            /// <summary>Camera → board pose (ADR-001 §8, 2026-10-05: orthographic GamePlay camera). The board lies FLAT on
+            /// the world XZ plane (y up); the camera keeps its rig position and pitches down CameraPitchDegrees to look at
+            /// it. The board's focus point (0, 0, FocusZ) sits ViewDistance WORLD units along the view axis (the canvas
+            /// plane), and the board scales so ViewHeight BOARD units fill the SAFE RECT's height (a taller screen shows more
+            /// board above and below; the safe width, ViewHeight × SafeAspect, is always on screen).</summary>
+            public const float ViewDistance = 1000f, CameraPitchDegrees = 60f, FocusZ = 1.2f, ViewHeight = 11.6f;
             /// <summary>The safe rect's width / height (1080 × 1920).</summary>
             public const float SafeAspect = 1080f / 1920f;
             /// <summary>The belt loop (GDD R1–R4), loop-local units before the fit: rows stand evenly round it, at least
@@ -185,7 +186,7 @@ namespace Game.Views
             public static readonly Vector3 SlotHitSize = new Vector3(1.02f, 0.3f, 0.98f);
             /// <summary>Tray-local heights over the caps' tops (≈ 0.2): the lock icon, the rope's ends; and how far
             /// the rope arcs up between them.</summary>
-            public const float LockY = 0.42f, RopeY = 0.24f, RopeArc = 0.16f;
+            public const float LockY = 0.42f, RopeOffsetY = 0.05f, RopeArc = 0.16f;
             public const int RopeSegments = 14;
         }
 

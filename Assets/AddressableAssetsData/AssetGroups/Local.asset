@@ -55,6 +55,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 58e9c7c593191451e9d1f481fbf3714a
+    m_Address: LoopConveyorBelt
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 60e76eebb54f9465aaa0fa1fa74030cf
     m_Address: Containers/Container_M
     m_ReadOnly: 0
@@ -132,6 +137,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dc8ebe97e616b4daeb87c9b2c9f26ac6
     m_Address: Lane
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f33c3fe2b54ee44d09688984078ff863
+    m_Address: ConveyorBelt
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

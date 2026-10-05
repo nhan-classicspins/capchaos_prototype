@@ -4,15 +4,66 @@ using System.Collections.Generic;
 namespace Game.Domain
 {
     /// <summary>
-    /// The TOP conveyor's layout (GDD R1–R4, §6.2b): how many rows run round the loop, how many bottles stand in a row,
-    /// how many rows make the pick zone, how the loop is drawn and where each feeder joins it — and NO bottles. One
-    /// file per layout in <c>Content/LevelConfig/Conveyors/&lt;id&gt;.json</c>, SHARED: many levels name the same
-    /// conveyor; a level supplies the bottles each of its feeders carries (<see cref="LoopDefinition"/> joins the two).
-    /// Immutable.
+    /// One knot of a conveyor's spline (the ConveyorKit node): a point on the board plane (x right, z away from the
+    /// player, board units) and the heading the belt runs at there (<see cref="YRotation"/>, degrees round Y: 0 = +z,
+    /// 90 = +x). A smooth knot's handles run along that heading, sized from the distance to its neighbours; a
+    /// <see cref="Linear"/> knot is a sharp corner. Presentation data only — the rules never read it.
+    /// </summary>
+    public readonly struct ConveyorNode : IEquatable<ConveyorNode>
+    {
+        public readonly double X, Z, YRotation;
+        public readonly bool Linear;
+
+        public ConveyorNode(double x, double z, double yRotation, bool linear = false)
+        {
+            X = x; Z = z; YRotation = yRotation; Linear = linear;
+        }
+
+        public bool Equals(ConveyorNode o) => X == o.X && Z == o.Z && YRotation == o.YRotation && Linear == o.Linear;
+        public override bool Equals(object obj) => obj is ConveyorNode o && Equals(o);
+        public override int GetHashCode() => (X, Z, YRotation, Linear).GetHashCode();
+    }
+
+    /// <summary>Which feeder of a conveyor it is. Every conveyor file has all three, in this order; a level uses the
+    /// first N (1 = right, 2 = right + left, 3 = all).</summary>
+    public enum FeederSide : byte
+    {
+        Right = 0,
+        Left = 1,
+        Middle = 2,
+    }
+
+    /// <summary>One feeder conveyor of a layout: where its queue joins the loop (<see cref="MergeAt"/>, a track
+    /// position) and the open spline it runs along, its last node where it lands on the loop.</summary>
+    public sealed class FeederLayout
+    {
+        public FeederSide Side { get; }
+        public int MergeAt { get; }
+        /// <summary>The feeder's spline, far end first; empty for a feeder built in code.</summary>
+        public IReadOnlyList<ConveyorNode> Nodes { get; }
+
+        public FeederLayout(FeederSide side, int mergeAt, IReadOnlyList<ConveyorNode> nodes = null)
+        {
+            Side = side; MergeAt = mergeAt;
+            Nodes = nodes ?? Array.Empty<ConveyorNode>();
+        }
+    }
+
+    /// <summary>
+    /// The TOP conveyor's layout (GDD R1–R4, §6.2b): one LOOP and three FEEDER conveyors (right, left, middle — in that
+    /// order), each a spline of <see cref="ConveyorNode"/>s, plus the rule numbers: how many rows run round the loop,
+    /// how many bottles stand in a row, how many rows make the pick zone, where each feeder's queue joins. NO bottles.
+    /// One file per layout in <c>Content/LevelConfig/Conveyors/&lt;id&gt;.json</c>, SHARED: many levels name the same
+    /// conveyor; a level supplies the bottles of the feeders it uses (the first N) — <see cref="LoopDefinition"/> joins
+    /// the two. Immutable.
+    /// <para>The rules never read the splines: a row is a row wherever it is drawn. The view spreads the rows evenly
+    /// along the loop spline from its first node (track position 0 = the start of the pick zone).</para>
     /// </summary>
     public sealed class ConveyorDefinition
     {
-        public const int CurrentFormatVersion = 1;
+        public const int CurrentFormatVersion = 2;
+        /// <summary>Every conveyor file has exactly this many feeders: right, left, middle.</summary>
+        public const int FeederSlots = 3;
 
         /// <summary>The file's name without <c>.json</c> (<see cref="IsConveyorId"/>); null for a layout built in code
         /// (tests, the old <see cref="LoopDefinition"/> constructor) — such a level can be played but not written.</summary>
@@ -21,25 +72,45 @@ namespace Game.Domain
         public int Rows { get; }
         /// <summary>Bottle spots per row.</summary>
         public int Width { get; }
-        /// <summary>The pick zone: track positions <c>0 .. PickRows−1</c>, the front edge in front of the slots.</summary>
+        /// <summary>The pick zone: track positions <c>0 .. PickRows−1</c>, from the loop's first node on.</summary>
         public int PickRows { get; }
-        /// <summary>Where each feeder joins the loop (a track position), in feeder order.</summary>
-        public IReadOnlyList<int> MergeAt { get; }
-        /// <summary>How the loop is drawn (presentation only; <see cref="LoopShape.Default"/> = the oval).</summary>
-        public LoopShape Shape { get; }
+        /// <summary>How big the belts and the bottles on them are drawn (1 = full size). The knots stay where they are
+        /// (board units); a long loop that must fit the screen takes a smaller scale so its rows still fit. Drawing only.</summary>
+        public double Scale { get; }
+        /// <summary>The loop's closed spline, starting where the pick zone starts; empty for a layout built in code.</summary>
+        public IReadOnlyList<ConveyorNode> Loop { get; }
+        /// <summary>The feeders, in order (right, left, middle for a file).</summary>
+        public IReadOnlyList<FeederLayout> Feeders { get; }
         public string Name { get; }
         public string Notes { get; }
 
-        public int FeederCount => MergeAt.Count;
+        /// <summary>Where each feeder joins the loop (a track position), in feeder order.</summary>
+        public IReadOnlyList<int> MergeAt { get; }
+        public int FeederCount => Feeders.Count;
 
-        public ConveyorDefinition(string id, int rows, int width, int pickRows, IReadOnlyList<int> mergeAt,
-            LoopShape shape = null, string name = null, string notes = null)
+        public ConveyorDefinition(string id, int rows, int width, int pickRows, IReadOnlyList<ConveyorNode> loop,
+            IReadOnlyList<FeederLayout> feeders, string name = null, string notes = null, double scale = 1.0)
         {
             Id = id;
-            Rows = rows; Width = width; PickRows = pickRows;
-            MergeAt = mergeAt ?? throw new ArgumentNullException(nameof(mergeAt));
-            Shape = shape ?? LoopShape.Default;
+            Rows = rows; Width = width; PickRows = pickRows; Scale = scale;
+            Loop = loop ?? Array.Empty<ConveyorNode>();
+            Feeders = feeders ?? throw new ArgumentNullException(nameof(feeders));
+            var merge = new int[feeders.Count];
+            for (int f = 0; f < merge.Length; f++) merge[f] = feeders[f].MergeAt;
+            MergeAt = merge;
             Name = name; Notes = notes;
+        }
+
+        /// <summary>A layout built in code (tests): the rule numbers only, no splines; feeder f is side f.</summary>
+        public ConveyorDefinition(string id, int rows, int width, int pickRows, IReadOnlyList<int> mergeAt)
+            : this(id, rows, width, pickRows, null, CodeFeeders(mergeAt)) { }
+
+        private static IReadOnlyList<FeederLayout> CodeFeeders(IReadOnlyList<int> mergeAt)
+        {
+            if (mergeAt == null) throw new ArgumentNullException(nameof(mergeAt));
+            var list = new List<FeederLayout>(mergeAt.Count);
+            for (int f = 0; f < mergeAt.Count; f++) list.Add(new FeederLayout((FeederSide)Math.Min(f, (int)FeederSide.Middle), mergeAt[f]));
+            return list;
         }
 
         /// <summary>A conveyor id: lowercase letters, digits and <c>_</c>, starting with a letter, at most 48 long

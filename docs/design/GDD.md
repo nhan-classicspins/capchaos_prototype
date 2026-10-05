@@ -207,7 +207,9 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
   Prefab ổ khoá là `Content/Art/Prefabs/TrayLock.prefab`, nội dung tạm do ArtGenerator vẽ, chủ SKU sẽ thay. Giữ
   `TrayLockView` ở root khi thay nội dung.
 - **R19 — Khay nối** [GĐ] Hai khay nối bằng dây. Chỉ nối được **2 khay liền nhau trong cùng làn**, hoặc **2 khay
-  cùng vị trí ở 2 làn kề nhau**. Hai khay chỉ di chuyển **cùng nhau**:
+  cùng vị trí ở 2 làn bất kỳ** (kề nhau, hoặc cách nhau một hay nhiều làn — mở rộng 2026-10-05; làn ở giữa không bị
+  giữ, dây vắt qua nó). Hai khay khác vị trí ở 2 làn thì không nối được: mỗi băng chỉ chạy khi băng kia chạy, nên khay
+  phía sau không bao giờ lên được đầu làn. Hai khay chỉ di chuyển **cùng nhau**:
   - chưa sẵn sàng (một khay chưa ở đầu làn) mà tap vào khay nào của cặp thì **cả 2 khay cùng rung**;
   - sẵn sàng thì tap vào khay nào của cặp cũng được: cả 2 bay lên slot, thứ tự theo file level (cùng làn: khay
     trước trước; 2 làn: làn trái trước). Dây được tháo khi khay bay. **Cần 2 slot trống**, thiếu thì cả cặp rung.
@@ -263,11 +265,13 @@ review được, test headless được.
 **Hai file cho mỗi level (2026-10-05).** Mỗi level gồm:
 - **file level** (`level_NNNN.json`, phần *items*): chai trong từng hàng chờ, `initial`, các làn khay và khay đặc biệt,
   số slot, meta;
-- **file conveyor** (`Conveyors/<id>.json`, phần *layout* của băng chuyền trên): số hàng, số chai mỗi hàng, vùng lấy,
+- **file conveyor** (`Conveyors/<id>.json`, phần *layout* của băng chuyền trên): 1 loop + 3 feeder (phải, trái, giữa),
+  mỗi cái là một spline node theo cách của ConveyorKit; số hàng, số chai mỗi hàng, vùng lấy,
   hình vòng băng, vị trí nhập của từng hàng chờ. **Không chứa chai.**
 
 File conveyor là **thư viện dùng chung**: level ghi `"conveyor": "<id>"`, nhiều level có thể dùng cùng một conveyor
-(22 seed level hiện dùng 9 conveyor). Đổi layout một conveyor thì mọi level dùng nó đổi theo, nên trước khi sửa hãy
+(22 seed level hiện dùng 6 conveyor). Level quyết định **dùng bao nhiêu feeder**: số hàng chờ trong `feeders` của level
+= N feeder đầu của conveyor (1 = phải, 2 = phải + trái, 3 = cả ba); feeder không dùng thì không vẽ. Đổi layout một conveyor thì mọi level dùng nó đổi theo, nên trước khi sửa hãy
 xem level nào đang dùng nó (`LevelTool conveyors`).
 
 ### 6.1 Vị trí file
@@ -293,7 +297,7 @@ không có cách chuyển tương đương sang oval: loader **từ chối** và
   "$schema": "../../../../docs/design/level.schema.json",
   "formatVersion": 4,
   "id": "level_0019",
-  "conveyor": "oval_20_2f",
+  "conveyor": "oval_20",
   "slots": 4,
   "trayCapacity": 4,
   "colors": [1, 2, 3],
@@ -328,7 +332,7 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | `extraSlots` | (tuỳ chọn, mặc định 2) số slot khoá mở được bằng coin / quảng cáo (R20); `slots + extraSlots ≤ 6` |
 | `trayCapacity` | Số nắp mỗi khay (mặc định 4) |
 | `colors` | Tập số màu dùng trong level; mọi màu trong `feeders`, `initial` và `lanes` phải thuộc tập này |
-| `feeders[f].bottles` | Hàng chờ của feeder `f` **của conveyor** (đúng thứ tự trong file conveyor, đúng số lượng feeder), chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`). Bắt buộc nếu conveyor có feeder |
+| `feeders[f].bottles` | Hàng chờ của feeder `f` **của conveyor**, theo thứ tự phải, trái, giữa. Số phần tử = số feeder level dùng (0–3): 1 = chỉ feeder phải, 2 = phải + trái, 3 = cả ba. Chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`) |
 | `initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số của conveyor (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |
 | `lanes[j]` | Hàng đợi của băng khay `j` (trái → phải), mỗi phần tử là một khay. Phần tử `[0]` là khay đầu làn |
 | `lanes[j][t].color` | Số màu của khay |
@@ -339,38 +343,61 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | `meta` | (tuỳ chọn) tên, độ khó, ghi chú. Engine bỏ qua |
 | `meta.solution` | (tuỳ chọn) chuỗi tap thắng (chỉ số làn), do LevelTool ghi. V6 chạy lại theo kiểu "tap rồi chờ bàn đứng yên" để chứng minh level giải được |
 
-### 6.2b Định dạng file conveyor (format v1, thêm 2026-10-05)
+### 6.2b Định dạng file conveyor (format v2, đổi 2026-10-05)
 
-Layout của băng chuyền trên (R1–R4), dùng chung giữa các level. Quy ước đặt id: `<hình>_<số hàng>_<số feeder>f`, ví dụ
-`oval_16_1f`, `triangle_28_2f`. Id phải trùng tên file.
+Layout của băng chuyền trên (R1–R4), dùng chung giữa các level, dựng theo cách của **ConveyorKit**
+(`com.cardfactory.conveyorkit`, đã port vào `Game.Views`): mỗi băng là một **spline** qua các node
+`{ x, z, yRotation, tangentMode }`. Node mượt (`tangentMode` 0) có tay nắm chạy theo `yRotation`, dài bằng nửa khoảng
+cách lớn nhất theo trục X/Z tới node kề; node `tangentMode` 1 là góc gãy. `SplineMesh` dựng mesh băng
+(`ConveyorBelt.prefab`, mesh và material lấy từ Card Factory) dọc spline, và mũi tên chạy theo băng.
+
+Mỗi file có **đúng 1 loop + 3 feeder theo thứ tự phải, trái, giữa**. Quy ước đặt id: `<hình>_<số hàng>`, ví dụ `oval_16`,
+`triangle_28`. Id phải trùng tên file.
 
 ```json
 {
   "$schema": "../../../../../docs/design/conveyor.schema.json",
-  "formatVersion": 1,
-  "id": "oval_20_2f",
-  "rows": 20,
+  "formatVersion": 2,
+  "id": "oval_16",
+  "rows": 16,
   "width": 4,
-  "pickRows": 5,
-  "shape": "oval",
+  "pickRows": 4,
+  "scale": 0.522,
+  "loop": { "nodes": [
+    { "x": 0.884, "z": 3.153, "yRotation": 270 },
+    { "x": -0.884, "z": 3.153, "yRotation": 270 },
+    { "x": -1.447, "z": 3.716, "yRotation": 0 },
+    { "x": -0.884, "z": 4.279, "yRotation": 90 },
+    { "x": 0.884, "z": 4.279, "yRotation": 90 },
+    { "x": 1.447, "z": 3.716, "yRotation": 180 }
+  ] },
   "feeders": [
-    { "mergeAt": 15 },
-    { "mergeAt": 8 }
+    { "side": "right", "mergeAt": 11, "nodes": [ … ] },
+    { "side": "left", "mergeAt": 7, "nodes": [ … ] },
+    { "side": "middle", "mergeAt": 9, "nodes": [ … ] }
   ],
-  "meta": { "name": "Oval vừa, 2 hàng chờ" }
+  "meta": { "name": "Small oval" }
 }
 ```
 
 | Trường | Ý nghĩa |
 |---|---|
-| `formatVersion` | `1` |
+| `formatVersion` | `2`. v1 (loop vẽ từ preset hình) bị từ chối |
 | `id` | Chữ thường, số và `_`, bắt đầu bằng chữ, tối đa 48 ký tự; trùng tên file |
-| `rows` | Số hàng quanh oval, 8–64 |
+| `rows` | Số hàng quanh loop, 8–64. Các hàng **rải đều theo chiều dài spline** của loop |
 | `width` | (tuỳ chọn, mặc định 4) số chai mỗi hàng, 1–6 |
-| `pickRows` | Số hàng của vùng lấy (giữa cạnh trước). V8: `rows ≥ 2 × pickRows + 6`. Với preset `oval`, cạnh thẳng dài đúng `pickRows` hàng; với hình khác, vùng lấy có thể tràn qua góc nếu cạnh trước ngắn hơn |
-| `shape` | (tuỳ chọn, mặc định `"oval"`) hình vòng băng: `"oval"`, `"circle"`, `"triangle"`, hoặc `{ "points": [[x, z], …], "radius": r \| [r, …] }` (đa giác lồi bo góc, các đỉnh theo chiều kim đồng hồ nhìn từ trên, cạnh đỉnh 0 → 1 là cạnh trước). Chỉ để vẽ, luật không đọc. Writer luôn ghi rõ |
-| `feeders[f].mergeAt` | Tối đa 2 hàng chờ. Vị trí hàng chờ `f` nhập vào oval. V8: ngoài vùng lấy, mỗi vị trí một hàng chờ |
+| `pickRows` | Số hàng của vùng lấy, tính **từ node đầu tiên của loop** theo chiều chạy. V8: `rows ≥ 2 × pickRows + 6` |
+| `scale` | (tuỳ chọn, mặc định 1) băng và chai được vẽ to cỡ nào; node giữ nguyên vị trí. Loop dài phải vừa màn hình thì `scale` nhỏ. Chỉ để vẽ |
+| `loop.nodes` | Spline khép kín, theo chiều kim đồng hồ nhìn từ trên, ≥ 3 node. **Node 0 = vị trí track 0 = đầu vùng lấy**. Toạ độ là đơn vị board (x sang phải, z ra xa người chơi) |
+| `feeders[f].side` | `right`, `left`, `middle`, phải khớp vị trí trong mảng |
+| `feeders[f].mergeAt` | Vị trí hàng chờ nhập vào loop. V8: ngoài vùng lấy, mỗi vị trí một hàng chờ |
+| `feeders[f].nodes` | Spline hở, ≥ 2 node, **đầu xa (ngoài màn hình) trước**, node cuối là chỗ băng nhập vào loop. Hàng đầu của hàng chờ đứng ở chỗ track trong cùng của nó cách track ngoài cùng của loop một chai |
 | `meta` | (tuỳ chọn) `name`, `notes`. Engine bỏ qua |
+
+**Chỉnh conveyor trong Unity** (cách của ConveyorKit): thêm component `ConveyorLayoutAuthoring` vào một GameObject đặt ở
+gốc toạ độ, gán file conveyor và prefab `Content/Art/Prefabs/ConveyorBelt`, chọn **⋮ → Spawn**. Chỉnh node bằng công cụ
+Splines (chỉnh `rows`, `pickRows`, `mergeAt`, `scale` ngay trên component), rồi **⋮ → Export** để ghi lại file. Gizmo hiện
+từng hàng trên loop (vùng lấy sáng hơn) và điểm nhập của từng feeder. Sau khi export, chạy `LevelTool validate`.
 
 ### 6.3 Tham số chung (không nằm trong level)
 Timing animation, easing, màu hex và SFX là **config key / design token**, dùng chung cho mọi level (§9,
@@ -387,8 +414,8 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
 | V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
-| V8 | Conveyor: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau. Level: hàng chờ có ít nhất 1 chai | `V8 conveyor oval_20_2f.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
-| V9 | `shape` tự khai của conveyor: ≥ 3 đỉnh, theo chiều kim đồng hồ, lồi; cạnh đầu là cạnh trước (nằm ngang, thấp nhất, phải → trái); bán kính > 0 và hai góc kề nhau không bo quá chiều dài cạnh giữa chúng | `$.shape.radius: corners 0 and 1 are rounded more than their edge (4) allows` |
+| V8 | Conveyor: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau. Level: hàng chờ có ít nhất 1 chai | `V8 conveyor oval_20.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
+| V9 | Spline của conveyor: loop ≥ 3 node, mỗi feeder ≥ 2 node, mọi số hữu hạn, hai node kề nhau không trùng chỗ | `V9 conveyor oval_16.feeders[2].nodes[0]: it and node 1 stand on the same spot` |
 | V6 | **Có lời giải**. Người chơi giả định "tap rồi chờ bàn đứng yên" (`CapChaosGame.Settle`) — mọi chuỗi thắng của người chơi đó cũng là chuỗi thắng thật. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |
 
 V6 là cửa CI: level không giải được thì không ship.
@@ -512,8 +539,8 @@ Mọi key đi qua `ConfigDefaults` (skill `pf-add-key`). Không hardcode trong c
 
 ### 10.1 Camera 3D: đã chốt ADR-001 phương án B
 
-> **Hiện hành:** [`ADR-001-camera-3d.md`](ADR-001-camera-3d.md) §5. `GamePlayCamera` đã là perspective
-> (FOV 30). Board tự đặt mình trước camera và nghiêng −60°. Tap đi qua hit-catcher uGUI + raycast 3D
+> **Hiện hành:** [`ADR-001-camera-3d.md`](ADR-001-camera-3d.md) §5, §7 và §8. `GamePlayCamera` là orthographic. Board
+> nằm phẳng trên mặt XZ của world; trong Gameplay, camera giữ vị trí trong rig và cúi xuống 60° (§8, 2026-10-05). Tap đi qua hit-catcher uGUI + raycast 3D
 > trong View. Nội dung 2D không được đặt ở layer GamePlay. Phần dưới đây là phân tích ban đầu, giữ lại
 > để tham khảo.
 

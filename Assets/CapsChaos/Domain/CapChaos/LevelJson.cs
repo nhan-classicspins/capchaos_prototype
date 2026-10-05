@@ -176,8 +176,9 @@ namespace Game.Domain
             catch (JsonParseException) { return null; }
         }
 
-        // the conveyor's own rules (pick zone, merge points, shape) are V8/V9 (ConveyorValidator); here: the level's
-        // bottles fit the conveyor it names — one queue per feeder, initial rows of the belt's size
+        // the conveyor's own rules (pick zone, merge points, splines) are V8/V9 (ConveyorValidator); here: the level's
+        // bottles fit the conveyor it names — a queue for each of the first N feeders it uses (N = how many queues it
+        // lists, at most the conveyor's), initial rows of the belt's size
         private static LoopDefinition ReadBelt(JsonValue root, ConveyorLibrary conveyors, List<string> errors)
         {
             int before = errors.Count;
@@ -208,12 +209,11 @@ namespace Game.Domain
                         }
                         feeders.Add(bottles);
                     }
-                    if (conveyor != null && fn.Items.Count != conveyor.FeederCount)
-                        errors.Add($"$.feeders: {fn.Items.Count} queue(s), but conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s) — one queue per feeder, in its order");
+                    if (conveyor != null && fn.Items.Count > conveyor.FeederCount)
+                        errors.Add($"$.feeders: {fn.Items.Count} queue(s), but conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s) — " +
+                                   "the level uses the first N, in the conveyor's order (right, left, middle)");
                 }
             }
-            else if (conveyor != null && conveyor.FeederCount > 0)
-                errors.Add($"$.feeders: required — conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s)");
 
             List<IReadOnlyList<CapColor>> initial = null;
             if (root.TryGet("initial", out var init))

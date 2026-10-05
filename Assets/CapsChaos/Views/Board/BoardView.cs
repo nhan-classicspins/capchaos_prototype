@@ -16,7 +16,9 @@ namespace Game.Views
         public GameObject[] Containers;
         /// <summary>The containers' shared materials (one asset for the session).</summary>
         public ContainerPalette ContainerPalette;
-        public GameObject Slot, Lane, Floor;
+        public GameObject Slot, Lane;
+        /// <summary>One spline conveyor belt (<see cref="ConveyorBeltView"/>): the top loop and every feeder are one each.</summary>
+        public GameObject ConveyorBelt;
         /// <summary>The item drawn for each colour on the belt and in the trays: <c>Items[flavour − 1]</c>.</summary>
         public GameObject[] Items;
         /// <summary>Tray modifiers (GDD R18, R19): the padlock on a locked tray, the rope between linked trays. Optional — without one, that modifier just does not draw.</summary>
@@ -87,19 +89,34 @@ namespace Game.Views
         }
 
         /// <summary>
-        /// ADR-001 (rev. 2026-10-02, orthographic): the camera stays level; the board tilts in front of it and SCALES so
-        /// that <see cref="DesignTokens.Board.ViewHeight"/> board units fill the safe rect's height (taller screens add
-        /// bleed above and below, never crop the sides). <paramref name="safeHalfHeight"/> is the safe rect's half height
-        /// in world units (the viewport's, read live — never a constant). Call again whenever it may have changed; it is cheap.
+        /// ADR-001 §8 (2026-10-05): the board lies FLAT on the world XZ plane and the camera looks down at it. The camera
+        /// keeps its rig position and pitches down <see cref="DesignTokens.Board.CameraPitchDegrees"/>; the board puts its
+        /// focus point on the view axis, <see cref="DesignTokens.Board.ViewDistance"/> away, and SCALES so that
+        /// <see cref="DesignTokens.Board.ViewHeight"/> board units fill the safe rect's height (taller screens add bleed
+        /// above and below, never crop the sides). Camera and board keep the very pose they had relative to each other when
+        /// the camera stayed level and the board tilted, so the picture is the same. <paramref name="safeHalfHeight"/> is
+        /// the safe rect's half height in world units (the viewport's, read live — never a constant). Call again whenever it
+        /// may have changed; it is cheap. The screen puts the camera's own rotation back when it leaves.
         /// </summary>
-        public void PlaceInFrontOf(Camera cam, float safeHalfHeight)
+        public void Frame(Camera cam, float safeHalfHeight)
         {
             var ct = cam.transform;
+            ct.rotation = Quaternion.Euler(B.CameraPitchDegrees, 0f, 0f);
             float scale = 2f * safeHalfHeight / B.ViewHeight;
-            var rot = ct.rotation * Quaternion.Euler(B.TiltDegrees, 0f, 0f);
             var parentScale = transform.parent != null ? transform.parent.lossyScale.x : 1f;
             transform.localScale = Vector3.one * (scale / Mathf.Max(parentScale, 1e-6f));
-            transform.SetPositionAndRotation(ct.position + ct.forward * B.ViewDistance - rot * new Vector3(0f, 0f, B.FocusZ * scale), rot);
+            transform.SetPositionAndRotation(ct.position + ct.forward * B.ViewDistance - new Vector3(0f, 0f, B.FocusZ * scale), Quaternion.identity);
+            if (_floor != null) _floor.FollowBoard(transform);
+        }
+
+        private BoardFloorView _floor;
+
+        /// <summary>The scene's floor (Gameplay.unity): not spawned, not owned — every <see cref="Frame"/> puts it under
+        /// the board's origin, as the spawned floor stood.</summary>
+        public void UseFloor(BoardFloorView floor)
+        {
+            _floor = floor;
+            if (_floor != null) _floor.FollowBoard(transform);
         }
 
         // ── build ────────────────────────────────────────────────────────────────────────────
@@ -107,7 +124,6 @@ namespace Game.Views
         /// ones on the right (R20: a dim tile with a green "+", tappable) — and <paramref name="laneCount"/> tray belts.</summary>
         public void BuildTable(int openSlots, int lockedSlots, int laneCount)
         {
-            Spawn(_p.Floor, transform, Vector3.zero);
 
             // The slot count comes from the level (open + locked, ≤ 6). The row keeps full-size slots up to
             // SlotRowMaxWidth and shrinks uniformly beyond it — spacing, tile, tray and box alike.
@@ -202,25 +218,27 @@ namespace Game.Views
             if (plus != null) Destroy(plus);
         }
 
-        /// <summary>The belt loop: <paramref name="rows"/> rows of <paramref name="width"/> bottles; the first
-        /// <paramref name="pickRows"/> track positions are the pick zone on its front edge, in front of the slots. Its shape
-        /// is a rounded convex polygon: corners clockwise from above (corner 0 → 1 the front edge) with their radii.</summary>
-        public void BuildLoop(int rows, int width, int pickRows, IReadOnlyList<float> xs, IReadOnlyList<float> zs, IReadOnlyList<float> radii)
+        /// <summary>The belt loop: <paramref name="rows"/> rows of <paramref name="width"/> bottles spread evenly along the
+        /// spline through <paramref name="loop"/> (board units, clockwise from above); the first <paramref name="pickRows"/>
+        /// track positions, from its first knot on, are the pick zone in front of the slots. <paramref name="scale"/>: how
+        /// big the belts and bottles are drawn.</summary>
+        public void BuildLoop(int rows, int width, int pickRows, float scale, IReadOnlyList<BeltNode> loop)
         {
             _loop = new GameObject("Loop").AddComponent<LoopBeltView>();
             _loop.transform.SetParent(transform, false);
             _stamp(_loop.gameObject);
-            _loop.Build(rows, width, pickRows, xs, zs, radii, _p.Items, _p.Lane, _stamp);
+            _loop.Build(rows, width, pickRows, scale, loop, _p.ConveyorBelt, _p.Items, _stamp);
         }
 
-        /// <summary>A feeder joining the oval at track position <paramref name="mergeAt"/>; <paramref name="tracks"/>[k] is
-        /// the queue on track k, head first.</summary>
-        public void AddFeeder(int mergeAt, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks) => _loop.AddFeeder(mergeAt, tracks);
+        /// <summary>A feeder belt along <paramref name="path"/> (far end first, landing on the loop) whose queue joins at
+        /// track position <paramref name="mergeAt"/>; <paramref name="tracks"/>[k] is the queue on track k, head first.</summary>
+        public void AddFeeder(int mergeAt, IReadOnlyList<BeltNode> path, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks) =>
+            _loop.AddFeeder(mergeAt, path, tracks);
 
         /// <summary>Editor gizmos only: how far either side of its entrance a feeder looks for a free row (R4).</summary>
         public void SetFeedReach(int rows) => _loop.SetFeedReach(rows);
 
-        /// <summary>Close the oval once every feeder is added: lay out the feeders, then its outer rail, open where each joins.</summary>
+        /// <summary>Close the loop once every feeder is added: place each feeder's queue.</summary>
         public void FinishLoop() => _loop.Finish();
 
         /// <summary>A bottle on belt (row, track) as the round starts.</summary>
@@ -249,9 +267,11 @@ namespace Game.Views
             foreach (var l in _links) if (l != null && l.Joins(a.transform) && l.Joins(b.transform)) return;
             var go = Spawn(_p.TrayLink, transform, Vector3.zero);
             var view = go.GetComponent<TrayLinkView>() ?? go.AddComponent<TrayLinkView>();
-            view.Bind(a.transform, b.transform);
+            view.Bind(a.transform, b.transform, LidOf(a), LidOf(b));
             _links.Add(view);
         }
+
+        private Renderer LidOf(GameObject tray) => _containers.TryGetValue(tray, out var c) && c != null ? c.Lid : null;
 
         /// <summary>A hidden tray on the belt turns out to be <paramref name="color"/> (R17): the "?" goes, the colour pops in.</summary>
         public async UniTask RevealLaneTray(int lane, int index, TintFlavor color)

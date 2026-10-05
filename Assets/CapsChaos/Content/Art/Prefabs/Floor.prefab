@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4960410152540485067}
   - component: {fileID: 3855901129451624376}
   - component: {fileID: 2778341835767384794}
+  - component: {fileID: 5011559982564180957}
   m_Layer: 0
   m_Name: Floor
   m_TagString: Untagged
@@ -106,3 +107,16 @@ MonoBehaviour:
   _token: 4
   _color: 1
   _materialIndex: -1
+--- !u!114 &5011559982564180957
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6379485497878582692}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 92214f5fef9bd4579aea6cbf9ff72fb6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Views::Game.Views.BoardFloorView
+  _offsetY: -0.1

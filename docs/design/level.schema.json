@@ -38,8 +38,8 @@
     },
     "feeders": {
       "type": "array",
-      "maxItems": 2,
-      "description": "One queue per feeder of the named conveyor, in its feeder order (R4) — required when the conveyor has feeders. A queue joins the belt a whole row at a time at that feeder's mergeAt.",
+      "maxItems": 3,
+      "description": "The queues of the conveyor feeders this level uses: the conveyor's FIRST N, in its order (right, left, middle) — 1 = right only, 2 = right + left, 3 = all. Each joins the belt a whole row at a time at that feeder's mergeAt.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -68,7 +68,7 @@
     },
     "links": {
       "type": "array",
-      "description": "Linked tray pairs (R19): they fly to the slots together (2 free slots needed); belts carrying a pair across two lanes only move together. V7: two neighbours in one lane, or the same position of two neighbouring lanes; a tray is in at most one link and is never locked.",
+      "description": "Linked tray pairs (R19): they fly to the slots together (2 free slots needed); belts carrying a pair across two lanes only move together. V7: two neighbours in one lane, or the same position of any two lanes (side by side or with lanes between them); a tray is in at most one link and is never locked.",
       "items": {
         "type": "object",
         "additionalProperties": false,

@@ -262,15 +262,18 @@ namespace CapsChaos.LevelTool
             var uses = new Dictionary<string, List<string>>(StringComparer.Ordinal);
             foreach (var f in Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal))
             {
-                string id = LevelJson.ConveyorIdOf(File.ReadAllText(f)) ?? "?";
+                string text = File.ReadAllText(f);
+                string id = LevelJson.ConveyorIdOf(text) ?? "?";
+                var root = JsonReader.Parse(text);
+                int feeders = root.TryGet("feeders", out var fn) && fn.Kind == JsonKind.Array ? fn.Items.Count : 0;
                 if (!uses.TryGetValue(id, out var list)) uses[id] = list = new List<string>();
-                list.Add(Path.GetFileNameWithoutExtension(f));
+                list.Add($"{Path.GetFileNameWithoutExtension(f)}({feeders}f)");
             }
-            Console.WriteLine($"{"conveyor",-15} {"shape",-8} {"rows",4} {"width",5} {"pick",4} {"mergeAt",-9} levels");
+            Console.WriteLine($"{"conveyor",-15} {"knots",5} {"rows",4} {"width",5} {"pick",4} {"mergeAt R,L,M",-13} levels (feeders used)");
             foreach (var c in library.All.OrderBy(c => c.Id, StringComparer.Ordinal))
             {
                 var levels = uses.TryGetValue(c.Id, out var l) ? l : new List<string>();
-                Console.WriteLine($"{c.Id,-15} {c.Shape.Preset ?? "custom",-8} {c.Rows,4} {c.Width,5} {c.PickRows,4} {string.Join(",", c.MergeAt),-9} " +
+                Console.WriteLine($"{c.Id,-15} {c.Loop.Count,5} {c.Rows,4} {c.Width,5} {c.PickRows,4} {string.Join(",", c.MergeAt),-13} " +
                                   (levels.Count == 0 ? "(unused)" : string.Join(" ", levels)));
             }
             return Ok;

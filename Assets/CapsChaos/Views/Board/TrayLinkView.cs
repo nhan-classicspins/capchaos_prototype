@@ -13,15 +13,18 @@ namespace Game.Views
     /// <see cref="LineRenderer"/> under it (rope, outline) gets the same points. Humble: two transforms in, a curve out.
     /// </summary>
     /// <remarks>
-    /// The rope's shape is tuned on the prefab (Inspector, live in play mode too): <see cref="_ropeY"/> is how high above
-    /// each tray the ends attach (tray units, so it scales with the tray like the lock does), <see cref="_ropeArc"/> how far the middle of the rope rises above them (board units),
+    /// Each end attaches to the top of its container's LID (<c>BoxLid</c>, whatever the container's size), raised by
+    /// <see cref="_offsetY"/>; a container without a lid falls back to its tray's pivot. A link may span lanes with other
+    /// lanes between them: the rope arcs over them. The shape is tuned on the prefab (Inspector, live in play mode too):
+    /// <see cref="_offsetY"/> is how high above each lid the ends attach (board units), <see cref="_ropeArc"/> how far the
+    /// middle of the rope rises above them (board units),
     /// <see cref="_segments"/> how smooth the curve is. The defaults come from <see cref="DesignTokens.Board"/>. Points
     /// set on the LineRenderers themselves are overwritten every frame.
     /// </remarks>
     public sealed class TrayLinkView : MonoBehaviour
     {
-        [Tooltip("Height of each rope end above its tray's pivot, in the tray's own units (like the lock's LockY).")]
-        [SerializeField] private float _ropeY = Bd.RopeY;
+        [Tooltip("Height of each rope end above the top of its container's lid, in BOARD units (scaled with the board).")]
+        [SerializeField] private float _offsetY = Bd.RopeOffsetY;
         [Tooltip("How far the middle of the rope rises above the straight line between its ends, in board units.")]
         [SerializeField] private float _ropeArc = Bd.RopeArc;
         [Tooltip("Straight pieces the rope curve is drawn with.")]
@@ -35,9 +38,14 @@ namespace Game.Views
         public Transform A => _a;
         public Transform B => _b;
 
-        public void Bind(Transform a, Transform b)
+        private Renderer _lidA, _lidB;
+
+        /// <summary>Tie trays <paramref name="a"/> and <paramref name="b"/>; the ends hang off their lids
+        /// (<paramref name="lidA"/> / <paramref name="lidB"/>, null = the tray's pivot).</summary>
+        public void Bind(Transform a, Transform b, Renderer lidA = null, Renderer lidB = null)
         {
             _a = a; _b = b;
+            _lidA = lidA; _lidB = lidB;
             _lines = GetComponentsInChildren<LineRenderer>(true);
             _widths = new float[_lines.Length];
             for (int i = 0; i < _lines.Length; i++)
@@ -55,9 +63,11 @@ namespace Game.Views
         {
             if (_a == null || _b == null || _lines == null) return;
             EnsurePoints();                                            // the segment count may have been changed in the Inspector
-            // the board is scaled to the screen (1 world unit = 1 px), so offsets go through the transforms, never raw
-            var from = _a.TransformPoint(Vector3.up * _ropeY);
-            var to = _b.TransformPoint(Vector3.up * _ropeY);
+            // the board is scaled to the screen (1 world unit = 1 px), so offsets go through the transforms, never raw;
+            // the rope's parent is the board, so board units → world through it
+            var lift = transform.parent != null ? transform.parent.TransformVector(Vector3.up * _offsetY) : Vector3.up * _offsetY;
+            var from = LidTop(_a, _lidA) + lift;
+            var to = LidTop(_b, _lidB) + lift;
             var arc = transform.TransformVector(Vector3.up * _ropeArc);
             for (int i = 0; i < _points.Length; i++)
             {
@@ -65,6 +75,14 @@ namespace Game.Views
                 _points[i] = Vector3.Lerp(from, to, k) + arc * Mathf.Sin(k * Mathf.PI);
             }
             foreach (var line in _lines) line.SetPositions(_points);
+        }
+
+        /// <summary>The middle of the top of <paramref name="lid"/> (world), or the tray's pivot when it has no lid showing.</summary>
+        private static Vector3 LidTop(Transform tray, Renderer lid)
+        {
+            if (lid == null || !lid.gameObject.activeInHierarchy) return tray.position;
+            var b = lid.bounds;                                         // the board lies on the world XZ plane: up is world up
+            return new Vector3(b.center.x, b.max.y, b.center.z);
         }
 
         private void EnsurePoints()

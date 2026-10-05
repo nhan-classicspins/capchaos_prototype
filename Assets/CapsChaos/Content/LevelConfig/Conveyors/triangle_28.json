@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../../../docs/design/conveyor.schema.json",
+  "formatVersion": 2,
+  "id": "triangle_28",
+  "rows": 28,
+  "width": 4,
+  "pickRows": 4,
+  "scale": 0.598,
+  "loop": { "nodes": [
+    { "x": 0.582, "z": 3.167, "yRotation": 270 },
+    { "x": -0.682, "z": 3.167, "yRotation": 270 },
+    { "x": -1.366, "z": 3.608, "yRotation": 335.6 },
+    { "x": -1.247, "z": 4.413, "yRotation": 41.2 },
+    { "x": -0.565, "z": 5.192, "yRotation": 41.2 },
+    { "x": 0, "z": 5.449, "yRotation": 90 },
+    { "x": 0.565, "z": 5.192, "yRotation": 138.8 },
+    { "x": 1.247, "z": 4.413, "yRotation": 138.8 },
+    { "x": 1.366, "z": 3.608, "yRotation": 204.4 }
+  ] },
+  "feeders": [
+    { "side": "right", "mergeAt": 20, "nodes": [
+      { "x": 2.499, "z": 11.707, "yRotation": 180 },
+      { "x": 2.499, "z": 8.411, "yRotation": 180 },
+      { "x": 2.5, "z": 6.3, "yRotation": 180 },
+      { "x": 1.604, "z": 4.863, "yRotation": 232.2 }
+    ] },
+    { "side": "left", "mergeAt": 12, "nodes": [
+      { "x": -2.499, "z": 11.707, "yRotation": 180 },
+      { "x": -2.499, "z": 8.411, "yRotation": 180 },
+      { "x": -2.499, "z": 6.3, "yRotation": 180 },
+      { "x": -1.68, "z": 4.78, "yRotation": 124.7 }
+    ] },
+    { "side": "middle", "mergeAt": 16, "nodes": [
+      { "x": 0, "z": 11.707, "yRotation": 180 },
+      { "x": 0, "z": 8.411, "yRotation": 179.9 },
+      { "x": 0, "z": 5.96, "yRotation": 180 }
+    ] }
+  ],
+  "meta": { "name": "Triangle" }
+}

@@ -61,6 +61,8 @@ namespace Game.Presentation
         private CapChaosGame _game;
         private int _levelIndex;
         private GameObject _boardGo, _inputGo;
+        private Quaternion? _camRotation;                                    // the GamePlay camera's rig rotation, while the board has it pitched
+        private readonly BoardFloorView _floor;                              // authored in Gameplay.unity; the board frames it
         private BoardView _board;
         private BoardInputView _input;
         private int[] _laneShown;          // how many trays of each lane have been put on the belt so far
@@ -79,8 +81,9 @@ namespace Game.Presentation
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
             IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, BeltClock clock,
             IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, IUserData userData,
-            IWorldViewport viewport, ContainerPaletteProvider containerPalette, ILog log = null)
+            IWorldViewport viewport, ContainerPaletteProvider containerPalette, BoardFloorView floor, ILog log = null)
         {
+            _floor = floor;
             _containerPalette = containerPalette;
             _viewport = viewport;
             _wallet = wallet;
@@ -126,9 +129,9 @@ namespace Game.Presentation
                 _log?.Warn($"[Gameplay] no addressable '{ContainerPalette.Address}' — containers keep their authored material");
             _prefabs.Slot = await Hold(AssetKeys.Slot, ct);
             _prefabs.Lane = await Hold(AssetKeys.Lane, ct);
-            _prefabs.Floor = await Hold(AssetKeys.Floor, ct);
             _prefabs.TrayLock = await Hold(AssetKeys.TrayLock, ct);
             _prefabs.TrayLink = await Hold(AssetKeys.TrayLink, ct);
+            _prefabs.ConveyorBelt = await Hold(AssetKeys.ConveyorBelt, ct);
             _hud.Attach();
             _hud.RetryRequested += OnRetry;
             _hud.HomeRequested += GoHome;
@@ -155,6 +158,17 @@ namespace Game.Presentation
         {
             _hud.SetVisible(false);
             TeardownRound();
+            RestoreCamera();
+        }
+
+        /// <summary>The board pitched the shared GamePlay camera down to look at the XZ plane (ADR-001 §8): give the rig
+        /// its own rotation back, so whatever renders on that layer next finds the camera as it was.</summary>
+        private void RestoreCamera()
+        {
+            if (_camRotation == null) return;
+            var cam = _layers.GetCamera(RenderLayers.GamePlay);
+            if (cam != null) cam.transform.rotation = _camRotation.Value;
+            _camRotation = null;
         }
 
         /// <summary>Back (Escape in the Editor, the system back on Android) does what Home does.</summary>
@@ -174,6 +188,7 @@ namespace Game.Presentation
             if (_leaving) return;
             _leaving = true;
             TeardownRound();
+            RestoreCamera();
             _scenes.LoadAsync(SceneKeys.Main, new MainParam(ColdBoot: false), SceneTransition.Replace)
                 .Forget(e => { _leaving = false; _log.Error("[GameplayScreen] could not return to Main: " + e.Message); });
         }
@@ -181,6 +196,7 @@ namespace Game.Presentation
         public override UniTask OnUnloadAsync(CancellationToken ct)
         {
             TeardownRound();
+            RestoreCamera();
             _clock.Ticked -= OnTick;
             _hud.RetryRequested -= OnRetry;
             _hud.HomeRequested -= GoHome;
@@ -210,12 +226,15 @@ namespace Game.Presentation
             // flatten the 3D board (ADR-001 §5.5). Put the board on the GamePlay layer's culling layer only.
             int boardLayer = _layers.GetHost(RenderLayers.GamePlay).gameObject.layer;
             _board.Bind(_prefabs, go => SetLayer(go.transform, boardLayer));
-            _board.PlaceInFrontOf(cam, _viewport.SafeRect.height * 0.5f);
+            SetLayer(_floor.transform, boardLayer);
+            _board.UseFloor(_floor);
+            _camRotation ??= cam.transform.rotation;                        // the rig's own pose, put back on exit
+            _board.Frame(cam, _viewport.SafeRect.height * 0.5f);
             _board.BuildTable(_level.Slots, _level.ExtraSlots, _level.Lanes.Count);
 
             var belt = _game.Belt;
-            var (sx, sz, sr) = _level.Shape.Corners(belt.Rows, belt.PickRows);
-            _board.BuildLoop(belt.Rows, belt.Width, belt.PickRows, Floats(sx), Floats(sz), Floats(sr));
+            var conveyor = _level.Conveyor;
+            _board.BuildLoop(belt.Rows, belt.Width, belt.PickRows, (float)conveyor.Scale, Knots(conveyor.Loop));
             _board.SetFeedReach(LoopBelt.FeedReach);
             for (int row = 0; row < belt.Rows; row++)
                 for (int k = 0; k < belt.Width; k++)
@@ -229,7 +248,7 @@ namespace Game.Presentation
                     for (int d = 0; d < belt.FeederRemaining(f, k); d++) queue.Add(belt.FeederAt(f, k, d).ToTint());
                     tracks.Add(queue);
                 }
-                _board.AddFeeder(belt.MergeAt(f), tracks);
+                _board.AddFeeder(belt.MergeAt(f), Knots(conveyor.Feeders[f].Nodes), tracks);
             }
             _board.FinishLoop();
             _beltTime = 0f;
@@ -361,7 +380,7 @@ namespace Game.Presentation
         /// board draws it in between.</summary>
         private void OnTick(float dt)
         {
-            if (_board != null) _board.PlaceInFrontOf(_layers.GetCamera(RenderLayers.GamePlay), _viewport.SafeRect.height * 0.5f);   // the view may resize
+            if (_board != null) _board.Frame(_layers.GetCamera(RenderLayers.GamePlay), _viewport.SafeRect.height * 0.5f);   // the view may resize
             if (_game == null || _board == null || _ending || _game.Status != GameStatus.Playing) return;
             float interval = 1f / DesignTokens.Motion.BeltRowsPerSecond;
             _beltTime += dt;
@@ -570,11 +589,13 @@ namespace Game.Presentation
             StartRound(won ? _levelIndex + 1 : _levelIndex);
         }
 
-        private static float[] Floats(double[] v)
+        /// <summary>A conveyor spline as the board draws it (the Domain knot → the View's).</summary>
+        private static BeltNode[] Knots(IReadOnlyList<ConveyorNode> nodes)
         {
-            var f = new float[v.Length];
-            for (int i = 0; i < v.Length; i++) f[i] = (float)v[i];
-            return f;
+            var knots = new BeltNode[nodes.Count];
+            for (int i = 0; i < knots.Length; i++)
+                knots[i] = new BeltNode((float)nodes[i].X, (float)nodes[i].Z, (float)nodes[i].YRotation, nodes[i].Linear);
+            return knots;
         }
 
         private static void SetLayer(Transform t, int layer)

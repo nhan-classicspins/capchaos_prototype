@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../../../docs/design/conveyor.schema.json",
+  "formatVersion": 2,
+  "id": "oval_32",
+  "rows": 32,
+  "width": 4,
+  "pickRows": 6,
+  "scale": 0.483,
+  "loop": { "nodes": [
+    { "x": 0.722, "z": 3.112, "yRotation": 270 },
+    { "x": -0.722, "z": 3.112, "yRotation": 270 },
+    { "x": -1.488, "z": 3.878, "yRotation": 0 },
+    { "x": -0.722, "z": 4.644, "yRotation": 90 },
+    { "x": 0.722, "z": 4.644, "yRotation": 90 },
+    { "x": 1.488, "z": 3.878, "yRotation": 180 }
+  ] },
+  "feeders": [
+    { "side": "right", "mergeAt": 24, "nodes": [
+      { "x": 2.018, "z": 9.456, "yRotation": 180 },
+      { "x": 2.018, "z": 6.794, "yRotation": 180 },
+      { "x": 2.018, "z": 5.131, "yRotation": 180 },
+      { "x": 1.675, "z": 4.541, "yRotation": 236.8 }
+    ] },
+    { "side": "left", "mergeAt": 12, "nodes": [
+      { "x": -2.018, "z": 9.456, "yRotation": 180 },
+      { "x": -2.018, "z": 6.794, "yRotation": 180 },
+      { "x": -2.018, "z": 5.131, "yRotation": 180 },
+      { "x": -1.675, "z": 4.541, "yRotation": 129 }
+    ] },
+    { "side": "middle", "mergeAt": 18, "nodes": [
+      { "x": 0, "z": 10.62, "yRotation": 180 },
+      { "x": 0, "z": 7.64, "yRotation": 180.1 },
+      { "x": -0.07, "z": 5.08, "yRotation": 180 }
+    ] }
+  ],
+  "meta": { "name": "Large oval" }
+}

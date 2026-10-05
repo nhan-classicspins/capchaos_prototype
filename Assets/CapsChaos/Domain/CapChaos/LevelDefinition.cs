@@ -19,7 +19,8 @@ namespace Game.Domain
 
     /// <summary>
     /// The top conveyor as played (GDD R1–R4): a shared <see cref="ConveyorDefinition"/> (the layout — rows, pick zone,
-    /// shape, merge points) filled with ONE level's bottles (each feeder's queue, optional initial rows). Immutable.
+    /// splines, merge points) filled with ONE level's bottles (the queues of the feeders it uses, optional initial
+    /// rows). Immutable.
     /// </summary>
     public sealed class LoopDefinition
     {
@@ -33,20 +34,22 @@ namespace Game.Domain
         public int Width => Conveyor.Width;
         /// <summary>The pick zone: track positions <c>0 .. PickRows−1</c>, the front straight in front of the slots.</summary>
         public int PickRows => Conveyor.PickRows;
-        /// <summary>One per conveyor feeder, in its order: the merge point and this level's bottles for it.</summary>
+        /// <summary>The feeders this level uses — the conveyor's first N, in its order (right, left, middle): the merge
+        /// point and this level's bottles for it.</summary>
         public IReadOnlyList<FeederDefinition> Feeders { get; }
         /// <summary>Optional: the belt's content at the start, <c>Initial[row][track]</c> (None = empty spot). Null =
         /// the feeders fill the belt as it turns once round before the round starts.</summary>
         public IReadOnlyList<IReadOnlyList<CapColor>> Initial { get; }
 
         /// <summary>A level's bottles on a shared conveyor: <paramref name="feederBottles"/>[f] is what conveyor feeder
-        /// f carries — exactly one entry per conveyor feeder.</summary>
+        /// f carries. A level uses the conveyor's first <c>feederBottles.Count</c> feeders; the rest stay empty and are
+        /// not drawn.</summary>
         public LoopDefinition(ConveyorDefinition conveyor, IReadOnlyList<IReadOnlyList<CapColor>> feederBottles,
             IReadOnlyList<IReadOnlyList<CapColor>> initial = null)
         {
             Conveyor = conveyor ?? throw new ArgumentNullException(nameof(conveyor));
             if (feederBottles == null) throw new ArgumentNullException(nameof(feederBottles));
-            if (feederBottles.Count != conveyor.FeederCount)
+            if (feederBottles.Count > conveyor.FeederCount)
                 throw new ArgumentException($"{feederBottles.Count} feeder queue(s) for a conveyor with {conveyor.FeederCount} feeder(s)", nameof(feederBottles));
             var feeders = new List<FeederDefinition>(feederBottles.Count);
             for (int f = 0; f < feederBottles.Count; f++) feeders.Add(new FeederDefinition(conveyor.MergeAt[f], feederBottles[f]));
@@ -107,7 +110,7 @@ namespace Game.Domain
     }
 
     /// <summary>Two linked trays (GDD R19): they leave the belt together or not at all. Either two neighbours in one
-    /// lane, or the trays at the same position of two neighbouring lanes.</summary>
+    /// lane, or the trays at the same position of two lanes (any two: side by side, or with lanes between them).</summary>
     public sealed class TrayLink
     {
         public TrayRef A { get; }
@@ -139,8 +142,6 @@ namespace Game.Domain
         public string CameraPreset { get; }
         /// <summary>The shared top-conveyor layout this level runs on (<c>Conveyors/&lt;id&gt;.json</c>).</summary>
         public ConveyorDefinition Conveyor => Loop.Conveyor;
-        /// <summary>How the loop is drawn (presentation only; the conveyor's; <see cref="LoopShape.Default"/> = the oval).</summary>
-        public LoopShape Shape => Loop.Conveyor.Shape;
         public string Name { get; }
         public string Difficulty { get; }
         public string Notes { get; }

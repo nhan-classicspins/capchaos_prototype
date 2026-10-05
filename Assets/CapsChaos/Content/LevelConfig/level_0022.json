@@ -2,7 +2,7 @@
   "$schema": "../../../../docs/design/level.schema.json",
   "formatVersion": 4,
   "id": "level_0022",
-  "conveyor": "triangle_28_2f",
+  "conveyor": "triangle_28",
   "slots": 4,
   "extraSlots": 2,
   "trayCapacity": 4,

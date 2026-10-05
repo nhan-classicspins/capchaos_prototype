@@ -26,6 +26,13 @@ namespace Game.Composition
                 .FirstOrDefault(v => v != null)
                 ?? throw new System.InvalidOperationException("Gameplay.unity has no GameplayHudView — add the GameplayHudWidget prefab instance.");
             builder.RegisterInstance(hud);
+
+            // the floor is authored in Gameplay.unity (Floor prefab instance under WorldRoot); the board frames it
+            var floor = gameObject.scene.GetRootGameObjects()
+                .Select(g => g.GetComponentInChildren<BoardFloorView>(true))
+                .FirstOrDefault(v => v != null)
+                ?? throw new System.InvalidOperationException("Gameplay.unity has no BoardFloorView — add the Floor prefab instance under WorldRoot.");
+            builder.RegisterInstance(floor);
             builder.Register<GameplayHudWidget>(Lifetime.Scoped).AsSelf();
 
             // the fixed tick (rule #15): the framework's gate + GameplayTickDriver, pumping the belt clock
