@@ -12,9 +12,11 @@ namespace Game.Presentation
     {
         public static class Containers
         {
-            public static readonly AssetKey<GameObject> Container_S    = new("Containers/Container_S");
-            public static readonly AssetKey<GameObject> IceCube_S      = new("Containers/IceCube_S");
-            public static readonly AssetKey<GameObject> RainbowCover_S = new("Containers/RainbowCover_S");
+            public static readonly AssetKey<GameObject> Container_L  = new("Containers/Container_L");
+            public static readonly AssetKey<GameObject> Container_M  = new("Containers/Container_M");
+            public static readonly AssetKey<GameObject> Container_S  = new("Containers/Container_S");
+            public static readonly AssetKey<GameObject> Container_XL = new("Containers/Container_XL");
+            public static readonly AssetKey<GameObject> IceCube_S    = new("Containers/IceCube_S");
         }
         public static class Items
         {

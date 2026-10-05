@@ -18,7 +18,8 @@ namespace Game.Views
         [SerializeField] private Material _locked;
         [SerializeField] private Material _hidden;
 
-        /// <summary>The material for a container of <paramref name="color"/> — locked wins over hidden; null if unset.</summary>
+        /// <summary>The material for a container of <paramref name="color"/> — locked wins over hidden; null if unset. The
+        /// board no longer asks for the locked one (a locked tray keeps its colour, 2026-10-02); it stays for the art.</summary>
         public Material For(TintFlavor color, bool hidden, bool locked)
         {
             if (locked) return _locked;

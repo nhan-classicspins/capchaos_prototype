@@ -13,7 +13,8 @@ namespace Game.Domain
         RejectedLocked,
         /// <summary>R19: the front tray is linked and its partner is not at the front of its own lane yet.</summary>
         RejectedLinkNotReady,
-        /// <summary>R19: the front position of the lane is empty — its belt is held until the belt it is linked to can move too.</summary>
+        /// <summary>R19: the front position of the lane is empty — its first cross-lane linked tray is held (with every tray
+        /// behind it) until the belt it is linked to can move too, and no free tray is left in front of it.</summary>
         RejectedBeltHeld,
     }
 
@@ -40,11 +41,13 @@ namespace Game.Domain
         // per-tray modifiers (R17–R19), immutable after construction and shared by clones; null = none in the level
         private bool[][] _hidden;
         private int[][] _lockTurns;
+        private TraySize[][] _size;                // R21; null = every tray is S
         private TrayRef?[][] _partner;
         private readonly int[] _lockLeft;          // per lane: placements the FRONT tray still waits for (R18)
-        private readonly int[] _gap;               // per lane: empty positions at the front of a HELD belt (R19)
+        private readonly int[] _gap;               // per lane: empty positions just in front of its HELD linked tray (R19)
         private readonly CapColor[] _slotColor;   // None = empty slot
         private readonly int[] _slotFilled;
+        private readonly int[] _slotCapacity;      // items the tray in the slot takes before it is full (R21)
         private readonly bool[] _slotOpen;        // R20: false = an extra slot still locked (it takes no tray)
         private bool _ranOut;                     // R20: SlotsRanOut was reported for the current stall
 
@@ -88,6 +91,7 @@ namespace Game.Domain
             _gap = new int[lanes.Count];
             _slotColor = new CapColor[slots + extraSlots];
             _slotFilled = new int[slots + extraSlots];
+            _slotCapacity = new int[slots + extraSlots];
             _slotOpen = new bool[slots + extraSlots];
             for (int s = 0; s < slots; s++) _slotOpen[s] = true;
             Status = GameStatus.Playing;
@@ -99,11 +103,12 @@ namespace Game.Domain
             Capacity = src.Capacity;
             _lanes = src._lanes;                          // lane CONTENT is immutable after construction…
             _laneHead = (int[])src._laneHead.Clone();     // …only the heads move
-            _hidden = src._hidden; _lockTurns = src._lockTurns; _partner = src._partner;
+            _hidden = src._hidden; _lockTurns = src._lockTurns; _partner = src._partner; _size = src._size;
             _lockLeft = (int[])src._lockLeft.Clone();
             _gap = (int[])src._gap.Clone();
             _slotColor = (CapColor[])src._slotColor.Clone();
             _slotFilled = (int[])src._slotFilled.Clone();
+            _slotCapacity = (int[])src._slotCapacity.Clone();
             _slotOpen = (bool[])src._slotOpen.Clone();
             _ranOut = src._ranOut;
             Status = src.Status;
@@ -137,6 +142,11 @@ namespace Game.Domain
                     _partner[l.B.Lane][l.B.Index] = l.A;
                 }
             }
+            if (level.TraySizes.Count > 0)
+            {
+                _size = NewJagged<TraySize>();
+                foreach (var kv in level.TraySizes) if (InRange(kv.Key)) _size[kv.Key.Lane][kv.Key.Index] = kv.Value;
+            }
             for (int j = 0; j < _lanes.Length; j++) _lockLeft[j] = LockTurnsAt(j, 0);
         }
 
@@ -146,6 +156,15 @@ namespace Game.Domain
             for (int j = 0; j < a.Length; j++) a[j] = new T[_lanes[j].Count];
             return a;
         }
+
+        /// <summary>R21: items authored tray <paramref name="tray"/> of <paramref name="lane"/> takes — its size × <see cref="Capacity"/>.</summary>
+        public int TrayCapacity(int lane, int tray) => (int)TraySizeOf(lane, tray) * Capacity;
+
+        public TraySize TraySizeOf(int lane, int tray) =>
+            _size != null && tray < _size[lane].Length && _size[lane][tray] != 0 ? _size[lane][tray] : TraySize.S;
+
+        /// <summary>Items the tray in <paramref name="slot"/> takes before it is full; 0 = no tray there.</summary>
+        public int SlotCapacity(int slot) => _slotCapacity[slot];
 
         private int LockTurnsAt(int lane, int tray) =>
             _lockTurns != null && tray < _lockTurns[lane].Length ? _lockTurns[lane][tray] : 0;
@@ -162,11 +181,39 @@ namespace Game.Domain
 
         /// <summary>Authored index of the next tray of <paramref name="lane"/> (= how many trays have left it).</summary>
         public int LaneHead(int lane) => _laneHead[lane];
-        /// <summary>R19: empty positions at the front of <paramref name="lane"/>'s belt while it is held; 0 = its next tray is at the front.</summary>
+        /// <summary>R19: empty positions just in front of <paramref name="lane"/>'s first cross-lane linked tray while it is
+        /// held; the trays in front of that tray have moved up to the front. 0 = nothing on the lane is held.</summary>
         public int LaneGap(int lane) => _gap[lane];
         /// <summary>Is authored tray <paramref name="tray"/> standing at the front position of its belt?</summary>
         public bool IsAtFront(int lane, int tray) => tray == _laneHead[lane] && HasFront(lane);
-        private bool HasFront(int lane) => _gap[lane] == 0 && LaneRemaining(lane) > 0;
+        // the front position is empty only when the held linked tray is the next tray of the lane
+        private bool HasFront(int lane) => LaneRemaining(lane) > 0 && (_gap[lane] == 0 || HeldTray(lane) != _laneHead[lane]);
+
+        /// <summary>
+        /// R19: where authored tray <paramref name="tray"/> of <paramref name="lane"/> stands on its belt — 0 is the front
+        /// position, −1 = it already left. Trays in front of the lane's first cross-lane linked tray always move up; that
+        /// tray and every tray behind it stand <see cref="LaneGap"/> positions further back while it is held.
+        /// </summary>
+        public int TrayPosition(int lane, int tray)
+        {
+            int head = _laneHead[lane];
+            if (tray < head) return -1;
+            int held = HeldTray(lane);
+            return tray - head + (held >= 0 && tray >= held ? _gap[lane] : 0);
+        }
+
+        /// <summary>The first tray still on <paramref name="lane"/> that is linked to a tray on ANOTHER lane — the one a
+        /// held lane waits on (R19) — or −1. Trays in front of it are free; it and the trays behind it move with the link.</summary>
+        private int HeldTray(int lane)
+        {
+            if (_partner == null) return -1;
+            for (int t = _laneHead[lane]; t < _lanes[lane].Count; t++)
+            {
+                var p = _partner[lane][t];
+                if (p.HasValue && p.Value.Lane != lane) return t;
+            }
+            return -1;
+        }
         /// <summary>The colour of authored tray <paramref name="tray"/> of <paramref name="lane"/>, hidden or not.</summary>
         public CapColor TrayColor(int lane, int tray) => _lanes[lane][tray];
         /// <summary>R18: placements the front tray of <paramref name="lane"/> still waits for; 0 = tappable.</summary>
@@ -180,8 +227,8 @@ namespace Game.Domain
         {
             if (_hidden == null || tray >= _hidden[lane].Length || !_hidden[lane][tray]) return false;
             int head = _laneHead[lane];
-            if (tray < head || (tray == head && _gap[lane] == 0)) return false;
-            return !(tray == head + 1 && _gap[lane] == 0 && TryPartner(lane, head, out var p) && p.Lane == lane && p.Index == tray);
+            if (tray < head || (tray == head && HasFront(lane))) return false;
+            return !(tray == head + 1 && HasFront(lane) && TryPartner(lane, head, out var p) && p.Lane == lane && p.Index == tray);
         }
 
         /// <summary>The tray linked to authored tray <paramref name="tray"/> of <paramref name="lane"/>, if any (R19).</summary>
@@ -213,11 +260,13 @@ namespace Game.Domain
             {
                 int slot = FreeSlot();
                 CapColor color = _lanes[group[i].Lane][group[i].Index];
-                facts.Add(new TrayPlaced(group[i].Lane, slot, color));                          // R6
+                int capacity = TrayCapacity(group[i].Lane, group[i].Index);
+                facts.Add(new TrayPlaced(group[i].Lane, slot, color, capacity));                          // R6
                 _slotColor[slot] = color;
                 _slotFilled[slot] = 0;
-                _laneHead[group[i].Lane]++;                                                     // the tray left; its position is empty
-                _gap[group[i].Lane]++;
+                _slotCapacity[slot] = capacity;
+                _laneHead[group[i].Lane]++;                                                     // the tray left: the free trays in front of
+                _gap[group[i].Lane]++;                                                          // a held linked tray move up, a hole opens before it
                 _lockLeft[group[i].Lane] = 0;
             }
             AdvanceBelts(facts);                                                                // R7, R19
@@ -284,11 +333,13 @@ namespace Game.Domain
         }
 
         /// <summary>
-        /// R7 + R19: a belt with an empty front position steps one tray forward — unless it carries a tray linked to a
-        /// tray on ANOTHER belt: linked trays stay side by side, so those belts only step together, when every one of
-        /// them has an empty front. A belt that can not step yet is HELD (its front stays empty, nothing on it can be
-        /// tapped) until the belts it is linked to can step too. Repeats until no belt can step; one
-        /// <see cref="LaneAdvanced"/> per belt per step.
+        /// R7 + R19: the trays of a lane move up into the positions the released trays left — but a tray linked to a tray
+        /// on ANOTHER lane stays side by side with its partner, so it (and every tray behind it) only steps when the
+        /// partner's lane can step too. The trays IN FRONT of that linked tray are not tied: they always move up (see
+        /// <see cref="TrayPosition"/>), so only the linked tray and the trays behind it are HELD, with
+        /// <see cref="LaneGap"/> empty positions in front of them. The front is empty (nothing tappable) only once the
+        /// held tray is the next tray of its lane. Repeats until nothing can step; one <see cref="LaneAdvanced"/> per
+        /// lane per step of its held part (a lane with no linked tray steps freely, as before).
         /// </summary>
         private void AdvanceBelts(List<GameFact> facts)
         {
@@ -335,7 +386,7 @@ namespace Game.Domain
             if (Status != GameStatus.Playing) return TapOutcome.RejectedGameOver;
             if (lane < 0 || lane >= _lanes.Length) return TapOutcome.RejectedBadLane;
             if (LaneRemaining(lane) == 0) return TapOutcome.RejectedEmptyLane;                   // R5
-            if (_gap[lane] > 0) return TapOutcome.RejectedBeltHeld;                              // R19
+            if (!HasFront(lane)) return TapOutcome.RejectedBeltHeld;                             // R19
             if (_lockLeft[lane] > 0) return TapOutcome.RejectedLocked;                           // R18
             int head = _laneHead[lane];
             var front = new TrayRef(lane, head);
@@ -368,9 +419,10 @@ namespace Game.Domain
         {
             int slot = FreeSlot();
             if (Status != GameStatus.Playing || slot < 0) throw new InvalidOperationException("no free slot");
-            var facts = new List<GameFact> { new TrayPlaced(-1, slot, color) };
+            var facts = new List<GameFact> { new TrayPlaced(-1, slot, color, Capacity) };
             _slotColor[slot] = color;
             _slotFilled[slot] = 0;
+            _slotCapacity[slot] = Capacity;
             Resolve(facts);
             return facts;
         }
@@ -417,11 +469,12 @@ namespace Game.Domain
                     facts.Add(new BottlePicked(row, k, s, c));
                     _slotFilled[s]++;
                     facts.Add(new BottleCapped(s, _slotFilled[s]));
-                    if (_slotFilled[s] >= Capacity)                                             // R13
+                    if (_slotFilled[s] >= _slotCapacity[s])                                    // R13, R21
                     {
                         facts.Add(new TrayPacked(s, _slotColor[s]));
                         _slotColor[s] = CapColor.None;
                         _slotFilled[s] = 0;
+                        _slotCapacity[s] = 0;
                     }
                 }
             }
@@ -499,7 +552,7 @@ namespace Game.Domain
             for (int j = 0; j < _laneHead.Length; j++) sb.Append(_laneHead[j]).Append(':').Append(_gap[j]).Append(':').Append(_lockLeft[j]).Append(',');
             sb.Append('#');
             for (int s = 0; s < _slotColor.Length; s++)
-                sb.Append(!_slotOpen[s] ? 'x' : _slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]);
+                sb.Append(!_slotOpen[s] ? 'x' : _slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]).Append('/').Append(_slotCapacity[s]);
             sb.Append('#');
             _belt.AppendKey(sb);
             return sb.ToString();

@@ -9,6 +9,7 @@ namespace Game.Gen
     /// <summary>Typed LocKey VALUES for the SKU, generated from the Master localization CSV (the CSV IS the manifest — Story 2.5, FR-052). Member = PascalCase of the key; value = the raw key string. The runtime never parses the CSV — it reads the per-locale JSON under Resources/Localization/. Emitted into Game.Gen (references only Domain). Codegen-owned; never hand-edit. Rename a key by deprecate + add — an in-place rename silently orphans serialized _locKeyIds.</summary>
     public static class LocKeys
     {
+        public static readonly LocKey GameplayContainerMissing      = new("gameplay.container_missing");
         public static readonly LocKey GameplayLockTurns             = new("gameplay.lock_turns");
         public static readonly LocKey HudCoins                      = new("hud.coins");
         public static readonly LocKey LevelSelectDifficultyBreather = new("level_select.difficulty_breather");

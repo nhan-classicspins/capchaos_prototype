@@ -80,7 +80,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [TestCase("\"mergeAt\": 6, ", "", "$.loop.feeders[0].mergeAt: required")]
         [TestCase("\"feeders\": [", "\"speed\": 2, \"feeders\": [", "$.loop.speed: unknown property")]
         [TestCase("[{ \"color\": 1 }]", "[{ \"color\": 0 }]", "$.lanes[0][0].color: must be a colour number 1..8")]
-        [TestCase("[{ \"color\": 1 }]", "[\"R\"]", "$.lanes[0][0]: must be a tray { color, hidden?, lockTurns? }")]
+        [TestCase("[{ \"color\": 1 }]", "[\"R\"]", "$.lanes[0][0]: must be a tray { color, size?, hidden?, lockTurns? }")]
         [TestCase("\"hidden\": true", "\"hidden\": 1", "$.lanes[1][0].hidden: must be true or false")]
         [TestCase("\"lockTurns\": 2", "\"lockTurns\": 0", "$.lanes[1][0].lockTurns: 0 outside 1..99")]
         [TestCase("\"colors\": [1, 2]", "\"colors\": [1, 1]", "$.colors[1]: duplicate 1 (Red)")]

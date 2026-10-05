@@ -60,6 +60,18 @@ namespace Game.Domain
         public override string ToString() => $"lanes[{Lane}][{Index}]";
     }
 
+    /// <summary>
+    /// A tray's container size (GDD R21). The level file writes the NUMBER (1 S · 2 M · 3 L · 4 XL — never renumbered);
+    /// a tray takes <c>size × trayCapacity</c> items, so with the usual trayCapacity 4: S 4, M 8, L 12, XL 16.
+    /// </summary>
+    public enum TraySize : byte
+    {
+        S = 1,
+        M = 2,
+        L = 3,
+        XL = 4,
+    }
+
     /// <summary>A locked tray (GDD R18): it can not be tapped until <see cref="Turns"/> trays have flown to the slots
     /// while it stands at the front of its lane.</summary>
     public sealed class TrayLock
@@ -112,6 +124,9 @@ namespace Game.Domain
         public IReadOnlyList<TrayLock> Locks { get; }
         public IReadOnlyList<TrayLink> Links { get; }
 
+        /// <summary>Trays bigger than <see cref="TraySize.S"/> (R21); every other tray is S.</summary>
+        public IReadOnlyDictionary<TrayRef, TraySize> TraySizes { get; }
+
         private readonly HashSet<TrayRef> _hidden;
 
         public LevelDefinition(string id, int slots, int trayCapacity, IReadOnlyList<CapColor> colors,
@@ -120,8 +135,9 @@ namespace Game.Domain
             string name = null, string difficulty = null, string notes = null,
             int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null,
             IEnumerable<TrayRef> hiddenTrays = null, IReadOnlyList<TrayLock> locks = null, IReadOnlyList<TrayLink> links = null,
-            int extraSlots = 0, LoopShape loopShape = null)
+            int extraSlots = 0, LoopShape loopShape = null, IReadOnlyDictionary<TrayRef, TraySize> traySizes = null)
         {
+            TraySizes = traySizes ?? new Dictionary<TrayRef, TraySize>();
             Shape = loopShape ?? LoopShape.Default;
             ExtraSlots = extraSlots;
             _hidden = hiddenTrays != null ? new HashSet<TrayRef>(hiddenTrays) : new HashSet<TrayRef>();
@@ -140,6 +156,11 @@ namespace Game.Domain
         }
 
         public bool IsHiddenTray(TrayRef tray) => _hidden.Contains(tray);
+
+        public TraySize SizeOf(TrayRef tray) => TraySizes.TryGetValue(tray, out var s) ? s : TraySize.S;
+
+        /// <summary>How many items <paramref name="tray"/> takes before it is full (R13, R21).</summary>
+        public int CapacityOf(TrayRef tray) => (int)SizeOf(tray) * TrayCapacity;
 
         /// <summary>How many placements <paramref name="tray"/> stays locked for at the front; 0 = not locked.</summary>
         public int LockTurns(TrayRef tray)

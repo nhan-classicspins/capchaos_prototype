@@ -36,7 +36,7 @@ namespace Game.Domain
                 {
                     var c = level.Lanes[j][t];
                     if (!declared.Contains(c)) errors.Add($"V5 lanes[{j}][{t}]: colour {Code(c)} is not in colors");
-                    trays[c] = (trays.TryGetValue(c, out var n) ? n : 0) + 1;
+                    trays[c] = (trays.TryGetValue(c, out var n) ? n : 0) + level.CapacityOf(new TrayRef(j, t));   // R21: by size
                 }
 
             foreach (var c in level.Colors)
@@ -44,8 +44,8 @@ namespace Game.Domain
                 int b = bottles.TryGetValue(c, out var nb) ? nb : 0;
                 int t = trays.TryGetValue(c, out var nt) ? nt : 0;
                 if (b == 0 && t == 0) errors.Add($"V5 colors: {Code(c)} is declared but never used");
-                else if (b != t * level.TrayCapacity)
-                    errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} trays × {level.TrayCapacity} = {t * level.TrayCapacity}");
+                else if (b != t)
+                    errors.Add($"V4 colour {Code(c)}: {b} bottles vs {t} tray places (trays × size × trayCapacity {level.TrayCapacity})");
             }
             ValidateLoop(lp, errors);
             var shape = level.Shape;

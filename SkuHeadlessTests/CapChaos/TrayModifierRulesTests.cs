@@ -93,6 +93,43 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
+        public void R19_a_held_linked_tray_only_holds_the_trays_behind_it_the_trays_in_front_still_move_up()
+        {
+            // lane 0: B G O R with O (#2) tied to lane 1's O (#2); lane 1: R Y O B
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BGOR", "RYOB" }, slots: 6, capacity: 1, links: new[] { new[] { 0, 2, 1, 2 } }));
+
+            Assert.That(Trace(g.Tap(0).Facts), Is.EqualTo("place(L0->S0:B)"), "B leaves; the held part of lane 0 does not step");
+            Assert.That(g.LaneFront(0), Is.EqualTo(CapColor.Green), "G is in front of the linked O: it moves up to the front");
+            Assert.That(g.IsAtFront(0, 1), Is.True);
+            Assert.That(g.TrayPosition(0, 1), Is.EqualTo(0));
+            Assert.That(g.TrayPosition(0, 2), Is.EqualTo(2), "the linked O stays beside lane 1's O, a hole opens in front of it");
+            Assert.That(g.TrayPosition(0, 3), Is.EqualTo(3), "R is behind the linked O: it is held too");
+            Assert.That(g.TrayPosition(0, 2), Is.EqualTo(g.TrayPosition(1, 2)), "the pair still stands side by side");
+
+            Assert.That(g.Tap(0).Accepted, Is.True, "the moved-up G is tappable");
+            Assert.That(g.LaneFront(0), Is.EqualTo(CapColor.None), "now the held O is next: the front is empty");
+            Assert.That(g.Tap(0).Outcome, Is.EqualTo(TapOutcome.RejectedBeltHeld));
+            Assert.That(g.TrayPosition(0, 2), Is.EqualTo(2));
+
+            g.Tap(1);                                                                            // R leaves lane 1
+            Assert.That(g.TrayPosition(0, 2), Is.EqualTo(1).And.EqualTo(g.TrayPosition(1, 2)), "both linked trays stepped together");
+            Assert.That(g.TrayPosition(1, 1), Is.EqualTo(0), "lane 1's Y moved up to the front");
+            g.Tap(1);                                                                            // Y leaves lane 1
+            Assert.That(g.IsAtFront(0, 2) && g.IsAtFront(1, 2), Is.True, "the pair reaches the front side by side");
+            Assert.That(g.TrayPosition(0, 3), Is.EqualTo(1), "R followed the linked O");
+        }
+
+        [Test]
+        public void R19_a_lane_without_a_cross_lane_link_never_holds()
+        {
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BGOR" }, slots: 6, capacity: 1));
+            g.Tap(0);
+            for (int t = 1; t < 4; t++) Assert.That(g.TrayPosition(0, t), Is.EqualTo(t - 1));
+            Assert.That(g.LaneGap(0), Is.EqualTo(0));
+            Assert.That(g.TrayPosition(0, 0), Is.EqualTo(-1), "a tray that left has no position");
+        }
+
+        [Test]
         public void R19_the_two_belts_of_a_link_step_together_whichever_front_leaves_last()
         {
             var g = new CapChaosGame(Level(NoMatch, new[] { "BOR", "ORO" }, slots: 5, capacity: 1, links: new[] { new[] { 0, 1, 1, 1 } }));

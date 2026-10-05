@@ -11,8 +11,9 @@ namespace Game.Views
     /// <summary>The generated prop prefabs (art-direction §9.1) the board is built from.</summary>
     public sealed class BoardPrefabs
     {
-        /// <summary>The tray model (<c>Container_S</c>, with a <see cref="ContainerView"/>).</summary>
-        public GameObject Container;
+        /// <summary>The tray models by size (R21): <c>Containers[size − 1]</c> = Container_S, _M, _L, _XL, each with a
+        /// <see cref="ContainerView"/>. A missing size falls back to the next smaller one.</summary>
+        public GameObject[] Containers;
         /// <summary>The containers' shared materials (one asset for the session).</summary>
         public ContainerPalette ContainerPalette;
         public GameObject Slot, Lane, Floor;
@@ -41,13 +42,21 @@ namespace Game.Views
         private readonly List<Transform> _laneRoots = new List<Transform>();
         // per lane: empty positions at the front of a HELD belt (GDD R19) — tray i of a lane's list stands at
         // belt position i + gap
-        private readonly List<int> _laneGap = new List<int>();
+        private readonly List<List<int>> _lanePos = new List<List<int>>();   // per lane: the belt position of each tray on it (0 = front)
         // Visual slots. The rules free a slot the instant its tray is full; on screen that slot is still busy
         // until the box lifts off. So a rules slot is mapped to a VISUAL slot when its tray arrives: the same
         // one if it is clear, else the left-most clear one — a tap never waits behind a leaving box.
         // Trays are addressed by a caller-chosen TRAY ID, not by slot index: the rules may reuse a slot for
         // the next tray while the previous tray's bottles and box are still animating on screen.
-        private sealed class TrayRec { public GameObject Go; public int Visual = -1; public readonly List<UniTask> Flights = new List<UniTask>(); }
+        private sealed class TrayRec
+        {
+            public GameObject Go; public int Visual = -1;
+            public readonly List<UniTask> Flights = new List<UniTask>();
+            /// <summary>Done once the tray has landed in its slot and played its impact: items fly in only after it.</summary>
+            public readonly UniTaskCompletionSource Landed = new UniTaskCompletionSource();
+            /// <summary>When (Time.time) the next item may launch into this tray: items go in one at a time.</summary>
+            public float NextLaunch;
+        }
         private readonly Dictionary<int, TrayRec> _trays = new Dictionary<int, TrayRec>();
         private GameObject[] _slotTray = Array.Empty<GameObject>();       // per visual slot
         private bool[] _slotLeaving = Array.Empty<bool>();                // per visual slot: a box is still on it
@@ -132,7 +141,7 @@ namespace Game.Views
                 _belts.Add(belt != null ? belt.GetComponent<Renderer>() : null);
                 _beltOffset.Add(0f);
                 _lanes.Add(new List<GameObject>());
-                _laneGap.Add(0);
+                _lanePos.Add(new List<int>());
             }
         }
 
@@ -224,13 +233,12 @@ namespace Game.Views
         /// <paramref name="row"/>; that track of the queue moves up.</summary>
         public void FeedBottle(int feeder, int track, int row) => _loop.Feed(feeder, track, row);
 
-        /// <summary>Append a tray to the visible tail of <paramref name="lane"/>.</summary>
-        public void AddLaneTray(int lane, TrayLook look)
+        /// <summary>Append a tray to the visible tail of <paramref name="lane"/>, standing at belt <paramref name="position"/>
+        /// (0 = front). The controller decides which trays are on the visible stretch of the belt.</summary>
+        public void AddLaneTray(int lane, TrayLook look, int position)
         {
-            var list = _lanes[lane];
-            if (list.Count >= B.VisibleTraysPerLane) return;
-            var tray = TrayOnBelt(lane, list.Count + _laneGap[lane], look);
-            list.Add(tray);
+            _lanes[lane].Add(TrayOnBelt(lane, position, look));
+            _lanePos[lane].Add(position);
         }
 
         /// <summary>Tie belt trays (laneA, indexA) and (laneB, indexB) with a rope (R19). It follows both until either
@@ -269,7 +277,6 @@ namespace Game.Views
         {
             if (!TryBeltTray(lane, index, out var tray) || !_locks.TryGetValue(tray, out var lockView)) return UniTask.CompletedTask;
             _locks.Remove(tray);
-            if (_looks.TryGetValue(tray, out var look)) ApplyLook(tray, new TrayLook(look.Color, look.Hidden));   // its own colour again
             return lockView != null ? lockView.PlayUnlockAsync(destroyCancellationToken) : UniTask.CompletedTask;
         }
 
@@ -286,58 +293,90 @@ namespace Game.Views
             if (list.Count == 0) return;
             var tray = list[0];
             list.RemoveAt(0);
-            _laneGap[lane]++;                                         // its position stays empty until the belt steps
+            _lanePos[lane].RemoveAt(0);                               // its position stays empty until LayoutLane moves the rest
             var hit = tray.GetComponent<Collider>();
             if (hit != null) hit.enabled = false;                     // off the belt: no longer tappable
             ReleaseLinks(tray.transform);                             // R19: the link ends when the trays fly
+            if (_containers.TryGetValue(tray, out var opening) && opening != null)   // closed on the belt; opens as it flies
+                opening.OpenLidAsync(M.TrayToSlot, B.LidDrop, B.LidTilt, destroyCancellationToken).Forget();
             if (_locks.TryGetValue(tray, out var lockView)) { _locks.Remove(tray); if (lockView != null) Destroy(lockView.gameObject); }
             tray.transform.SetParent(transform, true);
             var rec = new TrayRec { Go = tray };
             _trays[trayId] = rec;
-            int v = await ClaimVisualSlot(preferredSlot);
-            rec.Visual = v;
-            _slotTray[v] = tray;
-            var tt = tray.transform;
-            var fromScale = tt.localScale;
-            await UniTask.WhenAll(
-                Move(tt, tt.localPosition, SlotPos(v), M.TrayToSlot, Ease.OutBack),
-                LMotion.Create(fromScale, Vector3.one * _slotScale, M.TrayToSlot).WithEase(Ease.OutCubic)
-                    .Bind(k => { if (tt != null) tt.localScale = k; }).AddTo(tray).ToUniTask(destroyCancellationToken));
+            try
+            {
+                int v = await ClaimVisualSlot(preferredSlot);
+                rec.Visual = v;
+                _slotTray[v] = tray;
+                var tt = tray.transform;
+                // scale 1 on the belt and in the slot (SKU owner, 2026-10-02) — no longer the slot row's shrink; it flies
+                // on a Bézier arc (the scale lerp only matters if LaneScale is ever set back above 1)
+                var p0 = tt.localPosition;
+                var p2 = SlotPos(v);
+                var p1 = (p0 + p2) * 0.5f + Vector3.up * M.TrayArcHeight;
+                var s0 = tt.localScale;
+                await LMotion.Create(0f, 1f, M.TrayToSlot).WithEase(Ease.InOutQuad).Bind(k =>
+                {
+                    if (tt == null) return;
+                    float u = 1f - k;
+                    tt.localPosition = u * u * p0 + 2f * u * k * p1 + k * k * p2;
+                    tt.localScale = Vector3.Lerp(s0, Vector3.one, k);
+                }).AddTo(tray).ToUniTask(destroyCancellationToken);
+                if (tt != null) { tt.localPosition = p2; tt.localScale = Vector3.one; }
+                if (_containers.TryGetValue(tray, out var landed) && landed != null)
+                    await landed.PlayImpactAsync(M.ImpactSquash, M.ImpactRecover, M.ImpactWide, M.ImpactFlat, destroyCancellationToken);
+            }
+            finally { rec.Landed.TrySetResult(); }                    // items may fly in now (or the round was torn down)
         }
 
-        /// <summary>The belt steps <paramref name="steps"/> positions forward into the empty front the trays that left
-        /// opened; <paramref name="newTails"/> slide in at the back, in order. One call per lane per tap. A belt that is
-        /// HELD (R19) simply gets no call: its trays stay put and its front stays empty.</summary>
-        public async UniTask AdvanceLane(int lane, int steps, IReadOnlyList<TrayLook> newTails)
+        /// <summary>
+        /// Move every tray of <paramref name="lane"/> to its belt position — <paramref name="positions"/> holds one per
+        /// tray, front first, the trays already on the belt followed by <paramref name="newTails"/>, which slide in from
+        /// behind. Trays may stand apart: a held linked tray (R19) keeps a hole in front of it while the trays ahead of
+        /// it move up. The belt surface scrolls as far as the furthest-moving tray.
+        /// </summary>
+        public async UniTask LayoutLane(int lane, IReadOnlyList<int> positions, IReadOnlyList<TrayLook> newTails)
         {
             var list = _lanes[lane];
-            _laneGap[lane] = Mathf.Max(0, _laneGap[lane] - steps);
-            int gap = _laneGap[lane];
-            foreach (var look in newTails)                             // each starts as far back as the belt moves
-            {
-                if (list.Count >= B.VisibleTraysPerLane) break;
-                list.Add(TrayOnBelt(lane, list.Count + gap + steps, look));
-            }
+            var pos = _lanePos[lane];
+            int steps = 0;
+            for (int i = 0; i < pos.Count && i < positions.Count; i++) steps = Mathf.Max(steps, pos[i] - positions[i]);
+            int existing = list.Count;
+            for (int k = 0; k < newTails.Count && existing + k < positions.Count; k++)   // each starts as far back as the belt moves
+                list.Add(TrayOnBelt(lane, positions[existing + k] + Mathf.Max(1, steps), newTails[k]));
+            pos.Clear();
+            for (int i = 0; i < list.Count && i < positions.Count; i++) pos.Add(positions[i]);
+
             var moves = new List<UniTask>();
-            for (int i = 0; i < list.Count; i++)
-                moves.Add(Move(list[i].transform, list[i].transform.localPosition, TrayOnLane(i + gap), M.LaneAdvance, Ease.OutCubic));
-            moves.Add(ScrollBelt(lane, steps));
+            for (int i = 0; i < pos.Count; i++)
+                moves.Add(Move(list[i].transform, list[i].transform.localPosition, TrayOnLane(pos[i]), M.LaneAdvance, Ease.OutCubic));
+            if (steps > 0) moves.Add(ScrollBelt(lane, steps));
             await UniTask.WhenAll(moves);
         }
 
         /// <summary>The bottle on belt (row, track) leaves for tray <paramref name="trayId"/>'s cell <paramref name="cell"/>
-        /// (0..3) after <paramref name="delay"/> seconds; the cell's cap pops up to meet it. A pack of that tray waits for
-        /// the flight.</summary>
-        public void FlyBottle(int row, int track, int trayId, int cell, float delay)
+        /// (0 … the container's anchors − 1) after <paramref name="delay"/> seconds. When it lands, the container's count
+        /// shows <paramref name="countAfter"/> (null hides it — the tray is full). A pack of that tray waits for the flight.</summary>
+        public void FlyBottle(int row, int track, int trayId, int cell, float delay, string countAfter)
         {
             var bottle = _loop.Take(row, track);
             if (bottle == null) return;
             if (!_trays.TryGetValue(trayId, out var rec) || rec.Go == null) { Destroy(bottle); return; }
-            rec.Flights.Add(Flight(bottle, rec.Go, Mathf.Clamp(cell, 0, 3), delay));
+            int cells = _containers.TryGetValue(rec.Go, out var view) && view != null ? Mathf.Max(1, view.AnchorCount) : 4;
+            rec.Flights.Add(Flight(bottle, rec, Mathf.Clamp(cell, 0, cells - 1), delay, countAfter));
         }
 
-        private async UniTask Flight(GameObject bottle, GameObject tray, int cell, float delay)
+        /// <summary>Tray <paramref name="trayId"/>'s container shows <paramref name="count"/> (how many items it still
+        /// misses, already localized); null hides it.</summary>
+        public void SetTrayCount(int trayId, string count)
         {
+            if (_trays.TryGetValue(trayId, out var rec) && rec.Go != null && _containers.TryGetValue(rec.Go, out var view) && view != null)
+                view.SetCount(count);
+        }
+
+        private async UniTask Flight(GameObject bottle, TrayRec rec, int cell, float delay, string countAfter)
+        {
+            var tray = rec.Go;
             var t = bottle.transform;
             t.SetParent(transform, true);                                           // off the belt: it stops riding it
             // collected: the item goes under its cell's anchor (the container's ItemAnchors) and flies to it; with no
@@ -345,6 +384,11 @@ namespace Game.Views
             // at once, while this item may still wait out its stagger
             var anchor = _containers.TryGetValue(tray, out var view) && view != null ? view.Anchor(cell) : null;
             if (delay > 0f) await UniTask.Delay(TimeSpan.FromSeconds(delay), cancellationToken: destroyCancellationToken);
+            await rec.Landed.Task;                                                  // the container takes items once it has landed
+            // one at a time: wait for this tray's next launch time (items queued while it flew go in order, a stagger apart)
+            float start = Mathf.Max(Time.time, rec.NextLaunch);
+            rec.NextLaunch = start + M.ItemIntoBoxStagger;
+            if (start > Time.time) await UniTask.Delay(TimeSpan.FromSeconds(start - Time.time), cancellationToken: destroyCancellationToken);
             if (t == null || tray == null) return;
             var parent = anchor != null ? anchor : tray.transform;
             t.SetParent(parent, true);
@@ -356,15 +400,17 @@ namespace Game.Views
             var toScale = Vector3.one * (B.ItemInTray / rel);
             float arc = M.BottleArcHeight / rel;
             var fromRot = t.localRotation;
+            // a quadratic Bézier: the control point halfway, 2 × arc up, so the path peaks arc above the midpoint
+            var control = (from + to) * 0.5f + Vector3.up * (2f * arc);
             await LMotion.Create(0f, 1f, M.BottleFlight).WithEase(Ease.InOutQuad).Bind(k =>
             {
                 if (t == null) return;
-                var p = Vector3.Lerp(from, to, k);
-                p.y += Mathf.Sin(k * Mathf.PI) * arc;
-                t.localPosition = p;
+                float u = 1f - k;
+                t.localPosition = u * u * from + 2f * u * k * control + k * k * to;
                 t.localScale = Vector3.Lerp(fromScale, toScale, k);
                 t.localRotation = Quaternion.Slerp(fromRot, Quaternion.identity, k);
             }).AddTo(gameObject).ToUniTask(destroyCancellationToken);
+            if (view != null) await view.PlayCountAsync(countAfter, M.CountPop, destroyCancellationToken);   // landed: one fewer missing
         }
 
         /// <summary>Ship full tray <paramref name="trayId"/> (R13): once its items are in, the container closes its lid and
@@ -382,8 +428,11 @@ namespace Game.Views
             await UniTask.WhenAll(rec.Flights);
             await UniTask.Delay(TimeSpan.FromSeconds(M.BoxHold), cancellationToken: destroyCancellationToken);
 
-            // the container closes its own lid, then lifts off the way the carton used to
-            if (container != null) await container.CloseLidAsync(M.LidClose, B.LidDrop, B.LidTilt, destroyCancellationToken);
+            // the items shrink away while the container closes its own lid, then it lifts off the way the carton used to
+            if (container != null)
+                await UniTask.WhenAll(
+                    container.CloseLidAsync(M.LidClose, B.LidDrop, B.LidTilt, destroyCancellationToken),
+                    container.ShrinkItemsAsync(M.LidClose, destroyCancellationToken));
 
             _slotLeaving[v] = false;                                   // lifting off: the slot is free on screen
             var tt = tray.transform;
@@ -479,7 +528,7 @@ namespace Game.Views
         {
             if (lane < 0 || lane >= _lanes.Count || index < 0 || index >= _lanes[lane].Count) return;
             var t = _lanes[lane][index].transform;
-            var rest = TrayOnLane(index + _laneGap[lane]);
+            var rest = TrayOnLane(index < _lanePos[lane].Count ? _lanePos[lane][index] : index);
             await LMotion.Create(0f, 1f, M.TrayShake).WithEase(Ease.Linear).Bind(k =>
             {
                 if (t == null) return;
@@ -500,43 +549,62 @@ namespace Game.Views
 
         /// <summary>A tray on a lane: an empty root (what moves, scales, flies and is tapped) holding the container model,
         /// scaled to <see cref="DesignTokens.Board.ContainerSize"/> across and standing on the belt.</summary>
+        /// <summary>The container model for size <paramref name="size"/> (1 S … 4 XL); a missing one falls back to the next smaller.</summary>
+        private GameObject ContainerFor(int size)
+        {
+            if (_p.Containers == null) return null;
+            for (int i = Mathf.Clamp(size, 1, _p.Containers.Length) - 1; i >= 0; i--)
+                if (_p.Containers[i] != null) return _p.Containers[i];
+            return null;
+        }
+
         private GameObject TrayOnBelt(int lane, int index, TrayLook look)
         {
             var tray = new GameObject("Tray");
             tray.transform.SetParent(_laneRoots[lane], false);
             tray.transform.localPosition = TrayOnLane(index);
-            if (_p.Container != null)
+            var prefab = ContainerFor(look.Size);
+            if (prefab != null)
             {
-                var (scale, offset) = PrefabFit.Footprint(_p.Container, B.ContainerSize);
-                var model = Instantiate(_p.Container, tray.transform, false);
+                var (scale, offset) = PrefabFit.Footprint(prefab, B.ContainerSize);
+                var model = Instantiate(prefab, tray.transform, false);
                 model.transform.localScale = model.transform.localScale * scale;
                 model.transform.localPosition = offset;
                 foreach (var c in model.GetComponentsInChildren<Collider>(true)) Destroy(c);   // the root's hit box is the tap target
                 var view = model.GetComponent<ContainerView>() ?? model.AddComponent<ContainerView>();
-                view.SetLidOpen(true);                                   // open while it waits and fills
+                view.SetLidOpen(false);                                  // closed while it waits on the belt; opens in the slot
+                view.SetCount(null);
                 _containers[tray] = view;
             }
             _stamp(tray);
             ApplyLook(tray, look);
-            if (look.Locked && _p.TrayLock != null)
+            if (look.Locked)
             {
-                var lockGo = Spawn(_p.TrayLock, tray.transform, Vector3.up * B.LockY);
-                var lockView = lockGo.GetComponent<TrayLockView>();
-                if (lockView != null) lockView.SetCount(look.LockLabel);
-                _locks[tray] = lockView;
+                // the padlock wired into the container prefab (placed per size by the art); a prefab without one gets a
+                // TrayLock spawned over it
+                var lockView = _containers.TryGetValue(tray, out var lockOn) && lockOn != null ? lockOn.Lock : null;
+                if (lockView != null) lockView.gameObject.SetActive(true);
+                else if (_p.TrayLock != null)
+                {
+                    float lockRise = lockOn != null ? lockOn.Rise : 0f;
+                    lockView = Spawn(_p.TrayLock, tray.transform, Vector3.up * (B.LockY + lockRise)).GetComponent<TrayLockView>();
+                }
+                if (lockView != null) { lockView.SetCount(look.LockLabel); _locks[tray] = lockView; }
             }
+            float rise = _containers.TryGetValue(tray, out var sized) && sized != null ? sized.Rise : 0f;   // taller sizes (R21)
             var hit = tray.AddComponent<BoxCollider>();
-            hit.size = B.TrayHitSize;
-            hit.center = new Vector3(0f, B.TrayHitCenterY, 0f);
+            hit.size = B.TrayHitSize + Vector3.up * rise;
+            hit.center = new Vector3(0f, B.TrayHitCenterY + rise * 0.5f, 0f);
             return tray;
         }
 
-        /// <summary>The tray's look: its colour, or hidden (R17) / locked (R18) — the container swaps its material.</summary>
+        /// <summary>The tray's look: its colour, or hidden (R17) — the container swaps its material. A locked tray (R18)
+        /// keeps its own colour (SKU owner, 2026-10-02): only its padlock shows the lock.</summary>
         private void ApplyLook(GameObject tray, TrayLook look)
         {
             _looks[tray] = look;
             if (_containers.TryGetValue(tray, out var view) && view != null)
-                view.SetLook(_p.ContainerPalette != null ? _p.ContainerPalette.For(look.Color, look.Hidden, look.Locked) : null, look.Hidden);
+                view.SetLook(_p.ContainerPalette != null ? _p.ContainerPalette.For(look.Color, look.Hidden, locked: false) : null, look.Hidden);
         }
 
         private bool TryBeltTray(int lane, int index, out GameObject tray)

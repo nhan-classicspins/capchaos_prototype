@@ -212,8 +212,10 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
   - sẵn sàng thì tap vào khay nào của cặp cũng được: cả 2 bay lên slot, thứ tự theo file level (cùng làn: khay
     trước trước; 2 làn: làn trái trước). Dây được tháo khi khay bay. **Cần 2 slot trống**, thiếu thì cả cặp rung.
   - Cặp nối khác làn **luôn đứng ngang nhau** (sửa 2026-10-01 theo feedback chủ SKU). Băng chuyền chở một khay nối
-    sang làn khác chỉ chạy khi **băng chuyền kia cũng chạy được**. Nếu khay đầu của làn A bay đi mà làn B chưa trống
-    đầu, băng A **đứng yên** với ô đầu bị trống, và không khay nào trên băng A tap được (`RejectedBeltHeld`, khay rung).
+    sang làn khác chỉ chạy khi **băng chuyền kia cũng chạy được**. Khay nối bị giữ **chỉ chặn chính nó và các khay phía
+    sau nó** (sửa 2026-10-05 theo feedback chủ SKU): các khay **phía trước** nó vẫn tiến lên đầu làn bình thường và tap
+    được, nên trước khay nối mở ra một khoảng trống (`LaneGap`). Chỉ khi khay nối là khay kế tiếp của làn thì ô đầu mới
+    trống và tap vào làn bị từ chối (`RejectedBeltHeld`, khay rung). Vị trí từng khay trên băng: `TrayPosition(lane, tray)`.
     Khi khay đầu làn B bay đi thì **cả 2 băng cùng chạy** (`CapChaosGame.AdvanceBelts`). Ví dụ level 18: tap khay đầu
     làn 0 ⇒ băng 0 đứng yên; tap tiếp khay đầu làn 1 ⇒ 2 băng cùng chạy, cặp nối cùng lên đầu hàng.
   - Khay nối không được khoá (V7).
@@ -234,7 +236,19 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 - **Coin**: ví của framework (`ResourceKeys.Coins`, lưu cùng save). Lần chạy đầu được `economy.startCoins` (1000); thắng
   một level được `economy.winReward` (50). HUD hiện số coin cạnh nút Home.
 
-### 5.7 HUD
+### 5.7 Cỡ container (R21, thêm 2026-10-02)
+- **R21** Mỗi khay có một **cỡ**: field `size` trong level JSON là số **1 S · 2 M · 3 L · 4 XL** (mặc định 1, không
+  bao giờ đổi số). Khay nhận `size × trayCapacity` item mới đầy; với `trayCapacity` 4 là **S 4 · M 8 · L 12 · XL 16**.
+  V4 cân bằng màu theo tổng sức chứa đó.
+- Prefab: `Content/Art/Prefabs/Containers/Container_S|M|L|XL`. Theo quyết định của chủ SKU (2026-10-02), M, L và XL là
+  **bản sao của Container_S**: thêm 2/3/4 tầng anchor 2×2, hộp kéo cao lên, nắp, dấu "?" và khối băng nâng theo.
+  Bản sao chỉ được tạo khi còn thiếu (menu `CapsChaos/Art/Wire Containers`); sau đó art có thể thay model, và menu này
+  chỉ nối lại (re-wire) các tham chiếu.
+- Trên băng chuyền, container luôn **đóng nắp**. Khi bay lên slot, nắp bật ra và text `Count` ở mặt trước hộp hiện số
+  item **còn thiếu**. Mỗi item rơi vào thì số giảm 1; khi đủ thì text ẩn, nắp đóng và hộp bay đi.
+- Level mẫu: `level_0021` "Big Boxes" (XL, L, M, S).
+
+### 5.8 HUD
 - Restart: chơi lại level ngay, không hỏi xác nhận [GĐ].
 - Home: về màn Title [QS].
 

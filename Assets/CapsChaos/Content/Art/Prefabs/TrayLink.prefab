@@ -46,6 +46,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 678e325a3abe448e8970b7e99d3855be, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game.Views::Game.Views.TrayLinkView
+  _ropeY: 3.84
+  _ropeArc: 0.16
+  _segments: 4
 --- !u!1 &5937025280430124284
 GameObject:
   m_ObjectHideFlags: 0
@@ -133,7 +136,7 @@ LineRenderer:
   - {x: 1, y: 0, z: 0}
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.1
+    widthMultiplier: 10
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -291,7 +294,7 @@ LineRenderer:
   - {x: 1, y: 0, z: 0}
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.15
+    widthMultiplier: 15
     widthCurve:
       serializedVersion: 2
       m_Curve:

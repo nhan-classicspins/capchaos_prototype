@@ -11,7 +11,9 @@ namespace Game.Domain
     public sealed class TrayPlaced : GameFact
     {
         public int Lane { get; } public int Slot { get; } public CapColor Color { get; }
-        public TrayPlaced(int lane, int slot, CapColor color) { Lane = lane; Slot = slot; Color = color; }
+        /// <summary>Items the tray takes before it is full (R21: its size × the level's trayCapacity).</summary>
+        public int Capacity { get; }
+        public TrayPlaced(int lane, int slot, CapColor color, int capacity) { Lane = lane; Slot = slot; Color = color; Capacity = capacity; }
     }
 
     /// <summary>A conveyor stepped one tray forward (R7); <see cref="Remaining"/> trays are left on it.</summary>

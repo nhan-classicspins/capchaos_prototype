@@ -165,9 +165,9 @@ namespace Game.Views
             /// <summary>Band = slot row + this margin (3 slots → 3 × 1.12 + 0.84 = 4.2, the art-preview band).</summary>
             public const float SlotBandMargin = 0.84f;
             public const float LaneFrontZ = 0.45f, LanePitch = 0.95f, TrayOnBeltOffset = 0.5f;
-            /// <summary>The tray lanes are drawn this much larger than the lane prefab (belt, trays, hit boxes, locks alike),
-            /// LaneSpacing apart, so the queued containers read clearly.</summary>
-            public const float LaneScale = 1.25f, LaneSpacing = 1.4f;
+            /// <summary>The tray lanes are drawn at scale 1 (SKU owner, 2026-10-02: a tray is the same size on its lane and in
+            /// its slot), LaneSpacing apart.</summary>
+            public const float LaneScale = 1f, LaneSpacing = 1.4f;
             public const int VisibleTraysPerLane = 6;
             /// <summary>A tapped-but-not-front tray shakes side to side on the ground plane by this much.</summary>
             public const float TrayShakeAmplitude = 0.07f;
@@ -201,6 +201,12 @@ namespace Game.Views
         public static class Motion
         {
             public const float TrayToSlot = 0.20f, LaneAdvance = 0.20f;
+            /// <summary>A released tray flies to its slot on a quadratic Bézier: the control point sits halfway, this high
+            /// above the board (board units), so the tray arcs up and drops in.</summary>
+            public const float TrayArcHeight = 1.4f;
+            /// <summary>Its landing (SKU owner, 2026-10-02): the container squashes to (ImpactWide, ImpactFlat, ImpactWide)
+            /// over ImpactSquash, then bounces back to 1 over ImpactRecover. Items only start flying in after it.</summary>
+            public const float ImpactSquash = 0.10f, ImpactRecover = 0.15f, ImpactWide = 1.2f, ImpactFlat = 0.8f;
             public const float BottleFlight = 0.30f, BottleArcHeight = 1.2f;
             /// <summary>Oval belt speed (≈ the reference video's crowd), a feeder bottle sliding onto the belt, a feeder queue
             /// moving up one row; how far ahead of the last fixed tick the belt may be drawn.</summary>
@@ -213,6 +219,9 @@ namespace Game.Views
             public const float BottleJoinRamp = 0.08f, BottleJoinMax = 1.5f;
             /// <summary>Bottles picked in one belt step leave one after another, this far apart.</summary>
             public const float PickStagger = 0.04f;
+            /// <summary>Items enter a container one after another (SKU owner, 2026-10-02): each launches this long after the
+            /// previous one into the same container, and none before the container has landed.</summary>
+            public const float ItemIntoBoxStagger = 0.08f;
             public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
             /// <summary>A full container (R13): it holds BoxHold once its items are in, closes its lid over LidClose, then
             /// flies off over BoxExit (the old carton's exit).</summary>
@@ -222,6 +231,8 @@ namespace Game.Views
             public const float SlotUnlock = 0.3f;
             /// <summary>Tray modifiers: the hidden tray's colour pop, a lock's count pop, the unlock (shackle lift + vanish), the rope letting go.</summary>
             public const float TrayReveal = 0.25f, LockTick = 0.2f, Unlock = 0.3f, LinkRelease = 0.15f;
+            /// <summary>The missing-item count on a container in a slot pops when an item lands (R21).</summary>
+            public const float CountPop = 0.18f;
         }
 
         // ── UI (art §3.3) ─────────────────────────────────────────────────────────────────────

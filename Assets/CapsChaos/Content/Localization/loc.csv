@@ -22,3 +22,4 @@ offer.free,FREE,MIỄN PHÍ
 offer.price,{0},{0}
 out_of_slot.restart,Restart,Chơi lại
 hud.coins,{0},{0}
+gameplay.container_missing,{0},{0}

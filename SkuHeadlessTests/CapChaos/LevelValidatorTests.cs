@@ -19,8 +19,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var l = Level(new[] { "RRRO" }, new[] { "R" }, feeders: new[] { "RRRR" }, mergeAt: new[] { 5 });
             var e = LevelValidator.Validate(l);
-            Assert.That(e, Has.Some.Contains("V4 colour 1 (Red): 7 bottles vs 1 trays × 4 = 4"));
-            Assert.That(e, Has.Some.Contains("V4 colour 2 (Orange): 1 bottles vs 0 trays"));
+            Assert.That(e, Has.Some.Contains("V4 colour 1 (Red): 7 bottles vs 4 tray places"));
+            Assert.That(e, Has.Some.Contains("V4 colour 2 (Orange): 1 bottles vs 0 tray places"));
         }
 
         [Test]

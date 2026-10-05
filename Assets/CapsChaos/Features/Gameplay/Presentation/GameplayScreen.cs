@@ -67,6 +67,7 @@ namespace Game.Presentation
         private int[] _laneTaken;          // how many trays have left each lane (== the rules' lane head, kept in step with the belt)
         private int[] _trayInSlot;         // rules slot → id of the tray the RULES currently have there
         private readonly Dictionary<int, int> _cells = new Dictionary<int, int>();   // tray id → bottles assigned so far
+        private readonly Dictionary<int, int> _capacity = new Dictionary<int, int>();   // tray id → items it takes (R21)
         private int _nextTray;
         private readonly List<UniTask> _packs = new List<UniTask>();   // boxes still animating; the round end waits for all
         private float _beltTime;           // seconds since the belt's last row step
@@ -115,7 +116,11 @@ namespace Game.Presentation
                 await Hold(AssetKeys.Items.Items_08, ct),   // Cyan    #1AD1ED
                 await Hold(AssetKeys.Items.Items_05, ct),   // "Brown" (code N) is drawn pink: #FE79C0
             };
-            _prefabs.Container = await Hold(AssetKeys.Containers.Container_S, ct);
+            _prefabs.Containers = new[]                                     // by size 1 S … 4 XL (R21)
+            {
+                await Hold(AssetKeys.Containers.Container_S, ct), await Hold(AssetKeys.Containers.Container_M, ct),
+                await Hold(AssetKeys.Containers.Container_L, ct), await Hold(AssetKeys.Containers.Container_XL, ct),
+            };
             _prefabs.ContainerPalette = await _containerPalette.LoadAsync(ct);
             if (_prefabs.ContainerPalette == null)
                 _log?.Warn($"[Gameplay] no addressable '{ContainerPalette.Address}' — containers keep their authored material");
@@ -234,13 +239,14 @@ namespace Game.Presentation
             _laneShown = new int[_level.Lanes.Count];
             _laneTaken = new int[_level.Lanes.Count];
             for (int j = 0; j < _level.Lanes.Count; j++)
-                for (; _laneShown[j] < Math.Min(_level.Lanes[j].Count, DesignTokens.Board.VisibleTraysPerLane); _laneShown[j]++)
-                    _board.AddLaneTray(j, LookOf(j, _laneShown[j]));
+                for (; _laneShown[j] < _level.Lanes[j].Count && OnVisibleBelt(j, _laneShown[j]); _laneShown[j]++)
+                    _board.AddLaneTray(j, LookOf(j, _laneShown[j]), _game.TrayPosition(j, _laneShown[j]));
             for (int j = 0; j < _level.Lanes.Count; j++)
                 for (int t = 0; t < _laneShown[j]; t++) LinkIfShown(j, t);
             _trayInSlot = new int[_game.SlotCount];
             _offering = false;
             _cells.Clear();
+            _capacity.Clear();
             _nextTray = 0;
             _packs.Clear();
             SetLayer(_boardGo.transform, boardLayer);
@@ -308,7 +314,7 @@ namespace Game.Presentation
 
             // Immediate feedback: the released trays leave the belt NOW, and the belt / reveal / lock beats play at once
             // too; the bottles the trays take from the pick zone fly as they are listed.
-            var advanced = new Dictionary<int, (int steps, List<TrayLook> tails)>();
+            var moved = new HashSet<int>();                       // lanes a tray left or a held part stepped on
             foreach (var f in result.Facts)
             {
                 switch (f)
@@ -317,25 +323,21 @@ namespace Game.Presentation
                         int id = ++_nextTray;
                         _trayInSlot[t.Slot] = id;
                         _cells[id] = 0;
+                        _capacity[id] = t.Capacity;
                         _laneTaken[t.Lane]++;
+                        moved.Add(t.Lane);
                         _board.PlaceTray(id, t.Lane, t.Slot).Forget();
+                        _board.SetTrayCount(id, CountLabel(t.Capacity));      // R21: how many items it still misses
                         break;
                     case LaneAdvanced a:
-                        var step = advanced.TryGetValue(a.Lane, out var st) ? st : (0, new List<TrayLook>());
-                        if (_laneShown[a.Lane] < _level.Lanes[a.Lane].Count) step.Item2.Add(LookOf(a.Lane, _laneShown[a.Lane]++));
-                        advanced[a.Lane] = (step.Item1 + 1, step.Item2);
+                        moved.Add(a.Lane);
                         break;
                     case TrayRevealed _:
                     case TrayLockTicked _:
                         break;                                     // below, once the belt has moved
                 }
             }
-            foreach (var kv in advanced)
-            {
-                int shownBefore = _laneShown[kv.Key] - kv.Value.tails.Count;
-                _board.AdvanceLane(kv.Key, kv.Value.steps, kv.Value.tails).Forget();
-                for (int t = shownBefore; t < _laneShown[kv.Key]; t++) LinkIfShown(kv.Key, t);
-            }
+            foreach (int movedLane in moved) SyncLane(movedLane);
             foreach (var f in result.Facts)
             {
                 switch (f)
@@ -386,7 +388,10 @@ namespace Game.Presentation
                 {
                     case BottlePicked p:
                         int tray = _trayInSlot[p.Slot];
-                        _board.FlyBottle(p.Row, p.Track, tray, _cells[tray]++, flights++ * DesignTokens.Motion.PickStagger);
+                        int cell = _cells[tray]++;
+                        int missing = (_capacity.TryGetValue(tray, out var cap) ? cap : 0) - _cells[tray];
+                        _board.FlyBottle(p.Row, p.Track, tray, cell, flights++ * DesignTokens.Motion.PickStagger,
+                            missing > 0 ? CountLabel(missing) : null);
                         break;
                     case BottleFed d:
                         _board.FeedBottle(d.Feeder, d.Track, d.Row);
@@ -424,12 +429,37 @@ namespace Game.Presentation
             int locked = _game.IsAtFront(lane, tray) ? _game.LockLeft(lane) : _game.LockTurns(lane, tray);
             bool hidden = _game.IsTrayHidden(lane, tray);
             return new TrayLook(hidden ? TintFlavor.None : _game.TrayColor(lane, tray).ToTint(), hidden,
-                locked > 0 ? LockLabel(locked) : null);
+                locked > 0 ? LockLabel(locked) : null, (int)_game.TraySizeOf(lane, tray));
         }
 
         private string LockLabel(int turns) => _loc.Get(LocKeys.GameplayLockTurns, turns);
+        private string CountLabel(int missing) => _loc.Get(LocKeys.GameplayContainerMissing, missing);
 
         private bool OnBelt(int lane, int tray) => tray >= _laneTaken[lane] && tray < _laneShown[lane];
+
+        /// <summary>Does tray <paramref name="tray"/> of <paramref name="lane"/> stand on the drawn stretch of its belt?</summary>
+        private bool OnVisibleBelt(int lane, int tray)
+        {
+            int position = _game.TrayPosition(lane, tray);
+            return position >= 0 && position < DesignTokens.Board.VisibleTraysPerLane;
+        }
+
+        /// <summary>
+        /// Lay <paramref name="lane"/> out the way the rules have it now (R7, R19): every tray at its belt position — the
+        /// trays in front of a held linked tray move up, the held tray and the trays behind it stay beside their partner —
+        /// and the trays that have come into view slide in at the back (ropes drawn for any pair now fully shown).
+        /// </summary>
+        private void SyncLane(int lane)
+        {
+            int shownBefore = _laneShown[lane];
+            var tails = new List<TrayLook>();
+            for (; _laneShown[lane] < _level.Lanes[lane].Count && OnVisibleBelt(lane, _laneShown[lane]); _laneShown[lane]++)
+                tails.Add(LookOf(lane, _laneShown[lane]));
+            var positions = new List<int>(_laneShown[lane] - _laneTaken[lane]);
+            for (int t = _laneTaken[lane]; t < _laneShown[lane]; t++) positions.Add(_game.TrayPosition(lane, t));
+            _board.LayoutLane(lane, positions, tails).Forget();
+            for (int t = shownBefore; t < _laneShown[lane]; t++) LinkIfShown(lane, t);
+        }
 
         /// <summary>A tray just came onto the belt: tie it to its partner if that one is on the belt too (R19).</summary>
         private void LinkIfShown(int lane, int tray)

@@ -21,6 +21,7 @@ namespace Game.Domain
         public LoopDefinition Loop;
         public List<IReadOnlyList<CapColor>> Lanes;
         public readonly List<TrayRef> HiddenTrays = new List<TrayRef>();
+        public readonly Dictionary<TrayRef, TraySize> Sizes = new Dictionary<TrayRef, TraySize>();
         public List<TrayLock> Locks = new List<TrayLock>();
         public List<TrayLink> Links = new List<TrayLink>();
     }
@@ -41,7 +42,7 @@ namespace Game.Domain
             { "$schema", "formatVersion", "id", "slots", "extraSlots", "trayCapacity", "colors", "loop", "lanes", "links", "view", "meta" };
         private static readonly HashSet<string> LoopKeys = new HashSet<string>(StringComparer.Ordinal) { "rows", "width", "pickRows", "feeders", "initial" };
         private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "mergeAt", "bottles" };
-        private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "hidden", "lockTurns" };
+        private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "size", "hidden", "lockTurns" };
         private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
         private static readonly HashSet<string> RefKeys = new HashSet<string>(StringComparer.Ordinal) { "lane", "tray" };
         private static readonly HashSet<string> ShapeKeys = new HashSet<string>(StringComparer.Ordinal) { "points", "radius" };
@@ -129,7 +130,7 @@ namespace Game.Domain
 
             if (errors.Count > 0 || id == null || content.Loop == null || lanes == null) return new LevelParseResult(null, errors);
             var level = new LevelDefinition(id, slots, cap, content.Colors, content.Loop, lanes, preset, name, difficulty, notes,
-                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, shape);
+                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, shape, content.Sizes);
             return new LevelParseResult(level, errors);
         }
 
@@ -281,7 +282,7 @@ namespace Game.Domain
                 {
                     var tr = lane.Items[t];
                     string tp = $"$.lanes[{j}][{t}]";
-                    if (tr.Kind != JsonKind.Object) { errors.Add(tp + ": must be a tray { color, hidden?, lockTurns? }"); continue; }
+                    if (tr.Kind != JsonKind.Object) { errors.Add(tp + ": must be a tray { color, size?, hidden?, lockTurns? }"); continue; }
                     Unknown(tr, TrayKeys, tp, errors);
                     CapColor color = CapColor.None;
                     if (!tr.TryGet("color", out var cv)) errors.Add(tp + ".color: required");
@@ -292,6 +293,11 @@ namespace Game.Domain
                     {
                         if (hv.Kind != JsonKind.Bool) errors.Add(tp + ".hidden: must be true or false");
                         else if (hv.Bool) c.HiddenTrays.Add(at);
+                    }
+                    if (tr.TryGet("size", out _))
+                    {
+                        int size = Int(tr, "size", tp, errors, required: false, min: (int)TraySize.S, max: (int)TraySize.XL, fallback: 0);
+                        if (size > (int)TraySize.S) c.Sizes[at] = (TraySize)size;
                     }
                     if (tr.TryGet("lockTurns", out _))
                     {
@@ -402,6 +408,8 @@ namespace Game.Domain
                     var at = new TrayRef(j, t);
                     var tray = new StringBuilder($"{{ \"color\": {(int)level.Lanes[j][t]}");
                     if (level.IsHiddenTray(at)) tray.Append(", \"hidden\": true");
+                    var size = level.SizeOf(at);
+                    if (size != TraySize.S) tray.Append($", \"size\": {(int)size}");
                     int turns = level.LockTurns(at);
                     if (turns > 0) tray.Append($", \"lockTurns\": {turns}");
                     trays.Add(tray.Append(" }").ToString());

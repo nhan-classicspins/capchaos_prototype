@@ -39,11 +39,11 @@ Material:
     m_Ints: []
     m_Floats:
     - _NormalsSource: 0
-    - _OutlineMaxWidth: 3
+    - _OutlineMaxWidth: 10
     - _OutlineMinWidth: 2
     - _OutlinePixelSizeType: 3
     - _OutlineTextureType: 0
-    - _OutlineWidth: 2
+    - _OutlineWidth: 10
     - _RampSmoothing: 0.36
     - _RampThreshold: 0.75
     - _SpecularRoughness: 0.18

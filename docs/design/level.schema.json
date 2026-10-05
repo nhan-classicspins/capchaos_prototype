@@ -145,6 +145,7 @@
       "properties": {
         "color": { "$ref": "#/$defs/colorId" },
         "hidden": { "type": "boolean", "default": false, "description": "Hidden tray (R17): tray and caps show '?' until the tray reaches the front of its lane." },
+        "size": { "type": "integer", "enum": [1, 2, 3, 4], "default": 1, "description": "Container size (R21): 1 S · 2 M · 3 L · 4 XL. Takes size × trayCapacity items (trayCapacity 4: 4 / 8 / 12 / 16)." },
         "lockTurns": { "type": "integer", "minimum": 1, "maximum": 99, "description": "Locked tray (R18): opens after this many trays fly to the slots while it stands at the front." }
       }
     },

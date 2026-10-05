@@ -55,6 +55,16 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 60e76eebb54f9465aaa0fa1fa74030cf
+    m_Address: Containers/Container_M
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6214888e946ba4363bdd5eda7bf7567a
+    m_Address: Containers/Container_XL
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 642b25fcde8d74efa8ba7785d1244624
     m_Address: Containers/IceCube_S
     m_ReadOnly: 0
@@ -77,11 +87,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 802f9d2e2ae78430bbeaf71d297801b6
     m_Address: TrayLock
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 86f35b096c1c8480cb5ed22b91952f91
-    m_Address: Containers/RainbowCover_S
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -142,6 +147,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f81f1026bfb68498399ca9b1cc204e29
     m_Address: Items/Items_03
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f8d60d1d47ebe4101be250a205f9c732
+    m_Address: Containers/Container_L
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
