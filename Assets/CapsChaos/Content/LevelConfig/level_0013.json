@@ -2,7 +2,7 @@
   "$schema": "../../../../docs/design/level.schema.json",
   "formatVersion": 4,
   "id": "level_0013",
-  "conveyor": "oval_32",
+  "conveyor": "lens_42",
   "slots": 4,
   "extraSlots": 2,
   "trayCapacity": 4,

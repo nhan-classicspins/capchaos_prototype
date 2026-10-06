@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../../../docs/design/conveyor.schema.json",
+  "formatVersion": 2,
+  "id": "square_42",
+  "rows": 42,
+  "width": 4,
+  "pickRows": 5,
+  "scale": 0.46,
+  "loop": { "nodes": [
+    { "x": 0.8, "z": 3.1, "yRotation": 270 },
+    { "x": -0.8, "z": 3.1, "yRotation": 270 },
+    { "x": -1.45, "z": 3.75, "yRotation": 0 },
+    { "x": -1.45, "z": 4.95, "yRotation": 0 },
+    { "x": -0.8, "z": 5.6, "yRotation": 90 },
+    { "x": 0.8, "z": 5.6, "yRotation": 90 },
+    { "x": 1.45, "z": 4.95, "yRotation": 180 },
+    { "x": 1.45, "z": 3.75, "yRotation": 180 }
+  ] },
+  "feeders": [
+    { "side": "right", "mergeAt": 33, "nodes": [
+      { "x": 2.7, "z": 11.7, "yRotation": 180 },
+      { "x": 2.7, "z": 8.4, "yRotation": 180 },
+      { "x": 2.7, "z": 6.5, "yRotation": 180 },
+      { "x": 1.91, "z": 4.35, "yRotation": 270 }
+    ] },
+    { "side": "left", "mergeAt": 13, "nodes": [
+      { "x": -2.7, "z": 11.7, "yRotation": 180 },
+      { "x": -2.7, "z": 8.4, "yRotation": 180 },
+      { "x": -2.7, "z": 6.5, "yRotation": 180 },
+      { "x": -1.91, "z": 4.35, "yRotation": 90 }
+    ] },
+    { "side": "middle", "mergeAt": 23, "nodes": [
+      { "x": -0.229, "z": 11.7, "yRotation": 180 },
+      { "x": -0.229, "z": 8.4, "yRotation": 180 },
+      { "x": -0.229, "z": 6.037, "yRotation": 180 }
+    ] }
+  ],
+  "meta": { "name": "Rounded square" }
+}

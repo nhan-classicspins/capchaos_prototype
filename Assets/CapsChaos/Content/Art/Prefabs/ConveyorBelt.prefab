@@ -266,6 +266,6 @@ MonoBehaviour:
   _arrowTemplate: {fileID: 1674661630163117016}
   _arrowSpacing: 3.6
   _arrowYaw: -90
-  _arrowHeight: 0.012
+  _arrowHeight: -0.02
   _surfaceHeight: 0.01
   _headOffset: 0.4

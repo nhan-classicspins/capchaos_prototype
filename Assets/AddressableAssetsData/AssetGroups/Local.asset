@@ -55,11 +55,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 58e9c7c593191451e9d1f481fbf3714a
-    m_Address: LoopConveyorBelt
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 60e76eebb54f9465aaa0fa1fa74030cf
     m_Address: Containers/Container_M
     m_ReadOnly: 0

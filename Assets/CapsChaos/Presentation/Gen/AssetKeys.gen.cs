@@ -35,7 +35,6 @@ namespace Game.Presentation
         public static readonly AssetKey<GameObject> Lane              = new("Lane");
         public static readonly AssetKey<GameObject> LevelButton       = new("LevelButton");
         public static readonly AssetKey<GameObject> LevelSelectWidget = new("LevelSelectWidget");
-        public static readonly AssetKey<GameObject> LoopConveyorBelt  = new("LoopConveyorBelt");
         public static readonly AssetKey<GameObject> OutOfSlotDialog   = new("OutOfSlotDialog");
         public static readonly AssetKey<GameObject> ParkingSlotDialog = new("ParkingSlotDialog");
         public static readonly AssetKey<GameObject> ResultDialog      = new("ResultDialog");
