@@ -20,6 +20,7 @@ namespace Game.Gen
         public static readonly LocKey LevelSelectDifficultyUnknown  = new("level_select.difficulty_unknown");
         public static readonly LocKey LevelSelectNumber             = new("level_select.number");
         public static readonly LocKey LevelSelectTitle              = new("level_select.title");
+        public static readonly LocKey LoadingTitle                  = new("loading.title");
         public static readonly LocKey LoseRestart                   = new("lose.restart");
         public static readonly LocKey LoseSubtitle                  = new("lose.subtitle");
         public static readonly LocKey LoseTitle                     = new("lose.title");

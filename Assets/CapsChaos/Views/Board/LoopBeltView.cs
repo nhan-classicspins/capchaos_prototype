@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LitMotion;
 using UnityEngine;
 using B = Game.Views.DesignTokens.Board;
 using M = Game.Views.DesignTokens.Motion;
@@ -56,9 +57,10 @@ namespace Game.Views
         private double Now => _time != null ? _time.Now : Time.timeAsDouble;
 
         private GameObject[] _spots = Array.Empty<GameObject>();        // [row * width + track]
-        // a bottle that just stepped on from a feeder: it slides from where it waited to its moving spot
-        // each walks to its own spot on its own: its own start delay and pace, chasing the spot as the belt carries it on
-        private sealed class Joiner { public Vector3 Pos; public float Wait, Speed, Age; }
+        // a bottle that just stepped on from a feeder: it slides from where it waited to its moving spot over
+        // GameFeel.MergeSeconds (eased, chasing the spot as the belt carries it on), turning to face along the loop;
+        // the bottles of one row go one after another, MergeStagger apart
+        private sealed class Joiner { public Vector3 Start; public Quaternion StartRot; public float Wait, Age, Dist; }
         private readonly Dictionary<GameObject, Joiner> _joining = new Dictionary<GameObject, Joiner>();
 
         private sealed class Feeder
@@ -75,7 +77,10 @@ namespace Game.Views
             public Queue<(TintFlavor color, bool masked)>[] Pending;   // per track: the rest of the queue, not drawn yet
             public float[] Shift;                                      // per track: rows still to slide forward (eased to 0)
             public int[] Joined;                                       // per track: bottles that stepped onto the loop
+            public float Intro, IntroFrom;                             // run-in: rows the whole queue still stands back (→ 0)
             public int RowsJoined;                                     // queue rows on the loop (the head row = this one)
+            public readonly List<Joiner> Batch = new List<Joiner>();   // the bottles that stepped on this frame (one row)
+            public int BatchFrame = -1;
             public readonly Dictionary<int, TrayLockView> Locks = new Dictionary<int, TrayLockView>();   // R24: queue row → its padlock
         }
         private readonly List<Feeder> _feeders = new List<Feeder>();
@@ -151,7 +156,38 @@ namespace Game.Views
                 var (_, ft) = f.Belt.Sample(f.Belt.Length);
                 var (_, lt) = _loop.Sample(Entrance(f) * _pitch);
                 f.Side = Vector3.Dot(ConveyorBeltView.Outward(ft), ConveyorBeltView.Outward(lt)) < 0f ? -1f : 1f;
+                // the run-in: the head row starts at the far end of the belt and the queue runs in behind it
+                f.IntroFrom = f.Intro = Feel.FeederIntroSeconds > 0f ? Mathf.Max(0f, HeadAt(f) / RowPitch) : 0f;
                 LayoutFeeder(f);
+            }
+            _introAge = 0f;
+            _introArmed = false;
+        }
+
+        /// <summary>Start the feeders' run-in now (the board is on screen). Until then the queues wait at the far end.</summary>
+        public void StartRunIn() => _introArmed = true;
+
+        private bool _introArmed;
+
+        private float _introAge;                                    // game seconds since the feeders' run-in began
+
+        /// <summary>Rows short of its waiting place a queue may already start feeding: the head row runs straight on into
+        /// the loop instead of stopping at the end of the run-in.</summary>
+        private const float JoinBeforeInRows = 0.5f;
+
+        private bool IntroDone => _introAge >= Feel.FeederIntroSeconds;
+
+        /// <summary>True while the feeders' queues are still running in from the far end of their belts (false from half a
+        /// row before they are in: the head row then steps on without a stop).</summary>
+        public bool FeedersRunningIn
+        {
+            get
+            {
+                if (_feeders.Count == 0) return false;
+                if (!_introArmed) return true;
+                if (IntroDone) return false;
+                foreach (var f in _feeders) if (f.Intro > JoinBeforeInRows) return true;
+                return false;
             }
         }
 
@@ -191,6 +227,7 @@ namespace Game.Views
             var list = f.Visible[track];
             if (list.Count == 0) return;
             var go = list[0];
+            if (!go.activeSelf) go.SetActive(true);                      // a fed bottle is always drawn
             list.RemoveAt(0);
             if (f.Pending[track].Count > 0)
             {
@@ -202,13 +239,15 @@ namespace Game.Views
             f.Shift[track] += 1f;
             f.TravelTarget += RowPitch / _width;
             go.transform.SetParent(_bottles, false);                    // every group sits at the loop's origin (within a hair)
-            _joining[go] = new Joiner
-            {
-                Pos = go.transform.localPosition,
-                Wait = UnityEngine.Random.Range(0f, M.BottleJoinDelayMax),
-                Speed = M.BottleJoinSpeed / _scale * UnityEngine.Random.Range(1f - M.BottleJoinSpeedSpread, 1f + M.BottleJoinSpeedSpread),
-            };
+            go.transform.GetLocalPositionAndRotation(out var from, out var fromRot);
+            var j = new Joiner { Start = from, StartRot = fromRot, Dist = (SpotLocal(row, track, _phase, out _) - from).sqrMagnitude };
+            _joining[go] = j;
             _spots[row * _width + track] = go;
+            // the row steps on one bottle after another, the one nearest its spot first
+            if (f.BatchFrame != Time.frameCount) { f.BatchFrame = Time.frameCount; f.Batch.Clear(); }
+            f.Batch.Add(j);
+            f.Batch.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+            for (int i = 0; i < f.Batch.Count; i++) f.Batch[i].Wait = i * Feel.MergeStagger;
         }
 
         private void LateUpdate()
@@ -222,12 +261,20 @@ namespace Game.Views
                     if (go != null) Place(go, row, k, phase);
                 }
             _loop.SetTravel(phase * _pitch);
+            if (_introArmed && !IntroDone) _introAge += Dt;
+            float introLeft = _introArmed ? 1f - Mathf.Clamp01(_introAge / Mathf.Max(Feel.FeederIntroSeconds, 1e-4f)) : 1f;   // steady pace
+            if (_feeders.Count == 0 || Feel.FeederIntroSeconds <= 0f) introLeft = 0f;
+            const float rowsPerSecond = M.BeltRowsPerSecond;
             foreach (var f in _feeders)
             {
+                f.Intro = f.IntroFrom * introLeft;
+                // the queue moves up at the belt's pace (one row per step), so a feeding queue never stops between rows;
+                // a backlog (two rows in one frame) catches up faster
                 for (int k = 0; k < _width; k++)
-                    f.Shift[k] = Mathf.MoveTowards(f.Shift[k], 0f, Dt / M.FeederStep);
-                f.Travel = Mathf.MoveTowards(f.Travel, f.TravelTarget, Dt * RowPitch / M.FeederStep);
-                f.Belt.SetTravel(f.Travel);
+                    f.Shift[k] = Mathf.MoveTowards(f.Shift[k], 0f, Dt * rowsPerSecond * Mathf.Max(1f, f.Shift[k]));
+                float behind = (f.TravelTarget - f.Travel) / RowPitch;
+                f.Travel = Mathf.MoveTowards(f.Travel, f.TravelTarget, Dt * RowPitch * rowsPerSecond * Mathf.Max(1f, behind));
+                f.Belt.SetTravel(f.Travel - f.Intro * RowPitch);          // the belt surface runs in with its queue
                 LayoutFeeder(f);
                 LayoutRowLocks(f);
             }
@@ -266,18 +313,26 @@ namespace Game.Views
             var target = SpotLocal(row, track, phase, out var facing);
             if (_joining.TryGetValue(go, out var j))
             {
-                float dt = Dt;
-                j.Age += dt;
-                if (j.Wait > 0f) j.Wait -= dt;
+                if (j.Wait > 0f)
+                {
+                    j.Wait -= Dt;                                       // its turn in the row has not come yet
+                    target = j.Start;
+                    facing = j.StartRot;
+                }
                 else
                 {
-                    float pace = j.Speed * Mathf.Clamp01(j.Age / M.BottleJoinRamp);          // a step off, then full pace
-                    j.Pos = Vector3.MoveTowards(j.Pos, target, pace * dt);
+                    j.Age += Dt;
+                    float t = Mathf.Clamp01(j.Age / Mathf.Max(Feel.MergeSeconds, 1e-4f));
+                    if (t >= 1f) _joining.Remove(go);                   // on its spot: from now on it faces with its row
+                    else
+                    {
+                        float e = EaseUtility.Evaluate(t, Feel.MergeEase);
+                        target = Vector3.LerpUnclamped(j.Start, target, e);
+                        facing = Quaternion.SlerpUnclamped(j.StartRot, facing, e);
+                    }
                 }
-                if ((j.Pos - target).sqrMagnitude < 1e-6f || j.Age > M.BottleJoinMax) _joining.Remove(go);
-                else target = j.Pos;
             }
-            go.transform.SetLocalPositionAndRotation(target, facing);    // a joining item already faces with its row
+            go.transform.SetLocalPositionAndRotation(target, facing);
         }
 
         private void LayoutFeeder(Feeder f)
@@ -292,8 +347,12 @@ namespace Game.Views
                 for (int d = 0; d < list.Count; d++)
                 {
                     if (list[d] == null) continue;
-                    var (p, t) = f.Belt.Sample(HeadAt(f) - (d + f.Shift[k]) * RowPitch);
-                    var (_, rowT) = f.Belt.Sample(HeadAt(f) - (d + rowShift) * RowPitch);
+                    float along = HeadAt(f) - (d + f.Shift[k] + f.Intro) * RowPitch;
+                    bool onBelt = along >= 0f;                          // still beyond the belt's far end (run-in): not drawn
+                    if (list[d].activeSelf != onBelt) list[d].SetActive(onBelt);
+                    if (!onBelt) continue;
+                    var (p, t) = f.Belt.Sample(along);
+                    var (_, rowT) = f.Belt.Sample(HeadAt(f) - (d + rowShift + f.Intro) * RowPitch);
                     list[d].transform.SetLocalPositionAndRotation(
                         p + ConveyorBeltView.Outward(t) * (Across(k) * f.Side) + Vector3.up * f.Belt.SurfaceHeight, RowFacing(rowT));
                 }
@@ -373,10 +432,11 @@ namespace Game.Views
             {
                 if (kv.Value == null) continue;
                 int d = kv.Key - f.RowsJoined;
-                bool drawn = d >= 0 && d < B.FeederVisibleRows;
+                float along = HeadAt(f) - (d + f.Shift[0] + f.Intro) * RowPitch;
+                bool drawn = d >= 0 && d < B.FeederVisibleRows && along >= 0f;
                 if (kv.Value.gameObject.activeSelf != drawn) kv.Value.gameObject.SetActive(drawn);
                 if (!drawn) continue;
-                var (p, _) = f.Belt.Sample(HeadAt(f) - (d + f.Shift[0]) * RowPitch);
+                var (p, _) = f.Belt.Sample(along);
                 kv.Value.transform.localPosition = p + Vector3.up * (f.Belt.SurfaceHeight + B.RowLockY / _scale);
             }
         }

@@ -53,6 +53,8 @@ namespace Game.Presentation
         private readonly IWorldViewport _viewport;
         private readonly ILog _log;
         private readonly GameTime _time;   // the gameplay clock: GameSpeed scales the belt and every board animation
+        private readonly ILoadingCover _cover;   // raised by Main over the load; down once the round is on screen
+        private bool _coverUp = true;            // the loading cover is over the board: the feeders' run-in waits for it
 
         private readonly BoardPrefabs _prefabs = new BoardPrefabs();
         private readonly List<GameObject> _held = new List<GameObject>();
@@ -85,9 +87,10 @@ namespace Game.Presentation
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
             IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, BeltClock clock,
             IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, IUserData userData,
-            IWorldViewport viewport, ContainerPaletteProvider containerPalette, BoardFloorView floor, GameTime time, ILog log = null)
+            IWorldViewport viewport, ContainerPaletteProvider containerPalette, BoardFloorView floor, GameTime time, ILoadingCover cover, ILog log = null)
         {
             _time = time;
+            _cover = cover;
             _floor = floor;
             _containerPalette = containerPalette;
             _viewport = viewport;
@@ -156,6 +159,7 @@ namespace Game.Presentation
 
         public override void OnEnter()
         {
+            HideCoverThenRunInAsync().Forget();                               // the board is built: the loading cover goes
             _hud.SetVisible(true);
             _hud.SetInteractable(true);
             _log.Info($"[GameplayScreen] entered — {_level?.Id} ({_catalog.Normalize(_levelIndex) + 1}/{_catalog.Count}).");
@@ -312,6 +316,7 @@ namespace Game.Presentation
             _input.LockedSlotTapped += OnLockedSlotTapped;
             _input.EmptyHoldChanged += OnEmptyHold;
 
+            if (!_coverUp) _board.StartFeederRunIn();                         // no cover (Restart): the queues run in at once
             _log.Info($"[GameplayScreen] round {_level.Id}: {belt.Count} bottles on conveyor {_level.Conveyor.Id ?? "(built in code)"} ({belt.Rows}×{belt.Width}), " +
                       $"{belt.FeederRemainingTotal} in {belt.FeederCount} feeder(s), {_level.Lanes.Count} lanes, {_level.Slots} slots.");
         }
@@ -457,7 +462,7 @@ namespace Game.Presentation
             while (_beltTime >= interval && _game.Status == GameStatus.Playing)
             {
                 _beltTime -= interval;
-                PlayBelt(_game.Step());
+                PlayBelt(_game.Step(feed: !_board.FeedersRunningIn));         // the loop always turns; queues join once they are in
             }
             _board.SetBeltPhase(_game.Belt.Offset + _beltTime / interval,
                 _game.Status == GameStatus.Playing ? DesignTokens.Motion.BeltRowsPerSecond : 0f);
@@ -661,7 +666,28 @@ namespace Game.Presentation
                 return;
             if (result.Reason == DialogCloseReason.BackButton) { GoHome(); return; }
             _log.Info($"[GameplayScreen] {(won ? "next" : "restart")} after {_level?.Id}.");
-            StartRound(won ? _levelIndex + 1 : _levelIndex);
+            if (won) NextLevelAsync().Forget();
+            else StartRound(_levelIndex);
+        }
+
+        /// <summary>The cover fades away, then the feeders' queues run in from the far end of their belts.</summary>
+        private async UniTaskVoid HideCoverThenRunInAsync()
+        {
+            await _cover.HideAsync();
+            _coverUp = false;
+            if (_board != null) _board.StartFeederRunIn();
+        }
+
+        /// <summary>NEXT builds a whole new board in place (no scene load) — a noticeable hitch: do it under the loading
+        /// cover. The round's own token dies in StartRound's teardown, so this runs on none.</summary>
+        private async UniTaskVoid NextLevelAsync()
+        {
+            _coverUp = true;
+            await _cover.ShowAsync(_loc.Get(LocKeys.LoadingTitle), default);
+            if (_leaving) { HideCoverThenRunInAsync().Forget(); return; }
+            StartRound(_levelIndex + 1);
+            await UniTask.NextFrame();                                        // the first frame of the new board is drawn
+            HideCoverThenRunInAsync().Forget();
         }
 
         /// <summary>A conveyor spline as the board draws it (the Domain knot → the View's).</summary>

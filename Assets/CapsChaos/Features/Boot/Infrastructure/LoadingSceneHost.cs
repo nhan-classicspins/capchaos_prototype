@@ -6,6 +6,8 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
 using ClassicSpins.PrototypeFramework.Application;
+using Game.Presentation;
+using Game.Views;
 
 namespace Game.Infrastructure
 {
@@ -33,13 +35,16 @@ namespace Game.Infrastructure
     /// backstop for a leaked handle. Path 3 is <b>not</b> the abort fix: the Root scope is only disposed
     /// at play-mode exit, by which point the scene is unloading anyway.</para>
     /// </remarks>
-    public sealed class LoadingSceneHost : IDisposable
+    /// <remarks>Also the in-game <see cref="ILoadingCover"/> (2026-10-06): the screens raise the same scene over a level
+    /// load, label set by them, and it fades out (<see cref="LoadingScreenView"/>) before it unloads — at boot too.</remarks>
+    public sealed class LoadingSceneHost : IDisposable, ILoadingCover
     {
         /// <summary>The addressable address of the Loading scene.</summary>
         public const string Address = "Scenes/Loading";
 
         private readonly ILog _log;
         private SceneInstance? _scene;
+        private LoadingScreenView _view;
 
         public LoadingSceneHost(ILog log = null) => _log = log ?? new NullLog();
 
@@ -82,13 +87,48 @@ namespace Game.Infrastructure
             }
         }
 
-        /// <summary>Unload the Loading scene. Idempotent, and never throws — a stuck loading screen is
-        /// worse than a logged unload warning.</summary>
+        /// <summary>ILoadingCover: the Loading scene up (loaded if it is not), reading <paramref name="label"/>, and
+        /// one frame rendered — so the work the caller starts next runs under a cover already on screen.</summary>
+        async UniTask ILoadingCover.ShowAsync(string label, CancellationToken ct)
+        {
+            if (!await ShowAsync(ct)) return;                                // cosmetic: no cover, the load goes on
+            _view ??= FindView();
+            if (_view != null)
+            {
+                _view.ShowNow();
+                _view.SetLabel(label);
+            }
+            await UniTask.NextFrame(ct);
+        }
+
+        private LoadingScreenView FindView()
+        {
+            if (!_scene.HasValue) return null;
+            foreach (var root in _scene.Value.Scene.GetRootGameObjects())
+            {
+                var view = root.GetComponentInChildren<LoadingScreenView>(true);
+                if (view != null) return view;
+            }
+            return null;
+        }
+
+        /// <summary>Fade the Loading scene out, then unload it. Idempotent, and never throws — a stuck loading screen
+        /// is worse than a logged unload warning.</summary>
         public async UniTask HideAsync()
         {
             if (!_scene.HasValue) return;
             var scene = _scene.Value;
+            var view = _view ?? FindView();
             _scene = null;
+            _view = null;
+            try
+            {
+                if (view != null) await view.FadeOutAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn("[LoadingScene] fade issue: " + ex.Message);
+            }
             try
             {
                 await Addressables.UnloadSceneAsync(scene).Task.AsUniTask();

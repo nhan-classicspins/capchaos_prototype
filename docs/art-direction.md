@@ -150,7 +150,7 @@ Chai ẩn đã bỏ cùng khối chai (GDD D3, D6). Prefab `BottleHidden`, `M_Ra
   oval mở trên đoạn mặt hàng chờ phủ lên, và (khi gờ hàng chờ bị cắt) tới quá điểm nhập `FeederLandRows` hàng, để không gờ
   nào chắn chỗ thả chai.
 - Cây object: `Loop/Belt` (kèm các gờ của nó), `Loop/Bottles`, `Loop/FeederN/{Belt (kèm gờ), Queue}`. Mặt băng hàng chờ thấp hơn một chút (`FeederBeltSink`) để mặt oval nằm trên. Đầu hàng chờ đứng ở chỗ hai băng
-  vừa chạm; mỗi chai của hàng vừa nhập **tự đi tới điểm đích riêng** của nó (ô của nó trên oval, đang chạy theo băng): trễ xuất phát ngẫu nhiên tới `BottleJoinDelayMax`, tốc độ `BottleJoinSpeed` ± `BottleJoinSpeedSpread`, nên 4 chai tới nơi lệch nhau như người bước lên băng.
+  vừa chạm; mỗi chai của hàng vừa nhập **tự đi tới điểm đích riêng** của nó (ô của nó trên oval, đang chạy theo băng): lần lượt từng chai (chai gần ô đích nhất đi trước, cách nhau `GameFeel.MergeStagger`), mỗi chai trượt mượt trong `GameFeel.MergeSeconds` (ease `MergeEase`) và xoay dần theo hướng băng; hàng chờ phía sau tiến lên đều theo nhịp băng, không khựng.
 - Camera orthographic (ADR-001 §7): khung hình do `ViewHeight` (11,6) quyết định, tính theo chiều cao safe rect.
 
 ### 4.3 Cap — nắp (đã bỏ 2026-10-02)

@@ -305,14 +305,17 @@ namespace Game.Domain
         /// <summary>
         /// R1–R4: the oval moves one row; the bottles now in the pick zone fly to the trays waiting for them, then every
         /// feeder fills the empty spots passing its merge point. Nothing happens once the round is over.
+        /// <paramref name="feed"/> false: the feeders do not join this step (the round's opening, while their queues are
+        /// still on their way in on screen) — the belt still turns and picks, and a feeder that could join keeps the
+        /// board from counting as quiet, so no round is judged on it.
         /// </summary>
-        public IReadOnlyList<GameFact> Step()
+        public IReadOnlyList<GameFact> Step(bool feed = true)
         {
             if (Status != GameStatus.Playing) return Array.Empty<GameFact>();
             var facts = new List<GameFact>();
             _belt.Advance();
             Pick(facts);
-            _belt.Feed(facts);
+            if (feed) _belt.Feed(facts);
             Judge(facts);
             return facts;
         }

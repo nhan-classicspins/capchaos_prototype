@@ -70,7 +70,7 @@ namespace Game.Composition
             // fires when the Root scope is actually disposed, which for a session-long RootLifetimeScope
             // means play-mode exit — it catches a leaked handle, NOT an aborted boot. The abort case is
             // closed by the entry-point exception handler below.
-            builder.Register<LoadingSceneHost>(Lifetime.Singleton).AsSelf().As<IDisposable>();
+            builder.Register<LoadingSceneHost>(Lifetime.Singleton).AsSelf().As<IDisposable>().As<ILoadingCover>();   // + the level-load cover
             builder.Register<LoadingSceneNode>(Lifetime.Singleton).As<IBootNode>();
             builder.Register<TestWaitNode>(Lifetime.Singleton).As<IBootNode>();
 

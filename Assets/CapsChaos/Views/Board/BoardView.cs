@@ -322,6 +322,13 @@ namespace Game.Views
         /// <paramref name="row"/>; that track of the queue moves up.</summary>
         public void FeedBottle(int feeder, int track, int row) => _loop.Feed(feeder, track, row);
 
+        /// <summary>True while the feeders' queues are still running in from the far end of their belts (the round's
+        /// opening; <see cref="GameFeel.FeederIntroSeconds"/>).</summary>
+        public bool FeedersRunningIn => _loop != null && _loop.FeedersRunningIn;
+
+        /// <summary>The board is on screen: the feeders' queues start running in.</summary>
+        public void StartFeederRunIn() { if (_loop != null) _loop.StartRunIn(); }
+
         /// <summary>Queue row <paramref name="row"/> of <paramref name="feeder"/> is locked (R24): a padlock reading
         /// <paramref name="label"/> rides over it.</summary>
         public void LockFeederRow(int feeder, int row, string label)

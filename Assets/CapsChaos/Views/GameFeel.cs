@@ -21,6 +21,18 @@ namespace Game.Views
         [SerializeField] private float _feederRowPitch = 0.44f;
         [Tooltip("Between the items of one row, across the belt — on the loop and on the feeders (an item is 0.38 across).")]
         [SerializeField] private float _trackSpacing = 0.42f;
+        [Tooltip("As a round starts, each feeder's queue starts at the far end of its belt and runs in to its waiting place " +
+                 "over this many seconds (game time, at a steady pace); the loop starts turning once it is in. 0 = no run-in.")]
+        [SerializeField] private float _feederIntroSeconds = 1.5f;
+
+        [Header("Feeder → loop merge")]
+        [Tooltip("Seconds (game time) an item takes to slide from its feeder onto its spot on the loop, chasing the spot " +
+                 "as the loop carries it on. It turns to face along the loop on the way.")]
+        [SerializeField] private float _mergeSeconds = 0.3f;
+        [Tooltip("The items of one row step onto the loop one after another, this many seconds apart — the one nearest " +
+                 "its spot first.")]
+        [SerializeField] private float _mergeStagger = 0.04f;
+        [SerializeField] private Ease _mergeEase = Ease.InOutSine;
 
         [Header("Items into a container — every container has 4 anchors")]
         [Tooltip("Items stack this far above their anchors (board units) and wait there until the group of 4 is complete.")]
@@ -55,6 +67,10 @@ namespace Game.Views
 
         public float FeederRowPitch => _feederRowPitch;
         public float TrackSpacing => _trackSpacing;
+        public float FeederIntroSeconds => _feederIntroSeconds;
+        public float MergeSeconds => _mergeSeconds;
+        public float MergeStagger => _mergeStagger;
+        public Ease MergeEase => _mergeEase;
         public float ItemStackY => _itemStackY;
         public float ItemToStack => _itemToStack;
         public float ItemDrop => _itemDrop;

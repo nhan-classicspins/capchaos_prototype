@@ -18,11 +18,16 @@ namespace Game.Presentation
         private readonly MainParam _param;
         private readonly LevelSelectWidget _levels;
         private readonly ISceneService _scenes;
+        private readonly ILoadingCover _cover;
+        private readonly ILocalizationService _loc;
         private readonly ILog _log;
         private bool _leaving;
 
-        public MainScreen(MainParam param, LevelSelectWidget levels, ISceneService scenes, ILog log = null)
+        public MainScreen(MainParam param, LevelSelectWidget levels, ISceneService scenes, ILoadingCover cover,
+            ILocalizationService loc, ILog log = null)
         {
+            _cover = cover;
+            _loc = loc;
             _param = param;
             _levels = levels;
             _scenes = scenes;
@@ -61,8 +66,24 @@ namespace Game.Presentation
             if (_leaving) return;              // one navigation per visit — a double tap must not load twice
             _leaving = true;
             _log.Info($"[MainScreen] play level index {index}.");
-            _scenes.LoadAsync(SceneKeys.Gameplay, new GameplayParam(LevelIndex: index), SceneTransition.Replace)
-                .Forget(e => { _leaving = false; _log.Error("[MainScreen] could not open Gameplay: " + e.Message); });
+            PlayAsync(index).Forget();
+        }
+
+        /// <summary>The loading cover goes up first, then the Gameplay screen loads under it (its assets and the board
+        /// take a couple of seconds); Gameplay takes the cover down once the round is on screen.</summary>
+        private async UniTaskVoid PlayAsync(int index)
+        {
+            try
+            {
+                await _cover.ShowAsync(_loc.Get(LocKeys.LoadingTitle), default);
+                await _scenes.LoadAsync(SceneKeys.Gameplay, new GameplayParam(LevelIndex: index), SceneTransition.Replace);
+            }
+            catch (Exception e)
+            {
+                _leaving = false;
+                _cover.HideAsync().Forget();
+                _log.Error("[MainScreen] could not open Gameplay: " + e.Message);
+            }
         }
     }
 }

@@ -261,5 +261,17 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(g.Belt.FeederRowsJoined(0), Is.EqualTo(1), "a whole queue row joins at once");
             Assert.That(g.Belt.FeederAt(0, 0, 0), Is.EqualTo(CapColor.Orange), "depth 0 is now queue row 1");
         }
+
+        [Test]
+        public void A_step_without_feeding_turns_the_belt_but_no_feeder_joins()
+        {
+            var g = new CapChaosGame(Level(new[] { ".." }, new[] { "R" }, capacity: 2, feeders: new[] { "RR" }));
+            int offset = g.Belt.Offset;
+            Assert.That(g.Step(feed: false).OfType<BottleFed>(), Is.Empty);
+            Assert.That(g.Belt.Offset, Is.Not.EqualTo(offset), "the belt still turns");
+            Assert.That(g.IsQuiescent, Is.False, "a feeder that could join keeps the board from counting as quiet");
+            Assert.That(g.Status, Is.EqualTo(GameStatus.Playing));
+            Assert.That(g.Step().OfType<BottleFed>(), Is.Not.Empty, "feeding again: the queue joins");
+        }
     }
 }

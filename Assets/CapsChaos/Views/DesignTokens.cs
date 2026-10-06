@@ -213,15 +213,10 @@ namespace Game.Views
             /// over ImpactSquash, then bounces back to 1 over ImpactRecover. Items only start flying in after it.</summary>
             public const float ImpactSquash = 0.10f, ImpactRecover = 0.15f, ImpactWide = 1.2f, ImpactFlat = 0.8f;
             public const float BottleArcHeight = 1.2f;
-            /// <summary>Oval belt speed (≈ the reference video's crowd), a feeder bottle sliding onto the belt, a feeder queue
-            /// moving up one row; how far ahead of the last fixed tick the belt may be drawn.</summary>
-            public const float BeltRowsPerSecond = 3.5f, FeederStep = 0.2f, BeltExtrapolateMax = 0.06f;
-            /// <summary>A bottle stepping from a feeder onto the belt walks to its own spot on its own (art §4.2b): it
-            /// waits up to BottleJoinDelayMax, takes BottleJoinRamp to reach its pace — BottleJoinSpeed board units/s,
-            /// ± BottleJoinSpeedSpread of it, well above the belt's own ~0.75 — and chases the spot as it moves.
-            /// BottleJoinMax is the safety cap after which it simply snaps.</summary>
-            public const float BottleJoinSpeed = 4.4f, BottleJoinSpeedSpread = 0.25f, BottleJoinDelayMax = 0.12f;
-            public const float BottleJoinRamp = 0.08f, BottleJoinMax = 1.5f;
+            /// <summary>Oval belt speed (≈ the reference video's crowd); how far ahead of the last fixed tick the belt may be
+            /// drawn. A feeder queue moves up at the belt's own pace (one row per step), so a queue that keeps feeding
+            /// never stops; the merge itself is tuned in GameFeel.</summary>
+            public const float BeltRowsPerSecond = 3.5f, BeltExtrapolateMax = 0.06f;
             /// <summary>Bottles picked in one belt step leave one after another, this far apart.</summary>
             public const float PickStagger = 0.04f;
             /// <summary>Items enter a container one after another (SKU owner, 2026-10-02): each launches this long after the
@@ -239,6 +234,11 @@ namespace Game.Views
             public const float TrayReveal = 0.25f, LockTick = 0.2f, Unlock = 0.3f, LinkRelease = 0.15f;
             /// <summary>The missing-item count on a container in a slot pops when an item lands (R21).</summary>
             public const float CountPop = 0.18f;
+            /// <summary>The loading cover: its dots bob LoadingDotBob (canvas px) up and down, one full bob per
+            /// LoadingDotPeriod seconds, each dot LoadingDotLag of a period behind the one before; the cover fades out over
+            /// LoadingFadeOut. Real time — a level load does not run on the game clock.</summary>
+            public const float LoadingDotBob = 22f, LoadingDotPeriod = 0.9f, LoadingDotLag = 0.15f, LoadingFadeOut = 0.25f;
+            public const float LoadingDotSize = 40f, LoadingDotGap = 26f, LoadingDotsBelowLabel = 120f;
         }
 
         // ── UI (art §3.3) ─────────────────────────────────────────────────────────────────────
@@ -260,6 +260,9 @@ namespace Game.Views
             flavor == TintFlavor.None || flavor == TintFlavor.White ? TextOnFill : Flavor(flavor).Body;
         /// <summary>A raycast-only surface (the board hit-catcher): receives pointer events, draws nothing.</summary>
         public static readonly Color Invisible  = new Color(0f, 0f, 0f, 0f);
+        /// <summary>The loading cover (boot and level loads): the board's own ground, so the cover and the round it
+        /// gives way to read as one place.</summary>
+        public static readonly Color LoadingBackground = Ground;
 
         public readonly struct ResultTheme
         {

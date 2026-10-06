@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f82174474357b4c41a4efb207876e408, type: 3}
   m_Name: GameFeel
   m_EditorClassIdentifier: Game.Views::Game.Views.BoardFeel
-  _feederRowPitch: 0.5
-  _trackSpacing: 0.42
+  _feederRowPitch: 0.55
+  _trackSpacing: 0.4
   _itemStackY: 0.45
   _itemToStack: 0.2
   _itemDrop: 0.15
