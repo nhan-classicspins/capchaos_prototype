@@ -21,6 +21,13 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
+        public void V8_a_locked_feeder_row_must_exist_in_the_queue()
+        {
+            var l = Level(new[] { ".." }, new[] { "R" }, capacity: 2, feeders: new[] { "RR" }, feederLocks: new[] { new[] { 0, 1, 2 } });
+            Assert.That(LevelValidator.Validate(l), Has.Some.EqualTo("V8 feeders[0].lockedRows: row 1 is past the queue's 1 row(s)"));
+        }
+
+        [Test]
         public void V10_a_slot_lock_names_one_open_slot_once_and_leaves_one_open_slot_unlocked()
         {
             var bad = Level(new[] { "RRRR" }, new[] { "R" }, slots: 2, extraSlots: 1,

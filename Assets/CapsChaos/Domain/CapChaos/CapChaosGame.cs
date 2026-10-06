@@ -278,6 +278,7 @@ namespace Game.Domain
                 _lockLeft[group[i].Lane] = 0;
             }
             TickSlotLocks(count, facts);                                                        // R22
+            _belt.TickRowLocks(count, facts);                                                   // R24
             AdvanceBelts(facts);                                                                // R7, R19
 
             for (int j = 0; j < _lanes.Length; j++)
@@ -433,6 +434,7 @@ namespace Game.Domain
             _slotFilled[slot] = 0;
             _slotCapacity[slot] = Capacity;
             TickSlotLocks(1, facts);
+            _belt.TickRowLocks(1, facts);
             Resolve(facts);
             return facts;
         }

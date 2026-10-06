@@ -18,7 +18,7 @@ namespace Game.Views
     /// <para>The <c>Count</c> text sits on top of the lid (both under the <c>Lid</c> node) and always shows how many items
     /// are still missing — on the belt that is all of them (text handed in by the controller). On the belt the lid is
     /// closed; as the tray flies to a slot the lid flies off to a parked place beside the container (count still in
-    /// view), and flies back on a Bézier once the container is full (<see cref="BoardFeel"/>). Every size has the same
+    /// view), and flies back on a Bézier once the container is full (<see cref="GameFeel"/>). Every size has the same
     /// four anchors: a bigger container takes its items four at a time (BoardView squashes each full group away until
     /// the last).</para>
     /// </summary>

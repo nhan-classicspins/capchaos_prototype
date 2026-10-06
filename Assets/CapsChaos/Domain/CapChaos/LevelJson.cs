@@ -43,7 +43,8 @@ namespace Game.Domain
     {
         private static readonly HashSet<string> RootKeys = new HashSet<string>(StringComparer.Ordinal)
             { "$schema", "formatVersion", "id", "conveyor", "slots", "extraSlots", "slotLocks", "trayCapacity", "colors", "feeders", "initial", "lanes", "links", "view", "meta" };
-        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "bottles", "hiddenRows" };
+        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "bottles", "hiddenRows", "lockedRows" };
+        private static readonly HashSet<string> RowLockKeys = new HashSet<string>(StringComparer.Ordinal) { "row", "lockTurns" };
         private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "size", "hidden", "lockTurns" };
         private static readonly HashSet<string> SlotLockKeys = new HashSet<string>(StringComparer.Ordinal) { "slot", "lockTurns" };
         private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
@@ -210,6 +211,7 @@ namespace Game.Domain
 
             var feeders = new List<IReadOnlyList<CapColor>>();
             var hidden = new List<IEnumerable<int>>();
+            var locked = new List<IReadOnlyDictionary<int, int>>();
             if (root.TryGet("feeders", out var fn))
             {
                 if (fn.Kind != JsonKind.Array) errors.Add("$.feeders: must be an array of { bottles }");
@@ -231,6 +233,7 @@ namespace Game.Domain
                         }
                         feeders.Add(bottles);
                         hidden.Add(ReadHiddenRows(o, fp, errors));
+                        locked.Add(ReadLockedRows(o, fp, errors));
                     }
                     if (conveyor != null && fn.Items.Count > conveyor.FeederCount)
                         errors.Add($"$.feeders: {fn.Items.Count} queue(s), but conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s) — " +
@@ -259,7 +262,29 @@ namespace Game.Domain
                     }
                 }
             }
-            return errors.Count == before && conveyor != null ? new LoopDefinition(conveyor, feeders, initial, hidden) : null;
+            return errors.Count == before && conveyor != null ? new LoopDefinition(conveyor, feeders, initial, hidden, locked) : null;
+        }
+
+        /// <summary>R24: a feeder's <c>lockedRows</c> — <c>[{ "row": 3, "lockTurns": 5 }]</c>, each row once. Whether a row
+        /// exists is V8.</summary>
+        private static Dictionary<int, int> ReadLockedRows(JsonValue feeder, string fp, List<string> errors)
+        {
+            var rows = new Dictionary<int, int>();
+            if (!feeder.TryGet("lockedRows", out var ln)) return rows;
+            if (ln.Kind != JsonKind.Array) { errors.Add(fp + ".lockedRows: must be an array of { row, lockTurns }"); return rows; }
+            for (int i = 0; i < ln.Items.Count; i++)
+            {
+                var item = ln.Items[i];
+                string path = $"{fp}.lockedRows[{i}]";
+                if (item.Kind != JsonKind.Object) { errors.Add(path + ": must be { row, lockTurns }"); continue; }
+                Unknown(item, RowLockKeys, path, errors);
+                int row = Int(item, "row", path, errors, required: true, min: 0, max: int.MaxValue, fallback: -1);
+                int turns = Int(item, "lockTurns", path, errors, required: true, min: 1, max: MaxLockTurns, fallback: 0);
+                if (row < 0 || turns <= 0) continue;
+                if (rows.ContainsKey(row)) errors.Add($"{path}.row: row {row} is locked twice");
+                else rows[row] = turns;
+            }
+            return rows;
         }
 
         /// <summary>R23: a feeder's <c>hiddenRows</c> — queue row indices, each once. Whether a row exists is V8.</summary>
@@ -420,6 +445,14 @@ namespace Game.Domain
                         var rows = new List<int>(fd.HiddenRows);
                         rows.Sort();
                         sb.Append(", \"hiddenRows\": [").Append(string.Join(", ", rows)).Append(']');
+                    }
+                    if (fd.LockedRows.Count > 0)
+                    {
+                        var rows = new List<int>(fd.LockedRows.Keys);
+                        rows.Sort();
+                        var locks = new List<string>();
+                        foreach (int r in rows) locks.Add($"{{ \"row\": {r}, \"lockTurns\": {fd.LockedRows[r]} }}");
+                        sb.Append(", \"lockedRows\": [").Append(string.Join(", ", locks)).Append(']');
                     }
                     sb.Append(" }").Append(f < lp.Feeders.Count - 1 ? ",\n" : "\n");
                 }

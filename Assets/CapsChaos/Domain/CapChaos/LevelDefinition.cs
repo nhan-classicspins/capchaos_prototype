@@ -11,18 +11,27 @@ namespace Game.Domain
     public sealed class FeederDefinition
     {
         private readonly HashSet<int> _hidden;
+        private readonly Dictionary<int, int> _locked;
 
         public int MergeAt { get; }
         public IReadOnlyList<CapColor> Bottles { get; }
         /// <summary>R23: queue rows hidden until they join the loop (0 = the first row to join).</summary>
         public IReadOnlyCollection<int> HiddenRows => _hidden;
+        /// <summary>R24: locked queue rows → their lock turns. A locked row stops at the merge point (and holds every row
+        /// behind it) until that many trays have flown to the slots while it waits there.</summary>
+        public IReadOnlyDictionary<int, int> LockedRows => _locked;
 
-        public FeederDefinition(int mergeAt, IReadOnlyList<CapColor> bottles, IEnumerable<int> hiddenRows = null)
+        public FeederDefinition(int mergeAt, IReadOnlyList<CapColor> bottles, IEnumerable<int> hiddenRows = null,
+            IReadOnlyDictionary<int, int> lockedRows = null)
         {
             MergeAt = mergeAt;
             Bottles = bottles ?? throw new ArgumentNullException(nameof(bottles));
             _hidden = hiddenRows != null ? new HashSet<int>(hiddenRows) : new HashSet<int>();
+            _locked = lockedRows != null ? new Dictionary<int, int>(lockedRows) : new Dictionary<int, int>();
         }
+
+        /// <summary>R24: the lock turns of queue row <paramref name="row"/>; 0 = not locked.</summary>
+        public int LockTurns(int row) => _locked.TryGetValue(row, out var t) ? t : 0;
 
         /// <summary>Is queue row <paramref name="row"/> hidden until it joins the loop (R23)?</summary>
         public bool IsHiddenRow(int row) => _hidden.Contains(row);
@@ -56,10 +65,12 @@ namespace Game.Domain
         public IReadOnlyList<IReadOnlyList<CapColor>> Initial { get; }
 
         /// <summary>A level's bottles on a shared conveyor: <paramref name="feederBottles"/>[f] is what conveyor feeder
-        /// f carries, <paramref name="feederHiddenRows"/>[f] which of its queue rows are hidden (R23; null = none). A level
+        /// f carries, <paramref name="feederHiddenRows"/>[f] which of its queue rows are hidden (R23; null = none),
+        /// <paramref name="feederLockedRows"/>[f] which are locked and for how many turns (R24; null = none). A level
         /// uses the conveyor's first <c>feederBottles.Count</c> feeders; the rest stay empty and are not drawn.</summary>
         public LoopDefinition(ConveyorDefinition conveyor, IReadOnlyList<IReadOnlyList<CapColor>> feederBottles,
-            IReadOnlyList<IReadOnlyList<CapColor>> initial = null, IReadOnlyList<IEnumerable<int>> feederHiddenRows = null)
+            IReadOnlyList<IReadOnlyList<CapColor>> initial = null, IReadOnlyList<IEnumerable<int>> feederHiddenRows = null,
+            IReadOnlyList<IReadOnlyDictionary<int, int>> feederLockedRows = null)
         {
             Conveyor = conveyor ?? throw new ArgumentNullException(nameof(conveyor));
             if (feederBottles == null) throw new ArgumentNullException(nameof(feederBottles));
@@ -68,7 +79,8 @@ namespace Game.Domain
             var feeders = new List<FeederDefinition>(feederBottles.Count);
             for (int f = 0; f < feederBottles.Count; f++)
                 feeders.Add(new FeederDefinition(conveyor.MergeAt[f], feederBottles[f],
-                    feederHiddenRows != null && f < feederHiddenRows.Count ? feederHiddenRows[f] : null));
+                    feederHiddenRows != null && f < feederHiddenRows.Count ? feederHiddenRows[f] : null,
+                    feederLockedRows != null && f < feederLockedRows.Count ? feederLockedRows[f] : null));
             Feeders = feeders;
             Initial = initial;
         }

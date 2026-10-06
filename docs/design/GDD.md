@@ -259,6 +259,18 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 - Đây chỉ là hiển thị: luật chơi, solver và V4 không đọc nó. V8: mỗi hàng ẩn phải có trong hàng chờ. Ghi chú: hình
   dạng item vẫn là hình của màu thật.
 
+### 5.6d Item khoá (R24, thêm 2026-10-06)
+- **R24** Một hàng trong hàng chờ của feeder có thể bị **khoá**: field `lockedRows` của feeder, ví dụ
+  `{ "bottles": [...], "lockedRows": [{ "row": 3, "lockTurns": 5 }] }`. Hàng khoá **không nhập vào loop**: nó dừng ở
+  điểm merge và **chặn mọi hàng phía sau**. Trên hàng có ổ khoá kèm số lượt (dùng lại prefab `TrayLock`).
+  - **Mỗi container được đưa lên slot thành công thì trừ 1 lượt**, cặp nối trừ 2.
+  - **Chỉ bắt đầu đếm khi hàng đã tới điểm merge**, tức là thành hàng đầu của hàng chờ. Hàng khoá nằm phía sau thì
+    chưa đếm.
+  - Về 0 thì ổ khoá bật mở (fact `FeederRowLockTicked`, `Remaining = 0`) và hàng nhập loop ngay khi belt có chỗ.
+  - Hàng khoá được coi là "không nhập được" khi xét bàn đứng yên. Nếu không còn container nào đưa lên slot được thì
+    khoá không bao giờ mở, và ván thua (`NoMovesLeft`) thay vì treo. V6 (solver) tính cả khoá này. V8: hàng khoá phải
+    có trong hàng chờ. Domain: `LoopBelt.TickRowLocks`; test: `SkuHeadlessTests/CapChaos/FeederRowLockRulesTests.cs`.
+
 ### 5.7 Cỡ container (R21, thêm 2026-10-02)
 - **R21** Mỗi khay có một **cỡ**: field `size` trong level JSON là số **1 S · 2 M · 3 L · 4 XL** (mặc định 1, không
   bao giờ đổi số). Khay nhận `size × trayCapacity` item mới đầy; với `trayCapacity` 4 là **S 4 · M 8 · L 12 · XL 16**.
@@ -277,7 +289,9 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 - **Giữ ngón tay / chuột ở vùng trống** (không phải khay, không phải slot khoá) thì cả game chạy **x2**; thả ra thì về
   bình thường. Không áp dụng khi đang có popup hoặc ván đã kết thúc.
 - Mọi thông số của các chuyển động trên (độ cao chồng item, thời gian bay / rơi / ép, chỗ đỗ và Bézier của nắp, tốc độ
-  khi giữ) nằm trong ScriptableObject `Content/Configs/BoardFeel.asset` (addressable `BoardFeel`, group Shared).
+  khi giữ, khoảng cách giữa các hàng của feeder và giữa các chai trong một hàng) nằm trong ScriptableObject
+  `Content/Configs/GameFeel.asset` (class `GameFeel`, addressable `GameFeel`, group Shared). Trên loop, các hàng rải đều
+  theo chiều dài loop ÷ `rows` của file conveyor.
 - Level mẫu: `level_0021` "Big Boxes" (XL, L, M, S).
 
 ### 5.8 HUD
@@ -363,6 +377,7 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | `slotLocks` | (tuỳ chọn) slot mở sẵn bị **khoá theo lượt** (R22): `[{ "slot": 3, "lockTurns": 5 }]`, `lockTurns` 1–99 |
 | `trayCapacity` | Số nắp mỗi khay (mặc định 4) |
 | `colors` | Tập số màu dùng trong level; mọi màu trong `feeders`, `initial` và `lanes` phải thuộc tập này |
+| `feeders[f].lockedRows` | (tuỳ chọn) các hàng của hàng chờ bị **khoá** (R24): `[{ "row": 3, "lockTurns": 5 }]`, `lockTurns` 1–99 |
 | `feeders[f].hiddenRows` | (tuỳ chọn) các hàng của hàng chờ bị **ẩn** (xám) cho tới khi nhập loop (R23), ví dụ `[1, 3]` |
 | `feeders[f].bottles` | Hàng chờ của feeder `f` **của conveyor**, theo thứ tự phải, trái, giữa. Số phần tử = số feeder level dùng (0–3): 1 = chỉ feeder phải, 2 = phải + trái, 3 = cả ba. Chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`) |
 | `initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số của conveyor (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |

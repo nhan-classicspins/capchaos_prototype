@@ -74,7 +74,7 @@ namespace Game.Presentation
         private int _nextTray;
         private readonly List<UniTask> _packs = new List<UniTask>();   // boxes still animating; the round end waits for all
         private float _beltTime;           // seconds since the belt's last row step
-        private BoardFeel _feel;           // the board's tunable feel (addressable BoardFeel), or the defaults
+        private GameFeel _feel;           // the board's tunable feel (addressable GameFeel), or the defaults
         private bool _feelHeld;            // _feel is an Addressables hold to release on unload
         private bool _holding;             // the player holds an empty spot of the board: the game runs at HoldSpeed
         private bool _ending;              // the rules finished the round; the result is on its way
@@ -130,12 +130,12 @@ namespace Game.Presentation
                 await Hold(AssetKeys.Containers.Container_L, ct), await Hold(AssetKeys.Containers.Container_XL, ct),
             };
             _prefabs.ContainerPalette = await _containerPalette.LoadAsync(ct);
-            _feel = await _assets.TryLoadAsync(new AssetKey<BoardFeel>(BoardFeel.Address), ct);
+            _feel = await _assets.TryLoadAsync(new AssetKey<GameFeel>(GameFeel.Address), ct);
             _feelHeld = _feel != null;
             if (_feel == null)
             {
-                _log?.Warn($"[Gameplay] no addressable '{BoardFeel.Address}' — the board uses its default feel");
-                _feel = BoardFeel.CreateDefault();
+                _log?.Warn($"[Gameplay] no addressable '{GameFeel.Address}' — the board uses its default feel");
+                _feel = GameFeel.CreateDefault();
             }
             _prefabs.Feel = _feel;
             if (_prefabs.ContainerPalette == null)
@@ -276,6 +276,13 @@ namespace Game.Presentation
                 _board.AddFeeder(belt.MergeAt(f), Knots(conveyor.Feeders[f].Nodes), tracks, masked);
             }
             _board.FinishLoop();
+            for (int f = 0; f < belt.FeederCount; f++)                                        // R24: padlocks over locked queue rows
+                foreach (var kv in _level.Loop.Feeders[f].LockedRows)
+                {
+                    if (kv.Key < belt.FeederRowsJoined(f)) continue;
+                    int turns = kv.Key == belt.FeederRowsJoined(f) ? belt.FeederLockLeft(f) : kv.Value;
+                    if (turns > 0) _board.LockFeederRow(f, kv.Key, LockLabel(turns));
+                }
             _beltTime = 0f;
             _ending = false;
             _board.SetBeltPhase(belt.Offset, DesignTokens.Motion.BeltRowsPerSecond);
@@ -386,6 +393,7 @@ namespace Game.Presentation
                     case TrayLockTicked _:
                         break;                                     // below, once the belt has moved
                     case SlotLockTicked _:
+                    case FeederRowLockTicked _:
                         break;                                     // below, once every tray of this tap has claimed its slot
                 }
             }
@@ -408,6 +416,12 @@ namespace Game.Presentation
                         break;
                     case SlotLockTicked k:
                         _board.UnlockSlotTurns(k.Slot).Forget();
+                        break;
+                    case FeederRowLockTicked k when k.Remaining > 0:                    // R24
+                        _board.SetFeederRowLock(k.Feeder, k.Row, LockLabel(k.Remaining)).Forget();
+                        break;
+                    case FeederRowLockTicked k:
+                        _board.UnlockFeederRow(k.Feeder, k.Row).Forget();
                         break;
                 }
             }

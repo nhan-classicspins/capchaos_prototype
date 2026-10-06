@@ -16,7 +16,7 @@ namespace Game.Views
     /// zone. Track 0 is the outermost (left of travel on a clockwise loop), the last track the innermost.</para>
     /// <para><b>Feeders.</b> A feeder belt runs from its first knot (off-screen) to its last, where it lands on the
     /// loop. Its queue's head row waits where the queue's inner track is a bottle clear of the loop's outer track; the
-    /// rows behind it stand <see cref="DesignTokens.Board.LoopRowPitch"/> apart back up the belt. A joining bottle walks
+    /// rows behind it stand <see cref="GameFeel.FeederRowPitch"/> apart back up the belt. A joining bottle walks
     /// from where it waited to its moving spot on the loop. Only the feeders the level uses are added (the conveyor's
     /// first N); the rest are not drawn.</para>
     /// <para>Knots are BOARD units, authored where they are drawn. The conveyor's SCALE sizes the belts and the
@@ -43,6 +43,15 @@ namespace Game.Views
         /// game seconds, so they speed up with <see cref="GameTime.GameSpeed"/>.</summary>
         public void UseTime(GameTime time) => _time = time;
 
+        private GameFeel _feel;                                          // row pitch / track spacing (GameFeel defaults until set)
+
+        /// <summary>Space the rows and tracks by <paramref name="feel"/> (<see cref="GameFeel.FeederRowPitch"/>,
+        /// <see cref="GameFeel.TrackSpacing"/>). Call before Build.</summary>
+        public void UseFeel(GameFeel feel) => _feel = feel;
+
+        private GameFeel Feel => _feel != null ? _feel : (_feel = GameFeel.CreateDefault());
+        private float RowPitch => Feel.FeederRowPitch;
+        private float TrackSpacing => Feel.TrackSpacing;
         private float Dt => _time != null ? _time.DeltaTime : Time.deltaTime;
         private double Now => _time != null ? _time.Now : Time.timeAsDouble;
 
@@ -65,6 +74,9 @@ namespace Game.Views
             public List<GameObject>[] Visible;                         // per track: the queued bottles drawn, head first
             public Queue<(TintFlavor color, bool masked)>[] Pending;   // per track: the rest of the queue, not drawn yet
             public float[] Shift;                                      // per track: rows still to slide forward (eased to 0)
+            public int[] Joined;                                       // per track: bottles that stepped onto the loop
+            public int RowsJoined;                                     // queue rows on the loop (the head row = this one)
+            public readonly Dictionary<int, TrayLockView> Locks = new Dictionary<int, TrayLockView>();   // R24: queue row → its padlock
         }
         private readonly List<Feeder> _feeders = new List<Feeder>();
 
@@ -104,6 +116,7 @@ namespace Game.Views
             {
                 MergeAt = mergeAt,
                 Visible = new List<GameObject>[_width], Pending = new Queue<(TintFlavor, bool)>[_width], Shift = new float[_width],
+                Joined = new int[_width],
             };
             f.Root = Group("Feeder" + _feeders.Count, transform);
             f.Root.localPosition = Vector3.down * B.FeederBeltSink;
@@ -131,7 +144,7 @@ namespace Game.Views
             foreach (var f in _feeders)
             {
                 // the closest the queue's inner track gets to the loop's outer track while still a bottle apart
-                float clear = 2f * Across(0) + B.LoopTrackSpacing;
+                float clear = 2f * Across(0) + TrackSpacing;
                 f.Head = 0f;
                 for (float s = f.Belt.Length; s > 0f; s -= HeadProbeStep)
                     if (_loop.DistanceTo(f.Belt.Sample(s).point) >= clear) { f.Head = s; break; }
@@ -185,8 +198,9 @@ namespace Game.Views
                 list.Add(NewBottle(color, f.Queue, masked));
             }
             Unmask(go);                                                 // R23: on the loop every bottle shows its colour
+            f.RowsJoined = Math.Max(f.RowsJoined, ++f.Joined[track]);
             f.Shift[track] += 1f;
-            f.TravelTarget += B.LoopRowPitch / _width;
+            f.TravelTarget += RowPitch / _width;
             go.transform.SetParent(_bottles, false);                    // every group sits at the loop's origin (within a hair)
             _joining[go] = new Joiner
             {
@@ -212,9 +226,10 @@ namespace Game.Views
             {
                 for (int k = 0; k < _width; k++)
                     f.Shift[k] = Mathf.MoveTowards(f.Shift[k], 0f, Dt / M.FeederStep);
-                f.Travel = Mathf.MoveTowards(f.Travel, f.TravelTarget, Dt * B.LoopRowPitch / M.FeederStep);
+                f.Travel = Mathf.MoveTowards(f.Travel, f.TravelTarget, Dt * RowPitch / M.FeederStep);
                 f.Belt.SetTravel(f.Travel);
                 LayoutFeeder(f);
+                LayoutRowLocks(f);
             }
         }
 
@@ -222,7 +237,7 @@ namespace Game.Views
         private const float HeadProbeStep = 0.02f;
 
         /// <summary>Track k's offset along the outward normal: track 0 outermost, the last track innermost.</summary>
-        private float Across(int track) => ((_width - 1) * 0.5f - track) * B.LoopTrackSpacing;
+        private float Across(int track) => ((_width - 1) * 0.5f - track) * TrackSpacing;
 
         /// <summary>Where the feeder's head row waits along its belt: a bottle clear of the loop, moved by the belt's
         /// <see cref="ConveyorBeltView.HeadOffset"/> (tuned on the ConveyorBelt prefab).</summary>
@@ -231,15 +246,24 @@ namespace Game.Views
         /// <summary>Where a feeder's queue joins, in rows from the loop's first knot (the middle of its merge row).</summary>
         private static float Entrance(Feeder f) => f.MergeAt + 0.5f;
 
-        private Vector3 SpotLocal(int row, int track, float phase)
+        private Vector3 SpotLocal(int row, int track, float phase, out Quaternion facing)
         {
             var (p, t) = _loop.Sample((Mathf.Repeat(row + phase, _rows) + 0.5f) * _pitch);
+            facing = RowFacing(t);
             return p + ConveyorBeltView.Outward(t) * Across(track) + Vector3.up * _loop.SurfaceHeight;
+        }
+
+        /// <summary>Every item of a belt row faces the same way — along the belt where the row stands (sampled once per
+        /// row, never per track), so a row keeps one rotation and turns as one through the bends.</summary>
+        private static Quaternion RowFacing(Vector3 tangent)
+        {
+            tangent.y = 0f;
+            return tangent.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(tangent.normalized, Vector3.up) : Quaternion.identity;
         }
 
         private void Place(GameObject go, int row, int track, float phase)
         {
-            var target = SpotLocal(row, track, phase);
+            var target = SpotLocal(row, track, phase, out var facing);
             if (_joining.TryGetValue(go, out var j))
             {
                 float dt = Dt;
@@ -253,19 +277,25 @@ namespace Game.Views
                 if ((j.Pos - target).sqrMagnitude < 1e-6f || j.Age > M.BottleJoinMax) _joining.Remove(go);
                 else target = j.Pos;
             }
-            go.transform.localPosition = target;
+            go.transform.SetLocalPositionAndRotation(target, facing);    // a joining item already faces with its row
         }
 
         private void LayoutFeeder(Feeder f)
         {
+            // one facing per queue row: the tracks of a row slide together, so the row is sampled at their mean shift
+            float rowShift = 0f;
+            for (int k = 0; k < _width; k++) rowShift += f.Shift[k];
+            rowShift /= Mathf.Max(1, _width);
             for (int k = 0; k < _width; k++)
             {
                 var list = f.Visible[k];
                 for (int d = 0; d < list.Count; d++)
                 {
                     if (list[d] == null) continue;
-                    var (p, t) = f.Belt.Sample(HeadAt(f) - (d + f.Shift[k]) * B.LoopRowPitch);
-                    list[d].transform.localPosition = p + ConveyorBeltView.Outward(t) * (Across(k) * f.Side) + Vector3.up * f.Belt.SurfaceHeight;
+                    var (p, t) = f.Belt.Sample(HeadAt(f) - (d + f.Shift[k]) * RowPitch);
+                    var (_, rowT) = f.Belt.Sample(HeadAt(f) - (d + rowShift) * RowPitch);
+                    list[d].transform.SetLocalPositionAndRotation(
+                        p + ConveyorBeltView.Outward(t) * (Across(k) * f.Side) + Vector3.up * f.Belt.SurfaceHeight, RowFacing(rowT));
                 }
             }
         }
@@ -293,7 +323,7 @@ namespace Game.Views
         {
             var go = new GameObject("Item_" + color);
             go.transform.SetParent(parent, false);
-            go.transform.localRotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+            go.transform.localRotation = Quaternion.identity;          // faces along its belt row once laid out (RowFacing)
             int i = (int)color - 1;
             var prefab = i >= 0 && i < _items.Count ? _items[i] : null;
             if (prefab != null)
@@ -308,6 +338,47 @@ namespace Game.Views
             _stamp(go);
             if (masked) Mask(go);
             return go;
+        }
+
+        // ── locked items (GDD R24) ──────────────────────────────────────────────────────────
+        /// <summary>Queue row <paramref name="row"/> of <paramref name="feeder"/> is locked: <paramref name="padlock"/> (a
+        /// TrayLock the board made) rides over the middle of that row, shown while the row is drawn.</summary>
+        public void AttachRowLock(int feeder, int row, TrayLockView padlock)
+        {
+            if (feeder < 0 || feeder >= _feeders.Count || padlock == null) return;
+            var f = _feeders[feeder];
+            if (f.Locks.TryGetValue(row, out var old) && old != null) Destroy(old.gameObject);
+            padlock.transform.SetParent(f.Queue, false);
+            padlock.transform.localScale = Vector3.one * (B.RowLockScale / _scale);
+            f.Locks[row] = padlock;
+            LayoutRowLocks(f);
+        }
+
+        /// <summary>The padlock of a locked queue row, or null.</summary>
+        public TrayLockView RowLock(int feeder, int row) =>
+            feeder >= 0 && feeder < _feeders.Count && _feeders[feeder].Locks.TryGetValue(row, out var v) ? v : null;
+
+        /// <summary>The row's lock opened: it no longer rides the queue (the caller plays its unlock).</summary>
+        public TrayLockView DetachRowLock(int feeder, int row)
+        {
+            var padlock = RowLock(feeder, row);
+            if (padlock != null) _feeders[feeder].Locks.Remove(row);
+            return padlock;
+        }
+
+        /// <summary>Each padlock over the middle of its row, as the queue is laid out; hidden while the row is not drawn.</summary>
+        private void LayoutRowLocks(Feeder f)
+        {
+            foreach (var kv in f.Locks)
+            {
+                if (kv.Value == null) continue;
+                int d = kv.Key - f.RowsJoined;
+                bool drawn = d >= 0 && d < B.FeederVisibleRows;
+                if (kv.Value.gameObject.activeSelf != drawn) kv.Value.gameObject.SetActive(drawn);
+                if (!drawn) continue;
+                var (p, _) = f.Belt.Sample(HeadAt(f) - (d + f.Shift[0]) * RowPitch);
+                kv.Value.transform.localPosition = p + Vector3.up * (f.Belt.SurfaceHeight + B.RowLockY / _scale);
+            }
         }
 
         // ── hidden items (GDD R23) ──────────────────────────────────────────────────────────

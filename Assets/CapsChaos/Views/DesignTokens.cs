@@ -117,11 +117,11 @@ namespace Game.Views
             public const float ViewDistance = 1000f, CameraPitchDegrees = 60f, FocusZ = 1.2f, ViewHeight = 11.6f;
             /// <summary>The safe rect's width / height (1080 × 1920).</summary>
             public const float SafeAspect = 1080f / 1920f;
-            /// <summary>The belt loop (GDD R1–R4), loop-local units before the fit: rows stand evenly round it, at least
-            /// LoopRowPitch apart; LoopTrackSpacing between the bottles of a row (a bottle is 0.38 across). At the tightest
-            /// corner the INNER track keeps rows at least LoopInnerPitch apart (under 0.38: a little overlap there is
-            /// accepted — product owner, 2026-10-02) and leaves a hole of at least LoopMinHole.</summary>
-            public const float LoopRowPitch = 0.44f, LoopTrackSpacing = 0.42f, LoopInnerPitch = 0.30f, LoopMinHole = 0.45f;
+            /// <summary>The belt loop (GDD R1–R4), loop-local units before the fit: rows stand evenly round it (loop length
+            /// ÷ rows); the feeder row pitch and the spacing across a row live in the GameFeel asset (SKU owner,
+            /// 2026-10-06). At the tightest corner the INNER track keeps rows at least LoopInnerPitch apart (under 0.38: a
+            /// little overlap there is accepted — product owner, 2026-10-02) and leaves a hole of at least LoopMinHole.</summary>
+            public const float LoopInnerPitch = 0.30f, LoopMinHole = 0.45f;
             public const float LoopBeltMargin = 0.12f, LoopBeltTop = 0.03f;
             public const float LoopRailWidth = 0.1f, LoopRailHeight = 0.16f;
             /// <summary>Mesh segments per row of path — enough that the bends read round.</summary>
@@ -188,6 +188,9 @@ namespace Game.Views
             public const float LockY = 0.42f, RopeOffsetY = 0.05f, RopeArc = 0.16f;
             /// <summary>R22: the padlock on a slot locked for turns stands this high over the tile.</summary>
             public const float SlotLockY = 0.3f;
+            /// <summary>R24: the padlock over a locked feeder row — this high over the belt surface and this big (board
+            /// units / scale, like the tray lock it reuses).</summary>
+            public const float RowLockY = 0.35f, RowLockScale = 0.75f;
             public const int RopeSegments = 14;
         }
 
@@ -225,8 +228,8 @@ namespace Game.Views
             /// previous one into the same container, and none before the container has landed.</summary>
             public const float ItemIntoBoxStagger = 0.08f;
             public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
-            /// <summary>A full container (R13): it holds BoxHold once its items are in, closes its lid (BoardFeel.LidClose),
-            /// then flies off over BoxExit (the old carton's exit). Item stacking and the lid's motion live in the BoardFeel
+            /// <summary>A full container (R13): it holds BoxHold once its items are in, closes its lid (GameFeel.LidClose),
+            /// then flies off over BoxExit (the old carton's exit). Item stacking and the lid's motion live in the GameFeel
             /// asset (SKU owner, 2026-10-06), not here.</summary>
             public const float BoxHold = 0.35f, BoxExit = 0.40f;
             public const float RoundEndPause = 1.0f;

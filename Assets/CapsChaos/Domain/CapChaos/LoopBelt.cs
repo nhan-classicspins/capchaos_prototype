@@ -32,15 +32,23 @@ namespace Game.Domain
         private readonly int[] _mergeAt;             // per feeder: the track position it joins at
         private readonly CapColor[][][] _feeders;    // [feeder][track] → queue, immutable after construction
         private readonly int[] _feederRow;           // [feeder] → queue rows already on the belt
+        private readonly IReadOnlyDictionary<int, int>[] _rowLocks;   // [feeder] → locked queue row → turns (R24), shared by clones
+        private readonly int[] _headLock;            // [feeder] → turns the front queue row (at the merge point) still waits
 
-        private LoopBelt(int rows, int width, int pickRows, int[] mergeAt, CapColor[][][] feeders)
+        private LoopBelt(int rows, int width, int pickRows, int[] mergeAt, CapColor[][][] feeders,
+            IReadOnlyDictionary<int, int>[] rowLocks = null)
         {
             Rows = rows; Width = width; PickRows = pickRows;
             _spots = new CapColor[rows * width];
             _mergeAt = mergeAt;
             _feeders = feeders;
             _feederRow = new int[feeders.Length];
+            _rowLocks = rowLocks ?? new IReadOnlyDictionary<int, int>[feeders.Length];
+            _headLock = new int[feeders.Length];
+            for (int f = 0; f < feeders.Length; f++) _headLock[f] = RowLock(f, 0);
         }
+
+        private int RowLock(int f, int row) => _rowLocks[f] != null && _rowLocks[f].TryGetValue(row, out var t) ? t : 0;
 
         /// <summary>
         /// The belt as the round starts: the authored <see cref="LoopDefinition.Initial"/> rows, or — when the level
@@ -50,9 +58,11 @@ namespace Game.Domain
         {
             var merge = new int[def.Feeders.Count];
             var queues = new CapColor[def.Feeders.Count][][];
+            var locks = new IReadOnlyDictionary<int, int>[def.Feeders.Count];
             for (int f = 0; f < def.Feeders.Count; f++)
             {
                 merge[f] = def.Feeders[f].MergeAt;
+                locks[f] = def.Feeders[f].LockedRows.Count > 0 ? def.Feeders[f].LockedRows : null;
                 var perTrack = new List<CapColor>[def.Width];
                 for (int k = 0; k < def.Width; k++) perTrack[k] = new List<CapColor>();
                 var bottles = def.Feeders[f].Bottles;
@@ -60,7 +70,7 @@ namespace Game.Domain
                 queues[f] = new CapColor[def.Width][];
                 for (int k = 0; k < def.Width; k++) queues[f][k] = perTrack[k].ToArray();
             }
-            var belt = new LoopBelt(def.Rows, def.Width, def.PickRows, merge, queues);
+            var belt = new LoopBelt(def.Rows, def.Width, def.PickRows, merge, queues, locks);
             if (def.Initial != null)
             {
                 for (int r = 0; r < def.Rows; r++)
@@ -77,9 +87,10 @@ namespace Game.Domain
 
         public LoopBelt Clone()
         {
-            var c = new LoopBelt(Rows, Width, PickRows, _mergeAt, _feeders) { Offset = Offset, Count = Count };
+            var c = new LoopBelt(Rows, Width, PickRows, _mergeAt, _feeders, _rowLocks) { Offset = Offset, Count = Count };
             Array.Copy(_spots, c._spots, _spots.Length);
             Array.Copy(_feederRow, c._feederRow, _feederRow.Length);
+            Array.Copy(_headLock, c._headLock, _headLock.Length);
             return c;
         }
 
@@ -100,6 +111,11 @@ namespace Game.Domain
         /// <summary>Queue rows of <paramref name="feeder"/> already on the belt: the bottle at depth d of any of its
         /// tracks is in queue row <c>FeederRowsJoined + d</c> (R23 hides by queue row).</summary>
         public int FeederRowsJoined(int feeder) => _feederRow[feeder];
+        /// <summary>R24: turns the front queue row of <paramref name="feeder"/> — waiting at the merge point — is still
+        /// locked for; 0 = it joins as soon as a belt row has room.</summary>
+        public int FeederLockLeft(int feeder) => _headLock[feeder];
+        /// <summary>R24: the lock queue row <paramref name="row"/> of <paramref name="feeder"/> starts with; 0 = none.</summary>
+        public int FeederRowLockTurns(int feeder, int row) => RowLock(feeder, row);
         /// <summary>The <paramref name="depth"/>-th queued bottle of a feeder track (0 = the next to join).</summary>
         public CapColor FeederAt(int feeder, int track, int depth) => _feeders[feeder][track][_feederRow[feeder] + depth];
 
@@ -135,6 +151,7 @@ namespace Game.Domain
         /// track it needs.</summary>
         private bool FrontRowFits(int f, int row)
         {
+            if (_headLock[f] > 0) return false;                                  // R24: a locked front row holds the queue
             bool any = false;
             for (int k = 0; k < Width; k++)
             {
@@ -179,6 +196,19 @@ namespace Game.Domain
                     Count++;
                     facts?.Add(new BottleFed(f, k, row, c));
                 }
+                _headLock[f] = RowLock(f, _feederRow[f]);                          // R24: the next row reached the merge point
+            }
+        }
+
+        /// <summary>R24: <paramref name="placed"/> trays just flew to the slots — every locked queue row waiting at its
+        /// feeder's merge point counts them down. A locked row further back has not started counting yet.</summary>
+        internal void TickRowLocks(int placed, List<GameFact> facts)
+        {
+            for (int f = 0; f < _feeders.Length; f++)
+            {
+                if (_headLock[f] == 0) continue;
+                _headLock[f] = Math.Max(0, _headLock[f] - placed);
+                facts?.Add(new FeederRowLockTicked(f, _feederRow[f], _headLock[f]));
             }
         }
 
@@ -202,7 +232,7 @@ namespace Game.Domain
             sb.Append(Offset).Append('@');
             foreach (var c in _spots) sb.Append(CapColorCodes.ToCode(c));
             sb.Append('|');
-            for (int f = 0; f < _feeders.Length; f++) sb.Append(_feederRow[f]).Append(',');
+            for (int f = 0; f < _feeders.Length; f++) sb.Append(_feederRow[f]).Append(':').Append(_headLock[f]).Append(',');
         }
     }
 }

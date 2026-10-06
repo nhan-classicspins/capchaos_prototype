@@ -56,6 +56,8 @@ namespace Game.Domain
                 int queueRows = fd.RowCount(lp.Width);
                 foreach (int row in fd.HiddenRows)                                              // R23
                     if (row >= queueRows) errors.Add($"V8 feeders[{f}].hiddenRows: row {row} is past the queue's {queueRows} row(s)");
+                foreach (var kv in fd.LockedRows)                                               // R24
+                    if (kv.Key >= queueRows) errors.Add($"V8 feeders[{f}].lockedRows: row {kv.Key} is past the queue's {queueRows} row(s)");
             }
             ValidateTrayModifiers(level, errors);
             ValidateSlotLocks(level, errors);

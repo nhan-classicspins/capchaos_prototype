@@ -76,6 +76,15 @@ namespace Game.Domain
         public SlotUnlocked(int slot) { Slot = slot; }
     }
 
+    /// <summary>The locked queue row <see cref="Row"/> of <see cref="Feeder"/>, waiting at the merge point, counted the trays
+    /// that just flew to the slots down (R24); <see cref="Remaining"/> more to go, 0 = it is open and joins the loop as
+    /// soon as a belt row has room.</summary>
+    public sealed class FeederRowLockTicked : GameFact
+    {
+        public int Feeder { get; } public int Row { get; } public int Remaining { get; }
+        public FeederRowLockTicked(int feeder, int row, int remaining) { Feeder = feeder; Row = row; Remaining = remaining; }
+    }
+
     /// <summary>Locked slot <see cref="Slot"/> counted the trays that just flew to the slots down (R22); <see cref="Remaining"/>
     /// more to go, 0 = it is open and takes trays from the next tap on.</summary>
     public sealed class SlotLockTicked : GameFact

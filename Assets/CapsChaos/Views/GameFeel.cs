@@ -4,15 +4,23 @@ using UnityEngine;
 namespace Game.Views
 {
     /// <summary>
-    /// The board's tunable feel (SKU owner, 2026-10-06): how items stack into a container, where the lid waits while
-    /// the container fills and how it flies back, and how fast the game runs while the player holds an empty spot. ONE
-    /// asset for the session (addressable <see cref="Address"/>, <c>Content/Configs/BoardFeel.asset</c>), loaded by the
+    /// The game's tunable feel (SKU owner, 2026-10-06): how the conveyor rows are spaced, how items stack into a
+    /// container, where the lid waits while the container fills and how it flies back, and how fast the game runs while
+    /// the player holds an empty spot. ONE
+    /// asset for the session (addressable <see cref="Address"/>, <c>Content/Configs/GameFeel.asset</c>), loaded by the
     /// Gameplay screen and handed to the board; without it the defaults below apply (<see cref="CreateDefault"/>).
     /// </summary>
-    [CreateAssetMenu(menuName = "CapsChaos/Board Feel", fileName = "BoardFeel")]
-    public sealed class BoardFeel : ScriptableObject
+    [CreateAssetMenu(menuName = "CapsChaos/Game Feel", fileName = "GameFeel")]
+    public sealed class GameFeel : ScriptableObject
     {
-        public const string Address = "BoardFeel";
+        public const string Address = "GameFeel";
+
+        [Header("Conveyor (loop-local units; × the conveyor's scale on the board)")]
+        [Tooltip("Rows of a feeder queue stand this far apart, and a feeder belt moves this far per row that joins. (On the " +
+                 "loop the rows are spread evenly: loop length ÷ the conveyor's rows.)")]
+        [SerializeField] private float _feederRowPitch = 0.44f;
+        [Tooltip("Between the items of one row, across the belt — on the loop and on the feeders (an item is 0.38 across).")]
+        [SerializeField] private float _trackSpacing = 0.42f;
 
         [Header("Items into a container — every container has 4 anchors")]
         [Tooltip("Items stack this far above their anchors (board units) and wait there until the group of 4 is complete.")]
@@ -45,6 +53,8 @@ namespace Game.Views
         [Tooltip("The game runs this many times faster while the player holds an empty spot of the board.")]
         [SerializeField] private float _holdSpeed = 2f;
 
+        public float FeederRowPitch => _feederRowPitch;
+        public float TrackSpacing => _trackSpacing;
         public float ItemStackY => _itemStackY;
         public float ItemToStack => _itemToStack;
         public float ItemDrop => _itemDrop;
@@ -62,10 +72,10 @@ namespace Game.Views
         public float HoldSpeed => _holdSpeed;
 
         /// <summary>A runtime instance holding the defaults — used when the asset is missing.</summary>
-        public static BoardFeel CreateDefault()
+        public static GameFeel CreateDefault()
         {
-            var feel = CreateInstance<BoardFeel>();
-            feel.name = "BoardFeel (defaults)";
+            var feel = CreateInstance<GameFeel>();
+            feel.name = "GameFeel (defaults)";
             feel.hideFlags = HideFlags.DontSave;
             return feel;
         }

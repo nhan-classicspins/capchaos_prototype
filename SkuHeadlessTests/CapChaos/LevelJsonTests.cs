@@ -103,6 +103,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [TestCase("\"colors\": [1, 2]", "\"colors\": [1, 1]", "$.colors[1]: duplicate 1 (Red)")]
         [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slots\": 9,", "$.slots: 9 outside 1..6")]
         [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slots\": 5, \"extraSlots\": 2,", "$.extraSlots: slots 5 + extraSlots 2 > 6")]
+        [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"lockedRows\": [ { \"row\": 1 } ] }", "$.feeders[0].lockedRows[0].lockTurns: required")]
+        [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"lockedRows\": [ { \"row\": 1, \"lockTurns\": 2 }, { \"row\": 1, \"lockTurns\": 3 } ] }", "$.feeders[0].lockedRows[1].row: row 1 is locked twice")]
         [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": 1 }", "$.feeders[0].hiddenRows: must be an array of queue row indices")]
         [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": [-1] }", "$.feeders[0].hiddenRows[0]: must be a queue row index ≥ 0")]
         [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": [1, 1] }", "$.feeders[0].hiddenRows[1]: row 1 is listed twice")]
@@ -197,6 +199,18 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(text, Does.Contain("      1, 2\n    ], \"hiddenRows\": [1] }"));
             Assert.That(LevelJson.Write(Parse(text).Level!), Is.EqualTo(text));
             Assert.That(LevelJson.Write(Parse(Minimal).Level!), Does.Not.Contain("hiddenRows"), "a feeder without one writes none");
+        }
+
+        [Test]
+        public void Locked_feeder_rows_are_read_and_written_back_unchanged()
+        {
+            var r = Parse(Minimal.Replace("{ \"bottles\": [1, 2, 1, 2] }",
+                "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": [0], \"lockedRows\": [ { \"row\": 1, \"lockTurns\": 3 } ] }"));
+            Assert.That(r.Errors, Is.Empty);
+            Assert.That((r.Level!.Loop.Feeders[0].LockTurns(1), r.Level.Loop.Feeders[0].LockTurns(0)), Is.EqualTo((3, 0)));
+            var text = LevelJson.Write(r.Level);
+            Assert.That(text, Does.Contain("    ], \"hiddenRows\": [0], \"lockedRows\": [{ \"row\": 1, \"lockTurns\": 3 }] }"));
+            Assert.That(LevelJson.Write(Parse(text).Level!), Is.EqualTo(text));
         }
 
         [Test]

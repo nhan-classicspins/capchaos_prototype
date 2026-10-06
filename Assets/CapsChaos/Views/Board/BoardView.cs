@@ -24,7 +24,7 @@ namespace Game.Views
         /// <summary>Tray modifiers (GDD R18, R19): the padlock on a locked tray, the rope between linked trays. Optional — without one, that modifier just does not draw.</summary>
         public GameObject TrayLock, TrayLink;
         /// <summary>The board's tunable feel (items into a container, the lid, hold-to-speed-up). Null = the defaults.</summary>
-        public BoardFeel Feel;
+        public GameFeel Feel;
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ namespace Game.Views
         private readonly Dictionary<GameObject, ContainerView> _containers = new Dictionary<GameObject, ContainerView>();
         private readonly Dictionary<GameObject, TrayLook> _looks = new Dictionary<GameObject, TrayLook>();
         private float _slotScale = 1f, _slotSpacing = DesignTokens.Board.ColumnSpacing;
-        private BoardFeel _feel;
+        private GameFeel _feel;
         private GameTime _time;            // the gameplay clock: every tween and wait of the board runs on it (GameSpeed)
         private IMotionScheduler Sched => _time != null ? _time.Scheduler : MotionScheduler.Update;
         private double Now => _time != null ? _time.Now : Time.timeAsDouble;
@@ -105,7 +105,7 @@ namespace Game.Views
         {
             _time = time;
             _p = prefabs ?? throw new ArgumentNullException(nameof(prefabs));
-            _feel = _p.Feel != null ? _p.Feel : BoardFeel.CreateDefault();
+            _feel = _p.Feel != null ? _p.Feel : GameFeel.CreateDefault();
             _stamp = stamp ?? (_ => { });
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.transform.SetParent(transform, false);
@@ -294,6 +294,7 @@ namespace Game.Views
         {
             _loop = new GameObject("Loop").AddComponent<LoopBeltView>();
             _loop.UseTime(_time);
+            _loop.UseFeel(_feel);
             _loop.transform.SetParent(transform, false);
             _stamp(_loop.gameObject);
             _loop.Build(rows, width, pickRows, scale, loop, _p.ConveyorBelt, _p.Items, _stamp);
@@ -320,6 +321,32 @@ namespace Game.Views
         /// <summary>The next bottle of feeder <paramref name="feeder"/>'s track <paramref name="track"/> steps onto belt row
         /// <paramref name="row"/>; that track of the queue moves up.</summary>
         public void FeedBottle(int feeder, int track, int row) => _loop.Feed(feeder, track, row);
+
+        /// <summary>Queue row <paramref name="row"/> of <paramref name="feeder"/> is locked (R24): a padlock reading
+        /// <paramref name="label"/> rides over it.</summary>
+        public void LockFeederRow(int feeder, int row, string label)
+        {
+            if (_p.TrayLock == null || _loop == null) return;
+            var padlock = Spawn(_p.TrayLock, transform, Vector3.zero).GetComponent<TrayLockView>();
+            if (padlock == null) return;
+            padlock.UseTime(_time);
+            padlock.SetCount(label);
+            _loop.AttachRowLock(feeder, row, padlock);
+        }
+
+        /// <summary>The locked row's padlock now reads <paramref name="label"/> (R24).</summary>
+        public UniTask SetFeederRowLock(int feeder, int row, string label)
+        {
+            var padlock = _loop != null ? _loop.RowLock(feeder, row) : null;
+            return padlock != null ? padlock.PlayTickAsync(label, destroyCancellationToken) : UniTask.CompletedTask;
+        }
+
+        /// <summary>The locked row opens (R24): its padlock springs off; the row joins the loop as the belt lets it.</summary>
+        public UniTask UnlockFeederRow(int feeder, int row)
+        {
+            var padlock = _loop != null ? _loop.DetachRowLock(feeder, row) : null;
+            return padlock != null ? padlock.PlayUnlockAsync(destroyCancellationToken) : UniTask.CompletedTask;
+        }
 
         /// <summary>Append a tray to the visible tail of <paramref name="lane"/>, standing at belt <paramref name="position"/>
         /// (0 = front). The controller decides which trays are on the visible stretch of the belt.</summary>
@@ -470,7 +497,7 @@ namespace Game.Views
 
         /// <summary>
         /// One collected item (SKU owner, 2026-10-06): every container has the same four anchors, so item n takes anchor
-        /// n mod 4 — group n div 4. It flies to its place in a stack <see cref="BoardFeel.ItemStackY"/> above its anchor
+        /// n mod 4 — group n div 4. It flies to its place in a stack <see cref="GameFeel.ItemStackY"/> above its anchor
         /// and waits there (the count drops as it arrives). Once the group is complete — four items, or the tray's last
         /// item (<paramref name="countAfter"/> null) — and the group before it is gone, the whole group drops onto the
         /// anchors together. A complete group with more items still to come is then squashed away (scale y → 0); the last
@@ -547,7 +574,7 @@ namespace Game.Views
             rec.DropOf(group).TrySetResult();
         }
 
-        /// <summary>The items in the anchors squash flat (scale y → 0) over <see cref="BoardFeel.ItemGroupClear"/> and are
+        /// <summary>The items in the anchors squash flat (scale y → 0) over <see cref="GameFeel.ItemGroupClear"/> and are
         /// gone; the next group may drop in.</summary>
         private async UniTask ClearGroup(TrayRec rec)
         {
