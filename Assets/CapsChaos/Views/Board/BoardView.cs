@@ -23,6 +23,8 @@ namespace Game.Views
         public GameObject[] Items;
         /// <summary>Tray modifiers (GDD R18, R19): the padlock on a locked tray, the rope between linked trays. Optional — without one, that modifier just does not draw.</summary>
         public GameObject TrayLock, TrayLink;
+        /// <summary>The board's tunable feel (items into a container, the lid, hold-to-speed-up). Null = the defaults.</summary>
+        public BoardFeel Feel;
     }
 
     /// <summary>
@@ -56,14 +58,30 @@ namespace Game.Views
             public readonly List<UniTask> Flights = new List<UniTask>();
             /// <summary>Done once the tray has landed in its slot and played its impact: items fly in only after it.</summary>
             public readonly UniTaskCompletionSource Landed = new UniTaskCompletionSource();
-            /// <summary>When (Time.time) the next item may launch into this tray: items go in one at a time.</summary>
-            public float NextLaunch;
+            /// <summary>When (game time) the next item may launch into this tray: items go in one at a time.</summary>
+            public double NextLaunch;
+            /// <summary>Anchor groups (four items each) already squashed away: group g drops in once g are gone.</summary>
+            public int GroupsCleared;
+            /// <summary>Per group: how many of its items wait in the stack above the container.</summary>
+            public readonly Dictionary<int, int> Stacked = new Dictionary<int, int>();
+            /// <summary>Per group: done when the group may drop onto the anchors together.</summary>
+            public readonly Dictionary<int, UniTaskCompletionSource> Drop = new Dictionary<int, UniTaskCompletionSource>();
+            /// <summary>The items sitting in the anchors now — the group the next squash takes.</summary>
+            public readonly List<Transform> InAnchors = new List<Transform>();
+
+            public UniTaskCompletionSource DropOf(int group)
+            {
+                if (!Drop.TryGetValue(group, out var d)) Drop[group] = d = new UniTaskCompletionSource();
+                return d;
+            }
         }
         private readonly Dictionary<int, TrayRec> _trays = new Dictionary<int, TrayRec>();
         private GameObject[] _slotTray = Array.Empty<GameObject>();       // per visual slot
         private bool[] _slotLeaving = Array.Empty<bool>();                // per visual slot: a box is still on it
         private GameObject[] _slotTile = Array.Empty<GameObject>();       // per slot: the tile
         private GameObject[] _slotPlus = Array.Empty<GameObject>();       // per LOCKED slot: its "+" (R20); null = open
+        private bool[] _slotTurnLocked = Array.Empty<bool>();              // per slot: locked for turns (R22) — takes no tray
+        private TrayLockView[] _slotLock = Array.Empty<TrayLockView>();    // per slot: its padlock while locked for turns
         private int _slotCount;
         private readonly Dictionary<GameObject, TrayLockView> _locks = new Dictionary<GameObject, TrayLockView>();
         private readonly List<TrayLinkView> _links = new List<TrayLinkView>();
@@ -71,13 +89,23 @@ namespace Game.Views
         private readonly Dictionary<GameObject, ContainerView> _containers = new Dictionary<GameObject, ContainerView>();
         private readonly Dictionary<GameObject, TrayLook> _looks = new Dictionary<GameObject, TrayLook>();
         private float _slotScale = 1f, _slotSpacing = DesignTokens.Board.ColumnSpacing;
+        private BoardFeel _feel;
+        private GameTime _time;            // the gameplay clock: every tween and wait of the board runs on it (GameSpeed)
+        private IMotionScheduler Sched => _time != null ? _time.Scheduler : MotionScheduler.Update;
+        private double Now => _time != null ? _time.Now : Time.timeAsDouble;
+        private UniTask Wait(float seconds) => _time != null
+            ? _time.Delay(seconds, destroyCancellationToken)
+            : UniTask.Delay(TimeSpan.FromSeconds(seconds), cancellationToken: destroyCancellationToken);
 
         private static readonly int BaseMapSt = Shader.PropertyToID("_BaseMap_ST");
 
-        /// <summary>Prefabs to build from, and how to put a new object on the board's render layer.</summary>
-        public void Bind(BoardPrefabs prefabs, Action<GameObject> stamp)
+        /// <summary>Prefabs to build from, how to put a new object on the board's render layer, and the gameplay clock
+        /// everything on the board moves by (null = engine time).</summary>
+        public void Bind(BoardPrefabs prefabs, Action<GameObject> stamp, GameTime time)
         {
+            _time = time;
             _p = prefabs ?? throw new ArgumentNullException(nameof(prefabs));
+            _feel = _p.Feel != null ? _p.Feel : BoardFeel.CreateDefault();
             _stamp = stamp ?? (_ => { });
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.transform.SetParent(transform, false);
@@ -139,6 +167,8 @@ namespace Game.Views
             _slotLeaving = new bool[_slotCount];
             _slotTile = new GameObject[_slotCount];
             _slotPlus = new GameObject[_slotCount];
+            _slotTurnLocked = new bool[_slotCount];
+            _slotLock = new TrayLockView[_slotCount];
             for (int s = 0; s < _slotCount; s++)
             {
                 var tile = Spawn(_p.Slot, transform, SlotPos(s) + Vector3.up * (0.02f - B.SlotTop));
@@ -188,6 +218,44 @@ namespace Game.Views
             _slotPlus[slot] = plus;
         }
 
+        /// <summary>Slot <paramref name="slot"/> is locked for turns (R22): dim tile, the TrayLock padlock reading
+        /// <paramref name="label"/>, and no tray lands on it until <see cref="UnlockSlotTurns"/>. Not tappable.</summary>
+        public void LockSlotTurns(int slot, string label)
+        {
+            if (slot < 0 || slot >= _slotTile.Length || _slotTile[slot] == null) return;
+            _slotTurnLocked[slot] = true;
+            _slotTile[slot].GetComponent<TokenTint>()?.SetToken(TintToken.SlotLocked);
+            if (_p.TrayLock == null) return;
+            var lockView = Spawn(_p.TrayLock, _slotTile[slot].transform, Vector3.up * B.SlotLockY).GetComponent<TrayLockView>();
+            if (lockView != null) { lockView.UseTime(_time); lockView.SetCount(label); }
+            _slotLock[slot] = lockView;
+        }
+
+        /// <summary>The padlock on slot <paramref name="slot"/> now reads <paramref name="label"/> (R22).</summary>
+        public UniTask SetSlotTurns(int slot, string label)
+        {
+            if (slot < 0 || slot >= _slotLock.Length || _slotLock[slot] == null) return UniTask.CompletedTask;
+            return _slotLock[slot].PlayTickAsync(label, destroyCancellationToken);
+        }
+
+        /// <summary>Slot <paramref name="slot"/>'s turn lock opens (R22): it takes trays AT ONCE (the next tap may land
+        /// there), while the padlock springs off and the tile lights up and pops.</summary>
+        public async UniTask UnlockSlotTurns(int slot)
+        {
+            if (slot < 0 || slot >= _slotTurnLocked.Length || !_slotTurnLocked[slot]) return;
+            _slotTurnLocked[slot] = false;
+            var lockView = _slotLock[slot];
+            _slotLock[slot] = null;
+            var tile = _slotTile[slot];
+            tile.GetComponent<TokenTint>()?.SetToken(TintToken.SlotEmpty);
+            var tt = tile.transform;
+            var baseScale = tt.localScale;
+            await UniTask.WhenAll(
+                lockView != null ? lockView.PlayUnlockAsync(destroyCancellationToken) : UniTask.CompletedTask,
+                LMotion.Create(1.15f, 1f, M.SlotUnlock).WithScheduler(Sched).WithEase(Ease.OutBack)
+                    .Bind(k => { if (tt != null) tt.localScale = baseScale * k; }).AddTo(tile).ToUniTask(destroyCancellationToken));
+        }
+
         /// <summary>Which LOCKED slot a collider is (R20). False if none.</summary>
         public bool TryGetLockedSlot(Collider c, out int slot)
         {
@@ -211,9 +279,9 @@ namespace Game.Views
             var tt = tile.transform;
             var baseScale = tt.localScale;
             await UniTask.WhenAll(
-                LMotion.Create(1f, 0f, M.SlotUnlock).WithEase(Ease.InBack)
+                LMotion.Create(1f, 0f, M.SlotUnlock).WithScheduler(Sched).WithEase(Ease.InBack)
                     .Bind(k => { if (pt != null) pt.localScale = Vector3.one * k; }).AddTo(plus).ToUniTask(destroyCancellationToken),
-                LMotion.Create(1.15f, 1f, M.SlotUnlock).WithEase(Ease.OutBack)
+                LMotion.Create(1.15f, 1f, M.SlotUnlock).WithScheduler(Sched).WithEase(Ease.OutBack)
                     .Bind(k => { if (tt != null) tt.localScale = baseScale * k; }).AddTo(tile).ToUniTask(destroyCancellationToken));
             if (plus != null) Destroy(plus);
         }
@@ -225,6 +293,7 @@ namespace Game.Views
         public void BuildLoop(int rows, int width, int pickRows, float scale, IReadOnlyList<BeltNode> loop)
         {
             _loop = new GameObject("Loop").AddComponent<LoopBeltView>();
+            _loop.UseTime(_time);
             _loop.transform.SetParent(transform, false);
             _stamp(_loop.gameObject);
             _loop.Build(rows, width, pickRows, scale, loop, _p.ConveyorBelt, _p.Items, _stamp);
@@ -232,8 +301,9 @@ namespace Game.Views
 
         /// <summary>A feeder belt along <paramref name="path"/> (far end first, landing on the loop) whose queue joins at
         /// track position <paramref name="mergeAt"/>; <paramref name="tracks"/>[k] is the queue on track k, head first.</summary>
-        public void AddFeeder(int mergeAt, IReadOnlyList<BeltNode> path, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks) =>
-            _loop.AddFeeder(mergeAt, path, tracks);
+        public void AddFeeder(int mergeAt, IReadOnlyList<BeltNode> path, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks,
+            IReadOnlyList<IReadOnlyList<bool>> masked = null) =>
+            _loop.AddFeeder(mergeAt, path, tracks, masked);
 
         /// <summary>Editor gizmos only: how far either side of its entrance a feeder looks for a free row (R4).</summary>
         public void SetFeedReach(int rows) => _loop.SetFeedReach(rows);
@@ -267,6 +337,7 @@ namespace Game.Views
             foreach (var l in _links) if (l != null && l.Joins(a.transform) && l.Joins(b.transform)) return;
             var go = Spawn(_p.TrayLink, transform, Vector3.zero);
             var view = go.GetComponent<TrayLinkView>() ?? go.AddComponent<TrayLinkView>();
+            view.UseTime(_time);
             view.Bind(a.transform, b.transform, LidOf(a), LidOf(b));
             _links.Add(view);
         }
@@ -277,11 +348,12 @@ namespace Game.Views
         public async UniTask RevealLaneTray(int lane, int index, TintFlavor color)
         {
             if (!TryBeltTray(lane, index, out var tray)) return;
-            ApplyLook(tray, new TrayLook(color, false, _looks.TryGetValue(tray, out var was) ? was.LockLabel : null));
+            _looks.TryGetValue(tray, out var was);
+            ApplyLook(tray, new TrayLook(color, false, was.LockLabel, was.Size, was.CountLabel));
             var t = tray.transform;
             var belt = _laneRoots[lane];
             // the pop stops the moment the tray is tapped away — PlaceTray owns its scale from then on
-            await LMotion.Create(1.2f, 1f, M.TrayReveal).WithEase(Ease.OutBack)
+            await LMotion.Create(1.2f, 1f, M.TrayReveal).WithScheduler(Sched).WithEase(Ease.OutBack)
                 .Bind(k => { if (t != null && t.parent == belt) t.localScale = Vector3.one * k; }).AddTo(tray).ToUniTask(destroyCancellationToken);
         }
 
@@ -318,7 +390,8 @@ namespace Game.Views
             if (hit != null) hit.enabled = false;                     // off the belt: no longer tappable
             ReleaseLinks(tray.transform);                             // R19: the link ends when the trays fly
             if (_containers.TryGetValue(tray, out var opening) && opening != null)   // closed on the belt; opens as it flies
-                opening.OpenLidAsync(M.TrayToSlot, B.LidDrop, B.LidTilt, destroyCancellationToken).Forget();
+                opening.ParkLidAsync(_feel.LidParkPosition, _feel.LidParkRotation, _feel.LidParkScale, _feel.LidOpen,
+                    _feel.LidOpenArc, _feel.LidOpenEase, destroyCancellationToken).Forget();
             if (_locks.TryGetValue(tray, out var lockView)) { _locks.Remove(tray); if (lockView != null) Destroy(lockView.gameObject); }
             tray.transform.SetParent(transform, true);
             var rec = new TrayRec { Go = tray };
@@ -335,7 +408,7 @@ namespace Game.Views
                 var p2 = SlotPos(v);
                 var p1 = (p0 + p2) * 0.5f + Vector3.up * M.TrayArcHeight;
                 var s0 = tt.localScale;
-                await LMotion.Create(0f, 1f, M.TrayToSlot).WithEase(Ease.InOutQuad).Bind(k =>
+                await LMotion.Create(0f, 1f, M.TrayToSlot).WithScheduler(Sched).WithEase(Ease.InOutQuad).Bind(k =>
                 {
                     if (tt == null) return;
                     float u = 1f - k;
@@ -374,16 +447,17 @@ namespace Game.Views
             await UniTask.WhenAll(moves);
         }
 
-        /// <summary>The bottle on belt (row, track) leaves for tray <paramref name="trayId"/>'s cell <paramref name="cell"/>
-        /// (0 … the container's anchors − 1) after <paramref name="delay"/> seconds. When it lands, the container's count
-        /// shows <paramref name="countAfter"/> (null hides it — the tray is full). A pack of that tray waits for the flight.</summary>
-        public void FlyBottle(int row, int track, int trayId, int cell, float delay, string countAfter)
+        /// <summary>The bottle on belt (row, track) leaves for tray <paramref name="trayId"/> as its item number
+        /// <paramref name="item"/> (0, 1, … in the order they were picked) after <paramref name="delay"/> seconds. Item n
+        /// fills anchor n mod (the container's anchors). When it lands, the container's count shows
+        /// <paramref name="countAfter"/>; null hides it — the tray is full, the last item. A pack of that tray waits for
+        /// the flight.</summary>
+        public void FlyBottle(int row, int track, int trayId, int item, float delay, string countAfter)
         {
             var bottle = _loop.Take(row, track);
             if (bottle == null) return;
             if (!_trays.TryGetValue(trayId, out var rec) || rec.Go == null) { Destroy(bottle); return; }
-            int cells = _containers.TryGetValue(rec.Go, out var view) && view != null ? Mathf.Max(1, view.AnchorCount) : 4;
-            rec.Flights.Add(Flight(bottle, rec, Mathf.Clamp(cell, 0, cells - 1), delay, countAfter));
+            rec.Flights.Add(Flight(bottle, rec, Mathf.Max(0, item), delay, countAfter));
         }
 
         /// <summary>Tray <paramref name="trayId"/>'s container shows <paramref name="count"/> (how many items it still
@@ -394,43 +468,107 @@ namespace Game.Views
                 view.SetCount(count);
         }
 
-        private async UniTask Flight(GameObject bottle, TrayRec rec, int cell, float delay, string countAfter)
+        /// <summary>
+        /// One collected item (SKU owner, 2026-10-06): every container has the same four anchors, so item n takes anchor
+        /// n mod 4 — group n div 4. It flies to its place in a stack <see cref="BoardFeel.ItemStackY"/> above its anchor
+        /// and waits there (the count drops as it arrives). Once the group is complete — four items, or the tray's last
+        /// item (<paramref name="countAfter"/> null) — and the group before it is gone, the whole group drops onto the
+        /// anchors together. A complete group with more items still to come is then squashed away (scale y → 0); the last
+        /// group stays and is packed as before.
+        /// </summary>
+        private async UniTask Flight(GameObject bottle, TrayRec rec, int item, float delay, string countAfter)
         {
             var tray = rec.Go;
             var t = bottle.transform;
             t.SetParent(transform, true);                                           // off the belt: it stops riding it
-            // collected: the item goes under its cell's anchor (the container's ItemAnchors) and flies to it; with no
-            // anchor, to the cell's place on the tray root. Looked up NOW — a tray filled by this very pick starts packing
-            // at once, while this item may still wait out its stagger
-            var anchor = _containers.TryGetValue(tray, out var view) && view != null ? view.Anchor(cell) : null;
-            if (delay > 0f) await UniTask.Delay(TimeSpan.FromSeconds(delay), cancellationToken: destroyCancellationToken);
+            // collected: the item goes under its cell's anchor (the container's ItemAnchors); with no anchor, to the
+            // cell's place on the tray root. Looked up NOW — a tray filled by this very pick starts packing at once,
+            // while this item may still wait out its stagger
+            var view = _containers.TryGetValue(tray, out var v) ? v : null;
+            int cells = view != null && view.AnchorCount > 0 ? view.AnchorCount : CellsOnTray;
+            int cell = item % cells, group = item / cells;
+            bool last = countAfter == null;
+            var anchor = view != null ? view.Anchor(cell) : null;
+            if (delay > 0f) await Wait(delay);
             await rec.Landed.Task;                                                  // the container takes items once it has landed
             // one at a time: wait for this tray's next launch time (items queued while it flew go in order, a stagger apart)
-            float start = Mathf.Max(Time.time, rec.NextLaunch);
+            double start = Math.Max(Now, rec.NextLaunch);
             rec.NextLaunch = start + M.ItemIntoBoxStagger;
-            if (start > Time.time) await UniTask.Delay(TimeSpan.FromSeconds(start - Time.time), cancellationToken: destroyCancellationToken);
+            if (start > Now) await Wait((float)(start - Now));
             if (t == null || tray == null) return;
             var parent = anchor != null ? anchor : tray.transform;
             t.SetParent(parent, true);
             var from = t.localPosition;
             var to = anchor != null ? Vector3.zero : CellOnTray(cell);
-            // the anchor sits inside the scaled model: keep the item's size and arc in tray units
+            // the anchor sits inside the scaled model: keep the item's size, arc and stack height in tray units
             float rel = Mathf.Max(parent.lossyScale.y / Mathf.Max(tray.transform.lossyScale.y, 1e-6f), 1e-6f);
             var fromScale = t.localScale;
             var toScale = Vector3.one * (B.ItemInTray / rel);
             float arc = M.BottleArcHeight / rel;
             var fromRot = t.localRotation;
-            // a quadratic Bézier: the control point halfway, 2 × arc up, so the path peaks arc above the midpoint
-            var control = (from + to) * 0.5f + Vector3.up * (2f * arc);
-            await LMotion.Create(0f, 1f, M.BottleFlight).WithEase(Ease.InOutQuad).Bind(k =>
+            var stack = to + parent.InverseTransformDirection(tray.transform.up) * (_feel.ItemStackY / rel);
+            // a quadratic Bézier to its place in the stack: the control point halfway, 2 × arc up, so the path peaks arc
+            // above the midpoint
+            var control = (from + stack) * 0.5f + Vector3.up * (2f * arc);
+            await LMotion.Create(0f, 1f, _feel.ItemToStack).WithScheduler(Sched).WithEase(Ease.InOutQuad).Bind(k =>
             {
                 if (t == null) return;
                 float u = 1f - k;
-                t.localPosition = u * u * from + 2f * u * k * control + k * k * to;
+                t.localPosition = u * u * from + 2f * u * k * control + k * k * stack;
                 t.localScale = Vector3.Lerp(fromScale, toScale, k);
                 t.localRotation = Quaternion.Slerp(fromRot, Quaternion.identity, k);
             }).AddTo(gameObject).ToUniTask(destroyCancellationToken);
-            if (view != null) await view.PlayCountAsync(countAfter, M.CountPop, destroyCancellationToken);   // landed: one fewer missing
+            if (t == null || tray == null) return;
+            if (view != null) view.PlayCountAsync(countAfter, M.CountPop, destroyCancellationToken).Forget();   // in the stack: one fewer missing
+
+            // the group drops together once it is complete and the group before it has gone
+            int stacked = (rec.Stacked.TryGetValue(group, out var n) ? n : 0) + 1;
+            rec.Stacked[group] = stacked;
+            if (stacked >= cells || last) ReleaseGroupAsync(rec, group).Forget();
+            await rec.DropOf(group).Task;
+            if (t == null || tray == null) return;
+            await LMotion.Create(stack, to, _feel.ItemDrop).WithScheduler(Sched).WithEase(_feel.ItemDropEase)
+                .Bind(p => { if (t != null) t.localPosition = p; }).AddTo(gameObject).ToUniTask(destroyCancellationToken);
+            if (t == null) return;
+            rec.InAnchors.Add(t);
+            // the item that completed the group squashes it once the whole group is in — unless it is the last group
+            if (stacked >= cells && !last)
+            {
+                await UniTask.Yield(PlayerLoopTiming.Update, destroyCancellationToken);   // its group-mates land this frame too
+                await ClearGroup(rec);
+            }
+        }
+
+        /// <summary>Let group <paramref name="group"/> drop once the group before it has been squashed away.</summary>
+        private async UniTask ReleaseGroupAsync(TrayRec rec, int group)
+        {
+            while (rec.GroupsCleared < group && rec.Go != null)
+                await UniTask.Yield(PlayerLoopTiming.Update, destroyCancellationToken);
+            rec.DropOf(group).TrySetResult();
+        }
+
+        /// <summary>The items in the anchors squash flat (scale y → 0) over <see cref="BoardFeel.ItemGroupClear"/> and are
+        /// gone; the next group may drop in.</summary>
+        private async UniTask ClearGroup(TrayRec rec)
+        {
+            var items = new List<Transform>(rec.InAnchors);
+            rec.InAnchors.Clear();
+            var squash = new List<UniTask>(items.Count);
+            foreach (var item in items)
+            {
+                if (item == null) continue;
+                var it = item;
+                var rest = it.localScale;
+                squash.Add(LMotion.Create(1f, 0f, _feel.ItemGroupClear).WithScheduler(Sched).WithEase(Ease.InQuad)
+                    .Bind(k => { if (it != null) it.localScale = new Vector3(rest.x, rest.y * k, rest.z); })
+                    .AddTo(it.gameObject).ToUniTask(destroyCancellationToken));
+            }
+            try { await UniTask.WhenAll(squash); }
+            finally
+            {
+                foreach (var item in items) if (item != null) Destroy(item.gameObject);
+                rec.GroupsCleared++;
+            }
         }
 
         /// <summary>Ship full tray <paramref name="trayId"/> (R13): once its items are in, the container closes its lid and
@@ -446,20 +584,20 @@ namespace Game.Views
             _slotLeaving[v] = true;                                    // busy on screen until the box lifts off
             _slotTray[v] = null;
             await UniTask.WhenAll(rec.Flights);
-            await UniTask.Delay(TimeSpan.FromSeconds(M.BoxHold), cancellationToken: destroyCancellationToken);
+            await Wait(M.BoxHold);
 
             // the items shrink away while the container closes its own lid, then it lifts off the way the carton used to
             if (container != null)
                 await UniTask.WhenAll(
-                    container.CloseLidAsync(M.LidClose, B.LidDrop, B.LidTilt, destroyCancellationToken),
-                    container.ShrinkItemsAsync(M.LidClose, destroyCancellationToken));
+                    container.CloseLidAsync(_feel.LidClose, _feel.LidCloseArc, _feel.LidCloseEase, destroyCancellationToken),
+                    container.ShrinkItemsAsync(_feel.LidClose, destroyCancellationToken));
 
             _slotLeaving[v] = false;                                   // lifting off: the slot is free on screen
             var tt = tray.transform;
             var from = tt.localPosition;
             var fromScale = tt.localScale;
             var to = new Vector3(B.BoxExitX, B.BoxExitY, from.z + 1f);
-            await LMotion.Create(0f, 1f, M.BoxExit).WithEase(Ease.InBack).Bind(k =>
+            await LMotion.Create(0f, 1f, M.BoxExit).WithScheduler(Sched).WithEase(Ease.InBack).Bind(k =>
             {
                 if (tt == null) return;
                 tt.localPosition = Vector3.LerpUnclamped(from, to, k);
@@ -480,7 +618,7 @@ namespace Game.Views
                 if (tray == null) continue;
                 var t = tray.transform;
                 var basePos = t.localPosition;
-                shakes.Add(LMotion.Create(0f, 1f, 0.5f).Bind(k =>
+                shakes.Add(LMotion.Create(0f, 1f, 0.5f).WithScheduler(Sched).Bind(k =>
                 {
                     if (t != null) t.localPosition = basePos + Vector3.right * Mathf.Sin(k * Mathf.PI * 6f) * 0.06f * (1f - k);
                 }).AddTo(tray).ToUniTask(destroyCancellationToken));
@@ -501,7 +639,7 @@ namespace Game.Views
         }
 
         // claim and assignment happen with no await between them, so "no tray and no box" is the whole test
-        private bool VisualFree(int v) => _slotTray[v] == null && !_slotLeaving[v] && _slotPlus[v] == null;
+        private bool VisualFree(int v) => _slotTray[v] == null && !_slotLeaving[v] && _slotPlus[v] == null && !_slotTurnLocked[v];
 
         /// <summary>
         /// True when at least one slot is clear ON SCREEN: no tray sits on it and no box is still being packed
@@ -549,7 +687,7 @@ namespace Game.Views
             if (lane < 0 || lane >= _lanes.Count || index < 0 || index >= _lanes[lane].Count) return;
             var t = _lanes[lane][index].transform;
             var rest = TrayOnLane(index < _lanePos[lane].Count ? _lanePos[lane][index] : index);
-            await LMotion.Create(0f, 1f, M.TrayShake).WithEase(Ease.Linear).Bind(k =>
+            await LMotion.Create(0f, 1f, M.TrayShake).WithScheduler(Sched).WithEase(Ease.Linear).Bind(k =>
             {
                 if (t == null) return;
                 float side = Mathf.Sin(k * Mathf.PI * 2f * M.TrayShakeCycles) * B.TrayShakeAmplitude * (1f - k);
@@ -592,8 +730,9 @@ namespace Game.Views
                 model.transform.localPosition = offset;
                 foreach (var c in model.GetComponentsInChildren<Collider>(true)) Destroy(c);   // the root's hit box is the tap target
                 var view = model.GetComponent<ContainerView>() ?? model.AddComponent<ContainerView>();
-                view.SetLidOpen(false);                                  // closed while it waits on the belt; opens in the slot
-                view.SetCount(null);
+                view.UseTime(_time);
+                view.SetLidClosed();                                     // closed while it waits on the belt; parks beside it in the slot
+                view.SetCount(look.CountLabel);                         // how many it takes — on the belt too
                 _containers[tray] = view;
             }
             _stamp(tray);
@@ -609,7 +748,7 @@ namespace Game.Views
                     float lockRise = lockOn != null ? lockOn.Rise : 0f;
                     lockView = Spawn(_p.TrayLock, tray.transform, Vector3.up * (B.LockY + lockRise)).GetComponent<TrayLockView>();
                 }
-                if (lockView != null) { lockView.SetCount(look.LockLabel); _locks[tray] = lockView; }
+                if (lockView != null) { lockView.UseTime(_time); lockView.SetCount(look.LockLabel); _locks[tray] = lockView; }
             }
             float rise = _containers.TryGetValue(tray, out var sized) && sized != null ? sized.Rise : 0f;   // taller sizes (R21)
             var hit = tray.AddComponent<BoxCollider>();
@@ -653,6 +792,9 @@ namespace Game.Views
         private Vector3 SlotPos(int s) => new Vector3((s - (_slotCount - 1) * 0.5f) * _slotSpacing, B.SlotTop, B.SlotZ);
         private static Vector3 TrayOnLane(int index) => new Vector3(0f, 0.01f, -B.TrayOnBeltOffset - index * B.LanePitch);
 
+        /// <summary>Cells of a tray with no anchors: the 2×2 of <see cref="CellOnTray"/> — as many as a container's anchors.</summary>
+        private const int CellsOnTray = 4;
+
         private static Vector3 CellOnTray(int cell)
         {
             float h = B.TrayCellHalf;
@@ -661,7 +803,7 @@ namespace Game.Views
         }
 
         private UniTask Move(Transform t, Vector3 from, Vector3 to, float seconds, Ease ease) =>
-            LMotion.Create(from, to, seconds).WithEase(ease)
+            LMotion.Create(from, to, seconds).WithScheduler(Sched).WithEase(ease)
                 .Bind(p => { if (t != null) t.localPosition = p; }).AddTo(t.gameObject).ToUniTask(destroyCancellationToken);
 
         private UniTask ScrollBelt(int lane, int steps)
@@ -671,7 +813,7 @@ namespace Game.Views
             float from = _beltOffset[lane], to = from - steps;
             _beltOffset[lane] = to;
             var block = new MaterialPropertyBlock();
-            return LMotion.Create(from, to, M.LaneAdvance).WithEase(Ease.OutCubic).Bind(v =>
+            return LMotion.Create(from, to, M.LaneAdvance).WithScheduler(Sched).WithEase(Ease.OutCubic).Bind(v =>
             {
                 if (r == null) return;
                 r.GetPropertyBlock(block);

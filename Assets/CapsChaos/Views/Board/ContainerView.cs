@@ -15,17 +15,23 @@ namespace Game.Views
     /// <para>The references are serialized on the prefab (menu CapsChaos/Art/Wire Containers); anything unwired is found
     /// by name on Awake, so an unwired instance still works. The bigger sizes are Container_S with more anchor layers
     /// stacked 2×2, a taller box and the lid raised by <see cref="Rise"/> (ContainerWiring builds them).</para>
-    /// <para>On the belt the lid is closed; it opens when the tray lands in a slot, where the <c>Count</c> text shows how
-    /// many items are still missing (text handed in by the controller).</para>
+    /// <para>The <c>Count</c> text sits on top of the lid (both under the <c>Lid</c> node) and always shows how many items
+    /// are still missing — on the belt that is all of them (text handed in by the controller). On the belt the lid is
+    /// closed; as the tray flies to a slot the lid flies off to a parked place beside the container (count still in
+    /// view), and flies back on a Bézier once the container is full (<see cref="BoardFeel"/>). Every size has the same
+    /// four anchors: a bigger container takes its items four at a time (BoardView squashes each full group away until
+    /// the last).</para>
     /// </summary>
     public sealed class ContainerView : MonoBehaviour
     {
         [SerializeField] private Renderer _box;
         [SerializeField] private Renderer _lid;
+        [Tooltip("What moves as the lid: the BoxLid mesh and the Count text on top of it (the 'Lid' node). Falls back to BoxLid.")]
+        [SerializeField] private Transform _lidRoot;
         [SerializeField] private GameObject _mystery;
         /// <summary>Cell n → the <c>ItemAnchors</c> child numbered n + 1 (01, 02, …).</summary>
         [SerializeField] private Transform[] _anchors = new Transform[0];
-        /// <summary>"How many are still missing", shown while the tray fills in a slot.</summary>
+        /// <summary>"How many are still missing", on top of the lid — shown on the belt and while the tray fills in a slot.</summary>
         [SerializeField] private TMP_Text _count;
         [Tooltip("How much taller than Container_S this model is (its own units): extra anchor layers, raised lid.")]
         [SerializeField] private float _rise;
@@ -35,7 +41,14 @@ namespace Game.Views
         /// <summary>The lid's renderer (<c>BoxLid</c>) — what a tray link's rope hangs off. Null if the model has none.</summary>
         public Renderer Lid { get { if (_lid == null) Cache(); return _lid; } }
 
-        private Vector3 _lidPos;
+        private GameTime _time;
+        /// <summary>Tweens run on the gameplay clock once the board hands it one (<see cref="UseTime"/>), else on engine time.</summary>
+        private IMotionScheduler Sched => _time != null ? _time.Scheduler : MotionScheduler.Update;
+
+        /// <summary>Animate on <paramref name="time"/> (GameSpeed) — the board calls it when it creates this view.</summary>
+        public void UseTime(GameTime time) => _time = time;
+
+        private Vector3 _lidPos, _lidScale;
         private Quaternion _lidRot;
         private bool _lidPose;
 
@@ -46,6 +59,7 @@ namespace Game.Views
         {
             if (_box == null) _box = FindRenderer("Box");
             if (_lid == null) _lid = FindRenderer("BoxLid");
+            if (_lidRoot == null) _lidRoot = FindDeep(transform, "Lid") ?? (_lid != null ? _lid.transform : null);
             if (_mystery == null) { var m = FindDeep(transform, "Mystery"); if (m != null) _mystery = m.gameObject; }
             if (_count == null) { var c = FindDeep(transform, "Count"); if (c != null) _count = c.GetComponent<TMP_Text>(); }
             if (_lock == null) _lock = GetComponentInChildren<TrayLockView>(true);
@@ -114,7 +128,7 @@ namespace Game.Views
             var t = _count.transform;
             if (!_countPose) { _countScale = t.localScale; _countPose = true; }
             var rest = _countScale;
-            await LMotion.Create(1.3f, 1f, seconds).WithEase(Ease.OutBack)
+            await LMotion.Create(1.3f, 1f, seconds).WithScheduler(Sched).WithEase(Ease.OutBack)
                 .Bind(k => { if (t != null) t.localScale = rest * k; }).AddTo(gameObject).ToUniTask(ct);
         }
 
@@ -139,8 +153,8 @@ namespace Game.Views
                 t.localPosition = restPos + Vector3.up * (bottom * (restScale.y - t.localScale.y));   // keep the bottom put
             }
             var squashed = new Vector3(wide, flat, wide);
-            await LMotion.Create(Vector3.one, squashed, squash).WithEase(Ease.OutQuad).Bind(Apply).AddTo(gameObject).ToUniTask(ct);
-            await LMotion.Create(squashed, Vector3.one, recover).WithEase(Ease.OutBack).Bind(Apply).AddTo(gameObject).ToUniTask(ct);
+            await LMotion.Create(Vector3.one, squashed, squash).WithScheduler(Sched).WithEase(Ease.OutQuad).Bind(Apply).AddTo(gameObject).ToUniTask(ct);
+            await LMotion.Create(squashed, Vector3.one, recover).WithScheduler(Sched).WithEase(Ease.OutBack).Bind(Apply).AddTo(gameObject).ToUniTask(ct);
             if (t != null) { t.localScale = restScale; t.localPosition = restPos; }
         }
 
@@ -180,84 +194,78 @@ namespace Game.Views
                 {
                     var item = a.GetChild(i);
                     var from = item.localScale;
-                    shrinks.Add(LMotion.Create(1f, 0f, seconds).WithEase(Ease.InBack)
+                    shrinks.Add(LMotion.Create(1f, 0f, seconds).WithScheduler(Sched).WithEase(Ease.InBack)
                         .Bind(k => { if (item != null) item.localScale = from * k; }).AddTo(item.gameObject).ToUniTask(ct));
                 }
             }
             await UniTask.WhenAll(shrinks);
         }
 
-        /// <summary>The lid lifts off — up <paramref name="drop"/> (model units), tilting <paramref name="tilt"/>° — and
-        /// is put away: the reverse of <see cref="CloseLidAsync"/>.</summary>
-        public async UniTask OpenLidAsync(float seconds, float drop, float tilt, CancellationToken ct)
+        /// <summary>The lid (and the count on it) flies off to its parked place beside the container —
+        /// <paramref name="position"/> / <paramref name="rotation"/> / <paramref name="scale"/> in the model's own units —
+        /// along a quadratic Bézier whose control point stands <paramref name="arc"/> above the middle of the way. It stays
+        /// there, count up, while the container fills.</summary>
+        public UniTask ParkLidAsync(Vector3 position, Quaternion rotation, float scale, float seconds, float arc, Ease ease,
+            CancellationToken ct)
         {
-            if (_lid == null) Cache();
-            if (_lid == null || !_lid.gameObject.activeSelf) return;
-            KeepLidPose();
-            var t = _lid.transform;
+            if (!KeepLidPose()) return UniTask.CompletedTask;
+            var t = _lidRoot;
             var parent = t.parent;
-            var lift = transform.TransformVector(Vector3.up * drop);
-            var to = _lidPos + (parent != null ? parent.InverseTransformVector(lift) : lift);
-            var axis = parent != null ? parent.InverseTransformDirection(transform.right) : Vector3.right;
-            var toRot = Quaternion.AngleAxis(-tilt, axis) * _lidRot;
-            var rest = t.localScale;
-            await LMotion.Create(0f, 1f, seconds).WithEase(Ease.InCubic).Bind(k =>
+            var to = parent != null ? parent.InverseTransformPoint(transform.TransformPoint(position)) : position;
+            var toRot = (parent != null ? Quaternion.Inverse(parent.rotation) * transform.rotation : Quaternion.identity) * rotation;
+            return FlyLid(t.localPosition, t.localRotation, t.localScale, to, toRot, _lidScale * scale, seconds, arc, ease, ct);
+        }
+
+        /// <summary>The lid flies back from wherever it is onto the box, along a Bézier <paramref name="arc"/> high
+        /// (model units), and settles in its authored place.</summary>
+        public UniTask CloseLidAsync(float seconds, float arc, Ease ease, CancellationToken ct)
+        {
+            if (!KeepLidPose()) return UniTask.CompletedTask;
+            var t = _lidRoot;
+            return FlyLid(t.localPosition, t.localRotation, t.localScale, _lidPos, _lidRot, _lidScale, seconds, arc, ease, ct);
+        }
+
+        private async UniTask FlyLid(Vector3 from, Quaternion fromRot, Vector3 fromScale, Vector3 to, Quaternion toRot,
+            Vector3 toScale, float seconds, float arc, Ease ease, CancellationToken ct)
+        {
+            var t = _lidRoot;
+            t.gameObject.SetActive(true);
+            var parent = t.parent;
+            var up = parent != null ? parent.InverseTransformVector(transform.TransformVector(Vector3.up)) : Vector3.up;
+            // the control point halfway, 2 × arc up, so the path peaks arc above the middle
+            var control = (from + to) * 0.5f + up * (2f * arc);
+            await LMotion.Create(0f, 1f, Mathf.Max(seconds, 1e-4f)).WithScheduler(Sched).WithEase(ease).Bind(k =>
             {
                 if (t == null) return;
-                t.localPosition = Vector3.LerpUnclamped(_lidPos, to, k);
-                t.localRotation = Quaternion.Slerp(_lidRot, toRot, k);
-                t.localScale = rest * (1f - k);
+                float u = 1f - k;
+                t.localPosition = u * u * from + 2f * u * k * control + k * k * to;
+                t.localRotation = Quaternion.SlerpUnclamped(fromRot, toRot, k);
+                t.localScale = Vector3.LerpUnclamped(fromScale, toScale, k);
             }).AddTo(gameObject).ToUniTask(ct);
             if (t == null) return;
-            t.localScale = rest;
-            t.localPosition = _lidPos;
-            t.localRotation = _lidRot;
-            _lid.gameObject.SetActive(false);
+            t.localPosition = to; t.localRotation = toRot; t.localScale = toScale;
         }
 
-        /// <summary>Open (the lid is put away — a container on the belt or filling up) or closed (the lid in its authored
-        /// place).</summary>
-        public void SetLidOpen(bool open)
+        /// <summary>The lid on the box, in its authored place (a container on the belt).</summary>
+        public void SetLidClosed()
         {
-            if (_lid == null) Cache();
-            if (_lid == null) return;
-            KeepLidPose();
-            var t = _lid.transform;
-            t.localPosition = _lidPos;
-            t.localRotation = _lidRot;
-            _lid.gameObject.SetActive(!open);
+            if (!KeepLidPose()) return;
+            _lidRoot.localPosition = _lidPos;
+            _lidRoot.localRotation = _lidRot;
+            _lidRoot.localScale = _lidScale;
+            _lidRoot.gameObject.SetActive(true);
         }
 
-        /// <summary>The lid drops onto the box from <paramref name="drop"/> above it (in the model's own units — the box
-        /// is about 0.5 tall), tilted <paramref name="tilt"/>°, and settles in place over <paramref name="seconds"/>.</summary>
-        public async UniTask CloseLidAsync(float seconds, float drop, float tilt, CancellationToken ct)
+        private bool KeepLidPose()
         {
-            if (_lid == null) Cache();
-            if (_lid == null) return;
-            KeepLidPose();
-            var t = _lid.transform;
-            var parent = t.parent;
-            var lift = transform.TransformVector(Vector3.up * drop);                   // model units → world
-            var from = _lidPos + (parent != null ? parent.InverseTransformVector(lift) : lift);
-            var axis = parent != null ? parent.InverseTransformDirection(transform.right) : Vector3.right;
-            var fromRot = Quaternion.AngleAxis(tilt, axis) * _lidRot;
-            t.localPosition = from;
-            t.localRotation = fromRot;
-            _lid.gameObject.SetActive(true);
-            await LMotion.Create(0f, 1f, seconds).WithEase(Ease.OutBounce).Bind(k =>
-            {
-                if (t == null) return;
-                t.localPosition = Vector3.LerpUnclamped(from, _lidPos, k);
-                t.localRotation = Quaternion.Slerp(fromRot, _lidRot, k);
-            }).AddTo(gameObject).ToUniTask(ct);
-        }
-
-        private void KeepLidPose()
-        {
-            if (_lidPose || _lid == null) return;
-            _lidPos = _lid.transform.localPosition;
-            _lidRot = _lid.transform.localRotation;
+            if (_lidRoot == null) Cache();
+            if (_lidRoot == null) return false;
+            if (_lidPose) return true;
+            _lidPos = _lidRoot.localPosition;
+            _lidRot = _lidRoot.localRotation;
+            _lidScale = _lidRoot.localScale;
             _lidPose = true;
+            return true;
         }
 
         /// <summary>Item <paramref name="cell"/>'s anchor (0, 1, … → ItemAnchors 01, 02, …): where a collected item flies to and the

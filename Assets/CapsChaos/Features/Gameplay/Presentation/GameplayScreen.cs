@@ -52,6 +52,7 @@ namespace Game.Presentation
         private readonly IUserData _userData;
         private readonly IWorldViewport _viewport;
         private readonly ILog _log;
+        private readonly GameTime _time;   // the gameplay clock: GameSpeed scales the belt and every board animation
 
         private readonly BoardPrefabs _prefabs = new BoardPrefabs();
         private readonly List<GameObject> _held = new List<GameObject>();
@@ -73,6 +74,9 @@ namespace Game.Presentation
         private int _nextTray;
         private readonly List<UniTask> _packs = new List<UniTask>();   // boxes still animating; the round end waits for all
         private float _beltTime;           // seconds since the belt's last row step
+        private BoardFeel _feel;           // the board's tunable feel (addressable BoardFeel), or the defaults
+        private bool _feelHeld;            // _feel is an Addressables hold to release on unload
+        private bool _holding;             // the player holds an empty spot of the board: the game runs at HoldSpeed
         private bool _ending;              // the rules finished the round; the result is on its way
         private bool _offering;            // a slot offer (R20) is on screen or paying
         private bool _leaving;
@@ -81,8 +85,9 @@ namespace Game.Presentation
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
             IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, BeltClock clock,
             IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, IUserData userData,
-            IWorldViewport viewport, ContainerPaletteProvider containerPalette, BoardFloorView floor, ILog log = null)
+            IWorldViewport viewport, ContainerPaletteProvider containerPalette, BoardFloorView floor, GameTime time, ILog log = null)
         {
+            _time = time;
             _floor = floor;
             _containerPalette = containerPalette;
             _viewport = viewport;
@@ -125,6 +130,14 @@ namespace Game.Presentation
                 await Hold(AssetKeys.Containers.Container_L, ct), await Hold(AssetKeys.Containers.Container_XL, ct),
             };
             _prefabs.ContainerPalette = await _containerPalette.LoadAsync(ct);
+            _feel = await _assets.TryLoadAsync(new AssetKey<BoardFeel>(BoardFeel.Address), ct);
+            _feelHeld = _feel != null;
+            if (_feel == null)
+            {
+                _log?.Warn($"[Gameplay] no addressable '{BoardFeel.Address}' — the board uses its default feel");
+                _feel = BoardFeel.CreateDefault();
+            }
+            _prefabs.Feel = _feel;
             if (_prefabs.ContainerPalette == null)
                 _log?.Warn($"[Gameplay] no addressable '{ContainerPalette.Address}' — containers keep their authored material");
             _prefabs.Slot = await Hold(AssetKeys.Slot, ct);
@@ -151,7 +164,7 @@ namespace Game.Presentation
         // OnPause/OnResume also fire when the APP loses/regains focus: the HUD stays visible and only stops
         // taking taps, and the belt stops with it (the gate halts the fixed tick — no time jump on resume).
         // The HUD is a sibling under the Ui host, so OnEnter/OnExit show and hide it.
-        public override void OnPause() { _hud.SetInteractable(false); _gate.SetAppFocused(false); }
+        public override void OnPause() { _hud.SetInteractable(false); _gate.SetAppFocused(false); OnEmptyHold(false); }
         public override void OnResume() { _hud.SetInteractable(true); _gate.SetAppFocused(true); }
 
         public override void OnExit()
@@ -203,6 +216,8 @@ namespace Game.Presentation
             _hud.Dispose();
             for (int i = _held.Count - 1; i >= 0; i--) _assets.Release(_held[i]);
             _held.Clear();
+            if (_feelHeld) _assets.Release(_feel);
+            _feelHeld = false;
             return UniTask.CompletedTask;
         }
 
@@ -225,12 +240,14 @@ namespace Game.Presentation
             // NOT Stamp: Stamp zeroes every localPosition.z in the subtree (a 2D-rig contract) and would
             // flatten the 3D board (ADR-001 §5.5). Put the board on the GamePlay layer's culling layer only.
             int boardLayer = _layers.GetHost(RenderLayers.GamePlay).gameObject.layer;
-            _board.Bind(_prefabs, go => SetLayer(go.transform, boardLayer));
+            _board.Bind(_prefabs, go => SetLayer(go.transform, boardLayer), _time);
             SetLayer(_floor.transform, boardLayer);
             _board.UseFloor(_floor);
             _camRotation ??= cam.transform.rotation;                        // the rig's own pose, put back on exit
             _board.Frame(cam, _viewport.SafeRect.height * 0.5f);
             _board.BuildTable(_level.Slots, _level.ExtraSlots, _level.Lanes.Count);
+            for (int s = 0; s < _game.SlotCount; s++)                                         // R22
+                if (_game.SlotLockLeft(s) > 0) _board.LockSlotTurns(s, LockLabel(_game.SlotLockLeft(s)));
 
             var belt = _game.Belt;
             var conveyor = _level.Conveyor;
@@ -241,14 +258,22 @@ namespace Game.Presentation
                     if (belt.At(row, k) != CapColor.None) _board.AddBeltBottle(row, k, belt.At(row, k).ToTint());
             for (int f = 0; f < belt.FeederCount; f++)
             {
+                var feeder = _level.Loop.Feeders[f];
                 var tracks = new List<IReadOnlyList<TintFlavor>>();
+                var masked = new List<IReadOnlyList<bool>>();                 // R23: hidden queue rows draw grey until they join
                 for (int k = 0; k < belt.Width; k++)
                 {
                     var queue = new List<TintFlavor>();
-                    for (int d = 0; d < belt.FeederRemaining(f, k); d++) queue.Add(belt.FeederAt(f, k, d).ToTint());
+                    var hide = new List<bool>();
+                    for (int d = 0; d < belt.FeederRemaining(f, k); d++)
+                    {
+                        queue.Add(belt.FeederAt(f, k, d).ToTint());
+                        hide.Add(feeder.IsHiddenRow(belt.FeederRowsJoined(f) + d));
+                    }
                     tracks.Add(queue);
+                    masked.Add(hide);
                 }
-                _board.AddFeeder(belt.MergeAt(f), Knots(conveyor.Feeders[f].Nodes), tracks);
+                _board.AddFeeder(belt.MergeAt(f), Knots(conveyor.Feeders[f].Nodes), tracks, masked);
             }
             _board.FinishLoop();
             _beltTime = 0f;
@@ -278,6 +303,7 @@ namespace Game.Presentation
             _layers.Stamp(_inputGo, RenderLayers.GamePlay);
             _input.TrayTapped += OnTrayTapped;
             _input.LockedSlotTapped += OnLockedSlotTapped;
+            _input.EmptyHoldChanged += OnEmptyHold;
 
             _log.Info($"[GameplayScreen] round {_level.Id}: {belt.Count} bottles on conveyor {_level.Conveyor.Id ?? "(built in code)"} ({belt.Rows}×{belt.Width}), " +
                       $"{belt.FeederRemainingTotal} in {belt.FeederCount} feeder(s), {_level.Lanes.Count} lanes, {_level.Slots} slots.");
@@ -285,7 +311,12 @@ namespace Game.Presentation
 
         private void TeardownRound()
         {
-            if (_input != null) { _input.TrayTapped -= OnTrayTapped; _input.LockedSlotTapped -= OnLockedSlotTapped; }
+            if (_input != null)
+            {
+                _input.TrayTapped -= OnTrayTapped; _input.LockedSlotTapped -= OnLockedSlotTapped; _input.EmptyHoldChanged -= OnEmptyHold;
+            }
+            _holding = false;
+            ApplySpeed();
             _roundCts?.Cancel();
             _roundCts?.Dispose();
             _roundCts = null;
@@ -354,6 +385,8 @@ namespace Game.Presentation
                     case TrayRevealed _:
                     case TrayLockTicked _:
                         break;                                     // below, once the belt has moved
+                    case SlotLockTicked _:
+                        break;                                     // below, once every tray of this tap has claimed its slot
                 }
             }
             foreach (int movedLane in moved) SyncLane(movedLane);
@@ -370,20 +403,43 @@ namespace Game.Presentation
                     case TrayLockTicked k:
                         _board.UnlockTray(k.Lane, k.Tray - _laneTaken[k.Lane]).Forget();
                         break;
+                    case SlotLockTicked k when k.Remaining > 0:                         // R22
+                        _board.SetSlotTurns(k.Slot, LockLabel(k.Remaining)).Forget();
+                        break;
+                    case SlotLockTicked k:
+                        _board.UnlockSlotTurns(k.Slot).Forget();
+                        break;
                 }
             }
             PlayBelt(result.Facts);
         }
 
+        /// <summary>Holding an empty spot of the board sets <see cref="GameTime.GameSpeed"/> to the feel's HoldSpeed (2) —
+        /// the belt's steps and every board animation run on that clock; letting go sets it back to 1 (SKU owner,
+        /// 2026-10-06). Only while a round is being played: an offer, the round end, a pause or leaving the screen puts
+        /// it back to 1. The engine's own time scale is never touched — the UI keeps real time.</summary>
+        private void OnEmptyHold(bool held)
+        {
+            _holding = held;
+            ApplySpeed();
+        }
+
+        private void ApplySpeed()
+        {
+            bool fast = _holding && _game != null && _game.Status == GameStatus.Playing && !_offering && !_ending && _feel != null;
+            _time.GameSpeed = fast ? _feel.HoldSpeed : 1f;
+        }
+
         // ── the belt ─────────────────────────────────────────────────────────────────────────
-        /// <summary>The fixed gameplay tick (gate open): the oval moves one row every 1 / BeltRowsPerSecond seconds; the
+        /// <summary>The fixed gameplay tick (gate open): the oval moves one row every 1 / BeltRowsPerSecond GAME seconds (the
+        /// real dt × GameTime.GameSpeed); the
         /// board draws it in between.</summary>
         private void OnTick(float dt)
         {
             if (_board != null) _board.Frame(_layers.GetCamera(RenderLayers.GamePlay), _viewport.SafeRect.height * 0.5f);   // the view may resize
             if (_game == null || _board == null || _ending || _game.Status != GameStatus.Playing) return;
             float interval = 1f / DesignTokens.Motion.BeltRowsPerSecond;
-            _beltTime += dt;
+            _beltTime += _time.Scale(dt);                                    // game seconds: GameSpeed 2 steps the belt twice as often
             while (_beltTime >= interval && _game.Status == GameStatus.Playing)
             {
                 _beltTime -= interval;
@@ -407,9 +463,9 @@ namespace Game.Presentation
                 {
                     case BottlePicked p:
                         int tray = _trayInSlot[p.Slot];
-                        int cell = _cells[tray]++;
+                        int item = _cells[tray]++;                    // the order it lands in: the board fills its anchors 4 at a time
                         int missing = (_capacity.TryGetValue(tray, out var cap) ? cap : 0) - _cells[tray];
-                        _board.FlyBottle(p.Row, p.Track, tray, cell, flights++ * DesignTokens.Motion.PickStagger,
+                        _board.FlyBottle(p.Row, p.Track, tray, item, flights++ * DesignTokens.Motion.PickStagger,
                             missing > 0 ? CountLabel(missing) : null);
                         break;
                     case BottleFed d:
@@ -425,10 +481,12 @@ namespace Game.Presentation
                         _wallet.Grant(ResourceKeys.Coins, _config.Get(GameConfigKeys.EconomyWinReward), GrantSource.Reward);
                         RefreshCoins();
                         _ending = true;
+                        ApplySpeed();
                         EndRoundAsync(f, _roundCts.Token).Forget();
                         break;
                     case LevelFailed _:
                         _ending = true;
+                        ApplySpeed();
                         EndRoundAsync(f, _roundCts.Token).Forget();
                         break;
                 }
@@ -442,13 +500,14 @@ namespace Game.Presentation
             if (linked && OnBelt(partner.Lane, partner.Index)) _board.ShakeTray(partner.Lane, partner.Index - _laneTaken[partner.Lane]).Forget();
         }
 
-        /// <summary>How authored tray <paramref name="tray"/> of <paramref name="lane"/> looks right now (R17, R18).</summary>
+        /// <summary>How authored tray <paramref name="tray"/> of <paramref name="lane"/> looks right now (R17, R18, R21: the
+        /// items it takes, shown on the belt too).</summary>
         private TrayLook LookOf(int lane, int tray)
         {
             int locked = _game.IsAtFront(lane, tray) ? _game.LockLeft(lane) : _game.LockTurns(lane, tray);
             bool hidden = _game.IsTrayHidden(lane, tray);
             return new TrayLook(hidden ? TintFlavor.None : _game.TrayColor(lane, tray).ToTint(), hidden,
-                locked > 0 ? LockLabel(locked) : null, (int)_game.TraySizeOf(lane, tray));
+                locked > 0 ? LockLabel(locked) : null, (int)_game.TraySizeOf(lane, tray), CountLabel(_game.TrayCapacity(lane, tray)));
         }
 
         private string LockLabel(int turns) => _loc.Get(LocKeys.GameplayLockTurns, turns);
@@ -505,6 +564,7 @@ namespace Game.Presentation
         {
             if (_offering) return;
             _offering = true;
+            ApplySpeed();
             _gate.SetDialogCovering(true);
             try
             {
@@ -543,6 +603,7 @@ namespace Game.Presentation
             {
                 _gate.SetDialogCovering(false);
                 _offering = false;
+                ApplySpeed();
             }
         }
 

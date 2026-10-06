@@ -27,6 +27,19 @@
       "default": 2,
       "description": "Locked slots right of the open ones (R20): each opens for coins or a rewarded ad, for this round only. slots + extraSlots ≤ 6."
     },
+    "slotLocks": {
+      "type": "array",
+      "description": "Open slots locked for turns (R22): a locked slot takes no tray until lockTurns trays have flown to the slots (a linked pair counts 2); it opens once the trays of that tap have landed. V10: slot is one of the open slots 0..slots-1, each at most once, and at least one open slot starts unlocked.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slot", "lockTurns"],
+        "properties": {
+          "slot": { "type": "integer", "minimum": 0, "maximum": 5, "description": "Slot index, 0 = left-most." },
+          "lockTurns": { "type": "integer", "minimum": 1, "maximum": 99 }
+        }
+      }
+    },
     "trayCapacity": { "type": "integer", "minimum": 2, "maximum": 6, "default": 4 },
     "colors": {
       "type": "array",
@@ -50,6 +63,12 @@
             "minItems": 1,
             "items": { "$ref": "#/$defs/colorId" },
             "description": "The queue, front first, row by row: bottle i waits in queue row i / width on track i % width. The generator paints every queue row one colour."
+          },
+          "hiddenRows": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "integer", "minimum": 0 },
+            "description": "Hidden items (R23): queue rows (0 = the first row to join) whose bottles are drawn grey (#787878) while they queue and show their colour once they join the loop. A look only — the rules never read it. V8: every row exists in the queue."
           }
         }
       }

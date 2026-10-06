@@ -49,6 +49,7 @@ namespace Game.Domain
         private readonly int[] _slotFilled;
         private readonly int[] _slotCapacity;      // items the tray in the slot takes before it is full (R21)
         private readonly bool[] _slotOpen;        // R20: false = an extra slot still locked (it takes no tray)
+        private readonly int[] _slotLockLeft;     // R22: placements an open slot still waits for before it takes a tray
         private bool _ranOut;                     // R20: SlotsRanOut was reported for the current stall
 
         /// <summary>Generator mode: trays come from <see cref="PlaceTray"/>, so empty lanes are not a dead end.</summary>
@@ -58,6 +59,8 @@ namespace Game.Domain
         /// <summary>Every slot of the bar, open or locked (R20).</summary>
         public int SlotCount => _slotColor.Length;
         public bool IsSlotOpen(int slot) => _slotOpen[slot];
+        /// <summary>R22: trays that must still fly to the slots before <paramref name="slot"/> takes one; 0 = not locked.</summary>
+        public int SlotLockLeft(int slot) => _slotLockLeft[slot];
         public int LockedSlotCount
         {
             get
@@ -78,6 +81,8 @@ namespace Game.Domain
             : this(LoopBelt.FromDefinition(level.Loop), level.Lanes, level.Slots, level.TrayCapacity, level.ExtraSlots)
         {
             ApplyTrayModifiers(level);
+            foreach (var l in level.SlotLocks)                                                  // R22; V10 reports a bad one
+                if (l.Slot >= 0 && l.Slot < level.Slots && l.Turns > 0) _slotLockLeft[l.Slot] = l.Turns;
         }
 
         internal CapChaosGame(LoopBelt belt, IReadOnlyList<IReadOnlyList<CapColor>> lanes, int slots, int capacity, int extraSlots = 0)
@@ -93,6 +98,7 @@ namespace Game.Domain
             _slotFilled = new int[slots + extraSlots];
             _slotCapacity = new int[slots + extraSlots];
             _slotOpen = new bool[slots + extraSlots];
+            _slotLockLeft = new int[slots + extraSlots];
             for (int s = 0; s < slots; s++) _slotOpen[s] = true;
             Status = GameStatus.Playing;
         }
@@ -110,6 +116,7 @@ namespace Game.Domain
             _slotFilled = (int[])src._slotFilled.Clone();
             _slotCapacity = (int[])src._slotCapacity.Clone();
             _slotOpen = (bool[])src._slotOpen.Clone();
+            _slotLockLeft = (int[])src._slotLockLeft.Clone();
             _ranOut = src._ranOut;
             Status = src.Status;
             EndlessSupply = src.EndlessSupply;
@@ -245,7 +252,8 @@ namespace Game.Domain
         /// (R19) — both leave in authored order (same lane: front first; two lanes: the left lane first), each to the
         /// left-most free slot. Then the belts step forward (<see cref="AdvanceBelts"/>). Every placement counts down
         /// the locks of the trays that were already waiting at the front (R18); a tray that only just reached the
-        /// front starts counting with the next placement.
+        /// front starts counting with the next placement. The same placements count down the locked slots (R22) once all
+        /// of them have landed: a slot this tap opens takes trays from the next tap on.
         /// </summary>
         public TapResult Tap(int lane)
         {
@@ -269,6 +277,7 @@ namespace Game.Domain
                 _gap[group[i].Lane]++;                                                          // a held linked tray move up, a hole opens before it
                 _lockLeft[group[i].Lane] = 0;
             }
+            TickSlotLocks(count, facts);                                                        // R22
             AdvanceBelts(facts);                                                                // R7, R19
 
             for (int j = 0; j < _lanes.Length; j++)
@@ -423,22 +432,36 @@ namespace Game.Domain
             _slotColor[slot] = color;
             _slotFilled[slot] = 0;
             _slotCapacity[slot] = Capacity;
+            TickSlotLocks(1, facts);
             Resolve(facts);
             return facts;
         }
+
+        /// <summary>R22: <paramref name="placed"/> trays just flew to the slots — every locked slot counts them down.</summary>
+        private void TickSlotLocks(int placed, List<GameFact> facts)
+        {
+            for (int s = 0; s < _slotLockLeft.Length; s++)
+            {
+                if (_slotLockLeft[s] == 0) continue;
+                _slotLockLeft[s] = Math.Max(0, _slotLockLeft[s] - placed);
+                facts.Add(new SlotLockTicked(s, _slotLockLeft[s]));
+            }
+        }
+
+        private bool TakesTray(int slot) => _slotOpen[slot] && _slotLockLeft[slot] == 0 && _slotColor[slot] == CapColor.None;
 
         private static TapResult Reject(TapOutcome o) => new TapResult(o, Array.Empty<GameFact>());
 
         private int FreeSlot()                                                                  // R6: left-most free
         {
-            for (int s = 0; s < _slotColor.Length; s++) if (_slotOpen[s] && _slotColor[s] == CapColor.None) return s;
+            for (int s = 0; s < _slotColor.Length; s++) if (TakesTray(s)) return s;
             return -1;
         }
 
         private int FreeSlotCount()
         {
             int n = 0;
-            for (int s = 0; s < _slotColor.Length; s++) if (_slotOpen[s] && _slotColor[s] == CapColor.None) n++;
+            for (int s = 0; s < _slotColor.Length; s++) if (TakesTray(s)) n++;
             return n;
         }
 
@@ -552,7 +575,8 @@ namespace Game.Domain
             for (int j = 0; j < _laneHead.Length; j++) sb.Append(_laneHead[j]).Append(':').Append(_gap[j]).Append(':').Append(_lockLeft[j]).Append(',');
             sb.Append('#');
             for (int s = 0; s < _slotColor.Length; s++)
-                sb.Append(!_slotOpen[s] ? 'x' : _slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]).Append('/').Append(_slotCapacity[s]);
+                sb.Append(!_slotOpen[s] ? 'x' : _slotColor[s] == CapColor.None ? '_' : CapColorCodes.ToCode(_slotColor[s])).Append(_slotFilled[s]).Append('/').Append(_slotCapacity[s])
+                  .Append('l').Append(_slotLockLeft[s]);
             sb.Append('#');
             _belt.AppendKey(sb);
             return sb.ToString();

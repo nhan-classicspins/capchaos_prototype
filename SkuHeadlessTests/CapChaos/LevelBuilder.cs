@@ -7,7 +7,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
     /// <summary>Terse in-test level authoring: the belt's starting rows as strings (row 0 first — it starts at track
     /// position 0, in the pick zone; one char per track, '.' = empty spot), padded with empty rows to <c>rows</c>;
     /// lanes as strings (lowercase = hidden tray); <c>feeders</c> as bottle strings joining at <c>mergeAt</c>;
-    /// <c>locks</c> as {lane, tray, turns}, <c>links</c> as {laneA, trayA, laneB, trayB}, <c>sizes</c> as {lane, tray, size 1–4}.</summary>
+    /// <c>locks</c> as {lane, tray, turns}, <c>slotLocks</c> as {slot, turns}, <c>links</c> as {laneA, trayA, laneB, trayB}, <c>sizes</c> as {lane, tray, size 1–4}.</summary>
     internal static class LevelBuilder
     {
         /// <summary>The conveyor every built level runs on — its layout comes from the builder's arguments.</summary>
@@ -17,7 +17,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         public static ConveyorLibrary Conveyors(LevelDefinition level) => new ConveyorLibrary(new[] { level.Conveyor });
 
         public static LevelDefinition Level(string[] belt, string[] lanes, int slots = 3, int capacity = 4, string colors = null,
-            int[][] locks = null, int[][] links = null, int rows = 8, int pickRows = 1, string[] feeders = null, int[] mergeAt = null, int width = 0, int extraSlots = 0, int[][] sizes = null)
+            int[][] locks = null, int[][] links = null, int rows = 8, int pickRows = 1, string[] feeders = null, int[] mergeAt = null, int width = 0, int extraSlots = 0, int[][] sizes = null, int[][] slotLocks = null)
         {
             if (width == 0) width = belt.Length > 0 ? belt[0].Length : LoopDefinition.DefaultWidth;
             var used = new HashSet<char>();
@@ -44,7 +44,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var linkList = (links ?? new int[0][]).Select(l => new TrayLink(new TrayRef(l[0], l[1]), new TrayRef(l[2], l[3]))).ToList();
             return new LevelDefinition("level_0001", slots, capacity, colorList, loop, laneList,
                 hiddenTrays: hidden, locks: lockList, links: linkList, extraSlots: extraSlots,
-                traySizes: (sizes ?? new int[0][]).ToDictionary(z => new TrayRef(z[0], z[1]), z => (TraySize)z[2]));
+                traySizes: (sizes ?? new int[0][]).ToDictionary(z => new TrayRef(z[0], z[1]), z => (TraySize)z[2]),
+                slotLocks: (slotLocks ?? new int[0][]).Select(z => new SlotLock(z[0], z[1])).ToList());
         }
 
         /// <summary>The belt as strings, one per row id (not per position), '.' = empty.</summary>
@@ -66,6 +67,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             TrayPacked k => $"pack(S{k.Slot}:{C(k.Color)})",
             TrayRevealed r => $"trayReveal(L{r.Lane}#{r.Tray}:{C(r.Color)})",
             TrayLockTicked k => $"lock(L{k.Lane}#{k.Tray}:{k.Remaining})",
+            SlotLockTicked k => $"slotLock(S{k.Slot}:{k.Remaining})",
             LevelCompleted _ => "WIN",
             LevelFailed l => $"FAIL({l.Reason})",
             _ => f.GetType().Name,

@@ -76,6 +76,14 @@ namespace Game.Domain
         public SlotUnlocked(int slot) { Slot = slot; }
     }
 
+    /// <summary>Locked slot <see cref="Slot"/> counted the trays that just flew to the slots down (R22); <see cref="Remaining"/>
+    /// more to go, 0 = it is open and takes trays from the next tap on.</summary>
+    public sealed class SlotLockTicked : GameFact
+    {
+        public int Slot { get; } public int Remaining { get; }
+        public SlotLockTicked(int slot, int remaining) { Slot = slot; Remaining = remaining; }
+    }
+
     /// <summary>The open slots ran out — nothing can move without another slot — while an extra slot can still be
     /// unlocked (R20). The round is not lost: it waits for an unlock or a restart.</summary>
     public sealed class SlotsRanOut : GameFact { }

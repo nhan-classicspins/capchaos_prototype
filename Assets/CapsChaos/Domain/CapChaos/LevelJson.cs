@@ -42,9 +42,10 @@ namespace Game.Domain
     public static class LevelJson
     {
         private static readonly HashSet<string> RootKeys = new HashSet<string>(StringComparer.Ordinal)
-            { "$schema", "formatVersion", "id", "conveyor", "slots", "extraSlots", "trayCapacity", "colors", "feeders", "initial", "lanes", "links", "view", "meta" };
-        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "bottles" };
+            { "$schema", "formatVersion", "id", "conveyor", "slots", "extraSlots", "slotLocks", "trayCapacity", "colors", "feeders", "initial", "lanes", "links", "view", "meta" };
+        private static readonly HashSet<string> FeederKeys = new HashSet<string>(StringComparer.Ordinal) { "bottles", "hiddenRows" };
         private static readonly HashSet<string> TrayKeys = new HashSet<string>(StringComparer.Ordinal) { "color", "size", "hidden", "lockTurns" };
+        private static readonly HashSet<string> SlotLockKeys = new HashSet<string>(StringComparer.Ordinal) { "slot", "lockTurns" };
         private static readonly HashSet<string> LinkKeys = new HashSet<string>(StringComparer.Ordinal) { "a", "b" };
         private static readonly HashSet<string> RefKeys = new HashSet<string>(StringComparer.Ordinal) { "lane", "tray" };
         private static readonly HashSet<string> ViewKeys = new HashSet<string>(StringComparer.Ordinal) { "cameraPreset" };
@@ -88,6 +89,7 @@ namespace Game.Domain
                 fallback: LevelDefinition.DefaultExtraSlots);
             if (slots + extra > LevelDefinition.MaxSlots) errors.Add($"$.extraSlots: slots {slots} + extraSlots {extra} > {LevelDefinition.MaxSlots}");
             int cap = Int(root, "trayCapacity", "$", errors, required: false, min: 2, max: 6, fallback: LevelDefinition.DefaultTrayCapacity);
+            var slotLocks = ReadSlotLocks(root, errors);
 
             var content = ReadContent(root, conveyors, errors);
             var lanes = content.Lanes;
@@ -137,8 +139,27 @@ namespace Game.Domain
 
             if (errors.Count > 0 || id == null || content.Loop == null || lanes == null) return new LevelParseResult(null, errors);
             var level = new LevelDefinition(id, slots, cap, content.Colors, content.Loop, lanes, preset, name, difficulty, notes,
-                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, content.Sizes);
+                LevelDefinition.CurrentFormatVersion, solution, content.HiddenTrays, content.Locks, content.Links, extra, content.Sizes, slotLocks);
             return new LevelParseResult(level, errors);
+        }
+
+        /// <summary>R22: <c>slotLocks</c> — <c>[{ "slot": 3, "lockTurns": 5 }]</c>. Which slot it may name is V10.</summary>
+        private static List<SlotLock> ReadSlotLocks(JsonValue root, List<string> errors)
+        {
+            var locks = new List<SlotLock>();
+            if (!root.TryGet("slotLocks", out var arr)) return locks;
+            if (arr.Kind != JsonKind.Array) { errors.Add("$.slotLocks: must be an array of { slot, lockTurns }"); return locks; }
+            for (int i = 0; i < arr.Items.Count; i++)
+            {
+                var item = arr.Items[i];
+                string path = $"$.slotLocks[{i}]";
+                if (item.Kind != JsonKind.Object) { errors.Add(path + ": must be { slot, lockTurns }"); continue; }
+                Unknown(item, SlotLockKeys, path, errors);
+                int slot = Int(item, "slot", path, errors, required: true, min: 0, max: LevelDefinition.MaxSlots - 1, fallback: -1);
+                int turns = Int(item, "lockTurns", path, errors, required: true, min: 1, max: MaxLockTurns, fallback: 0);
+                if (slot >= 0 && turns > 0) locks.Add(new SlotLock(slot, turns));
+            }
+            return locks;
         }
 
         // ── content ───────────────────────────────────────────────────────────────────────────
@@ -188,6 +209,7 @@ namespace Game.Domain
                 errors.Add($"$.conveyor: '{id}' is not a conveyor ({ConveyorJson.FileOf(id)} not found)");
 
             var feeders = new List<IReadOnlyList<CapColor>>();
+            var hidden = new List<IEnumerable<int>>();
             if (root.TryGet("feeders", out var fn))
             {
                 if (fn.Kind != JsonKind.Array) errors.Add("$.feeders: must be an array of { bottles }");
@@ -208,6 +230,7 @@ namespace Game.Domain
                             if (col != CapColor.None) bottles.Add(col);
                         }
                         feeders.Add(bottles);
+                        hidden.Add(ReadHiddenRows(o, fp, errors));
                     }
                     if (conveyor != null && fn.Items.Count > conveyor.FeederCount)
                         errors.Add($"$.feeders: {fn.Items.Count} queue(s), but conveyor '{conveyor.Id}' has {conveyor.FeederCount} feeder(s) — " +
@@ -236,7 +259,24 @@ namespace Game.Domain
                     }
                 }
             }
-            return errors.Count == before && conveyor != null ? new LoopDefinition(conveyor, feeders, initial) : null;
+            return errors.Count == before && conveyor != null ? new LoopDefinition(conveyor, feeders, initial, hidden) : null;
+        }
+
+        /// <summary>R23: a feeder's <c>hiddenRows</c> — queue row indices, each once. Whether a row exists is V8.</summary>
+        private static List<int> ReadHiddenRows(JsonValue feeder, string fp, List<string> errors)
+        {
+            var rows = new List<int>();
+            if (!feeder.TryGet("hiddenRows", out var hn)) return rows;
+            if (hn.Kind != JsonKind.Array) { errors.Add(fp + ".hiddenRows: must be an array of queue row indices"); return rows; }
+            for (int i = 0; i < hn.Items.Count; i++)
+            {
+                var v = hn.Items[i];
+                if (v.Kind != JsonKind.Number || v.Number != Math.Floor(v.Number) || v.Number < 0)
+                    errors.Add($"{fp}.hiddenRows[{i}]: must be a queue row index ≥ 0");
+                else if (rows.Contains((int)v.Number)) errors.Add($"{fp}.hiddenRows[{i}]: row {(int)v.Number} is listed twice");
+                else rows.Add((int)v.Number);
+            }
+            return rows;
         }
 
         private static List<IReadOnlyList<CapColor>> ReadLanes(JsonValue root, LevelContent c, List<string> errors)
@@ -348,6 +388,12 @@ namespace Game.Domain
             sb.Append($"  \"conveyor\": {Q(level.Conveyor.Id)},\n");
             sb.Append($"  \"slots\": {level.Slots},\n");
             sb.Append($"  \"extraSlots\": {level.ExtraSlots},\n");
+            if (level.SlotLocks.Count > 0)
+            {
+                var locks = new List<string>();
+                foreach (var l in level.SlotLocks) locks.Add($"{{ \"slot\": {l.Slot}, \"lockTurns\": {l.Turns} }}");
+                sb.Append("  \"slotLocks\": [").Append(string.Join(", ", locks)).Append("],\n");
+            }
             sb.Append($"  \"trayCapacity\": {level.TrayCapacity},\n");
             sb.Append("  \"colors\": [").Append(Numbers(level.Colors)).Append("],\n");
 
@@ -368,7 +414,14 @@ namespace Game.Domain
                         for (int k = i; k < Math.Min(i + lp.Width, fd.Bottles.Count); k++) row.Add(fd.Bottles[k]);
                         sb.Append("      ").Append(Numbers(row)).Append(i + lp.Width < fd.Bottles.Count ? ",\n" : "\n");
                     }
-                    sb.Append("    ] }").Append(f < lp.Feeders.Count - 1 ? ",\n" : "\n");
+                    sb.Append("    ]");
+                    if (fd.HiddenRows.Count > 0)
+                    {
+                        var rows = new List<int>(fd.HiddenRows);
+                        rows.Sort();
+                        sb.Append(", \"hiddenRows\": [").Append(string.Join(", ", rows)).Append(']');
+                    }
+                    sb.Append(" }").Append(f < lp.Feeders.Count - 1 ? ",\n" : "\n");
                 }
                 sb.Append("  ]");
             }

@@ -1,5 +1,6 @@
 using System.Linq;
 using VContainer;
+using VContainer.Unity;
 using ClassicSpins.PrototypeFramework.Composition;
 using Game.Presentation;
 using Game.Views;
@@ -38,6 +39,9 @@ namespace Game.Composition
             // the fixed tick (rule #15): the framework's gate + GameplayTickDriver, pumping the belt clock
             GameplayScopeInstaller.Install(builder);
             builder.Register<BeltClock>(Lifetime.Scoped).AsSelf().As<ClassicSpins.PrototypeFramework.Application.IGameStep>();
+            // the gameplay's own clock (GameSpeed): advanced every frame, read by the belt and every board tween
+            builder.Register<GameTime>(Lifetime.Scoped);
+            builder.RegisterEntryPoint<GameTimePump>();
 
             // the Win / Lose popup: the dialog service resolves its controller from this (the active) scope
             builder.Register<ResultDialog>(Lifetime.Transient);

@@ -97,6 +97,9 @@ namespace Game.Domain
 
         /// <summary>Bottles of <paramref name="feeder"/>'s track <paramref name="track"/> that are still queued.</summary>
         public int FeederRemaining(int feeder, int track) => Math.Max(0, _feeders[feeder][track].Length - _feederRow[feeder]);
+        /// <summary>Queue rows of <paramref name="feeder"/> already on the belt: the bottle at depth d of any of its
+        /// tracks is in queue row <c>FeederRowsJoined + d</c> (R23 hides by queue row).</summary>
+        public int FeederRowsJoined(int feeder) => _feederRow[feeder];
         /// <summary>The <paramref name="depth"/>-th queued bottle of a feeder track (0 = the next to join).</summary>
         public CapColor FeederAt(int feeder, int track, int depth) => _feeders[feeder][track][_feederRow[feeder] + depth];
 

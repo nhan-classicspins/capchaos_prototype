@@ -18,6 +18,13 @@ namespace Game.Views
         [Tooltip("Lifts open on unlock (optional).")]
         [SerializeField] private Transform _shackle;
 
+        private GameTime _time;
+        /// <summary>Tweens run on the gameplay clock once the board hands it one (<see cref="UseTime"/>), else on engine time.</summary>
+        private IMotionScheduler Sched => _time != null ? _time.Scheduler : MotionScheduler.Update;
+
+        /// <summary>Animate on <paramref name="time"/> (GameSpeed) — the board calls it when it creates this view.</summary>
+        public void UseTime(GameTime time) => _time = time;
+
         public void SetCount(string text)
         {
             if (_count != null) _count.SetText(text);
@@ -29,7 +36,7 @@ namespace Game.Views
             SetCount(text);
             var t = _count != null ? _count.transform : transform;
             var rest = t.localScale;
-            await LMotion.Create(1.35f, 1f, M.LockTick).WithEase(Ease.OutBack)
+            await LMotion.Create(1.35f, 1f, M.LockTick).WithScheduler(Sched).WithEase(Ease.OutBack)
                 .Bind(k => { if (t != null) t.localScale = rest * k; }).AddTo(gameObject).ToUniTask(ct);
         }
 
@@ -40,7 +47,7 @@ namespace Game.Views
             var root = transform;
             var rest = root.localScale;
             Vector3 shackleFrom = _shackle != null ? _shackle.localPosition : Vector3.zero;
-            await LMotion.Create(0f, 1f, M.Unlock).WithEase(Ease.Linear).Bind(k =>
+            await LMotion.Create(0f, 1f, M.Unlock).WithScheduler(Sched).WithEase(Ease.Linear).Bind(k =>
             {
                 if (root == null) return;
                 if (_shackle != null) _shackle.localPosition = shackleFrom + Vector3.up * (0.12f * Mathf.Clamp01(k * 2.5f));

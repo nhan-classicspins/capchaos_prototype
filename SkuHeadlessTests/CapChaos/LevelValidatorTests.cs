@@ -4,9 +4,38 @@ using static CapsChaos.SkuHeadlessTests.CapChaos.LevelBuilder;
 
 namespace CapsChaos.SkuHeadlessTests.CapChaos
 {
-    /// <summary>V4–V8 (GDD §6.4).</summary>
+    /// <summary>V4–V10 (GDD §6.4).</summary>
     public sealed class LevelValidatorTests
     {
+        [Test]
+        public void V8_a_hidden_feeder_row_must_exist_in_the_queue()
+        {
+            var conveyor = new ConveyorDefinition("test_8_1f", 8, 2, 1, new[] { 6 });
+            var colors = new[] { CapColor.Red };
+            var lanes = new[] { (System.Collections.Generic.IReadOnlyList<CapColor>)new[] { CapColor.Red } };
+            LevelDefinition With(params int[] hidden) => new LevelDefinition("level_0001", 3, 4, colors,
+                new LoopDefinition(conveyor, new[] { (System.Collections.Generic.IReadOnlyList<CapColor>)new[] { CapColor.Red, CapColor.Red, CapColor.Red, CapColor.Red } },
+                    null, new[] { (System.Collections.Generic.IEnumerable<int>)hidden }), lanes);
+            Assert.That(LevelValidator.Validate(With(0, 1)), Is.Empty, "4 bottles, 2 per row: rows 0 and 1");
+            Assert.That(LevelValidator.Validate(With(2)), Has.Some.EqualTo("V8 feeders[0].hiddenRows: row 2 is past the queue's 2 row(s)"));
+        }
+
+        [Test]
+        public void V10_a_slot_lock_names_one_open_slot_once_and_leaves_one_open_slot_unlocked()
+        {
+            var bad = Level(new[] { "RRRR" }, new[] { "R" }, slots: 2, extraSlots: 1,
+                slotLocks: new[] { new[] { 2, 3 }, new[] { 1, 2 }, new[] { 1, 4 } });
+            var e = LevelValidator.Validate(bad);
+            Assert.That(e, Has.Some.EqualTo("V10 slotLocks[0]: slot 2 is not an open slot 0..1"), "an extra slot opens for coins, not turns");
+            Assert.That(e, Has.Some.EqualTo("V10 slotLocks[2]: slot 1 is locked twice"));
+
+            var all = Level(new[] { "RRRR" }, new[] { "R" }, slots: 2, slotLocks: new[] { new[] { 0, 1 }, new[] { 1, 1 } });
+            Assert.That(LevelValidator.Validate(all), Has.Some.StartsWith("V10 slotLocks: all 2 open slots are locked"));
+
+            var ok = Level(new[] { "RRRR" }, new[] { "R" }, slots: 2, slotLocks: new[] { new[] { 1, 3 } });
+            Assert.That(LevelValidator.Validate(ok), Is.Empty);
+        }
+
         [Test]
         public void A_balanced_level_is_clean()
         {

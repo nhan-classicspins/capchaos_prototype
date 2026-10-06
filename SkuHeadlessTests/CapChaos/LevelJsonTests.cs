@@ -103,6 +103,13 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         [TestCase("\"colors\": [1, 2]", "\"colors\": [1, 1]", "$.colors[1]: duplicate 1 (Red)")]
         [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slots\": 9,", "$.slots: 9 outside 1..6")]
         [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slots\": 5, \"extraSlots\": 2,", "$.extraSlots: slots 5 + extraSlots 2 > 6")]
+        [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": 1 }", "$.feeders[0].hiddenRows: must be an array of queue row indices")]
+        [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": [-1] }", "$.feeders[0].hiddenRows[0]: must be a queue row index ≥ 0")]
+        [TestCase("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": [1, 1] }", "$.feeders[0].hiddenRows[1]: row 1 is listed twice")]
+        [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slotLocks\": { \"slot\": 1 },", "$.slotLocks: must be an array of { slot, lockTurns }")]
+        [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slotLocks\": [ { \"slot\": 1 } ],", "$.slotLocks[0].lockTurns: required")]
+        [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slotLocks\": [ { \"slot\": 1, \"lockTurns\": 0 } ],", "$.slotLocks[0].lockTurns: 0 outside 1..99")]
+        [TestCase("\"formatVersion\": 4,", "\"formatVersion\": 4, \"slotLocks\": [ { \"slot\": 1, \"turns\": 2 } ],", "$.slotLocks[0].turns: unknown property")]
         public void Structural_errors_are_reported_by_path(string find, string replace, string expected)
         {
             var r = Parse(Minimal.Replace(find, replace));
@@ -167,6 +174,32 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
+        public void Slot_locks_are_read_and_written_back_unchanged()
+        {
+            var r = Parse(Minimal.Replace("\"formatVersion\": 4,",
+                "\"formatVersion\": 4, \"slotLocks\": [ { \"slot\": 3, \"lockTurns\": 5 }, { \"slot\": 1, \"lockTurns\": 2 } ],"));
+            Assert.That(r.Errors, Is.Empty);
+            Assert.That((r.Level!.SlotLockTurns(3), r.Level.SlotLockTurns(1), r.Level.SlotLockTurns(0)), Is.EqualTo((5, 2, 0)));
+            var text = LevelJson.Write(r.Level);
+            Assert.That(text, Does.Contain("  \"slotLocks\": [{ \"slot\": 3, \"lockTurns\": 5 }, { \"slot\": 1, \"lockTurns\": 2 }],\n"));
+            Assert.That(LevelJson.Write(Parse(text).Level!), Is.EqualTo(text));
+            Assert.That(LevelJson.Write(Parse(Minimal).Level!), Does.Not.Contain("slotLocks"), "a level without one writes none");
+        }
+
+        [Test]
+        public void Hidden_feeder_rows_are_read_and_written_back_unchanged()
+        {
+            var r = Parse(Minimal.Replace("{ \"bottles\": [1, 2, 1, 2] }", "{ \"bottles\": [1, 2, 1, 2], \"hiddenRows\": [1] }"));
+            Assert.That(r.Errors, Is.Empty);
+            var feeder = r.Level!.Loop.Feeders[0];
+            Assert.That((feeder.IsHiddenRow(0), feeder.IsHiddenRow(1)), Is.EqualTo((false, true)), "row 1 = bottles 2 and 3 (width 2)");
+            var text = LevelJson.Write(r.Level);
+            Assert.That(text, Does.Contain("      1, 2\n    ], \"hiddenRows\": [1] }"));
+            Assert.That(LevelJson.Write(Parse(text).Level!), Is.EqualTo(text));
+            Assert.That(LevelJson.Write(Parse(Minimal).Level!), Does.Not.Contain("hiddenRows"), "a feeder without one writes none");
+        }
+
+        [Test]
         public void The_writer_puts_one_feeder_row_on_a_line()
         {
             var text = LevelJson.Write(Parse(Minimal).Level!);
@@ -194,7 +227,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
 
             string rows = string.Join(", ", Enumerable.Repeat("[0, 0]", 8));
             var withAll = Minimal.Replace("\"formatVersion\": 4,",
-                "\"$schema\": \"x\", \"formatVersion\": 4, \"slots\": 4, \"extraSlots\": 2, \"trayCapacity\": 4, \"initial\": [" + rows + "], " +
+                "\"$schema\": \"x\", \"formatVersion\": 4, \"slots\": 4, \"extraSlots\": 2, \"slotLocks\": [ { \"slot\": 1, \"lockTurns\": 3 } ], \"trayCapacity\": 4, \"initial\": [" + rows + "], " +
                 "\"links\": [ { \"a\": { \"lane\": 0, \"tray\": 0 }, \"b\": { \"lane\": 1, \"tray\": 0 } } ], " +
                 "\"view\": { \"cameraPreset\": \"tall\" }, \"meta\": { \"name\": \"n\", \"difficulty\": \"easy\", \"notes\": \"x\" },");
             var parsed = JsonReader.Parse(withAll);

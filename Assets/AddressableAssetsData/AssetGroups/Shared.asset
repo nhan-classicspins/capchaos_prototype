@@ -25,6 +25,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2d3b20bc11ef24f749ad7311d4753c4c
+    m_Address: BoardFeel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 65eadca218d9d4b4da928cf09e9e9cf8
     m_Address: UiPalette
     m_ReadOnly: 0

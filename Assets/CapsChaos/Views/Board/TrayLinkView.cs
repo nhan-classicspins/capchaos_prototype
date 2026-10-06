@@ -23,6 +23,13 @@ namespace Game.Views
     /// </remarks>
     public sealed class TrayLinkView : MonoBehaviour
     {
+        private GameTime _time;
+        /// <summary>Tweens run on the gameplay clock once the board hands it one (<see cref="UseTime"/>), else on engine time.</summary>
+        private IMotionScheduler Sched => _time != null ? _time.Scheduler : MotionScheduler.Update;
+
+        /// <summary>Animate on <paramref name="time"/> (GameSpeed) — the board calls it when it creates this view.</summary>
+        public void UseTime(GameTime time) => _time = time;
+
         [Tooltip("Height of each rope end above the top of its container's lid, in BOARD units (scaled with the board).")]
         [SerializeField] private float _offsetY = Bd.RopeOffsetY;
         [Tooltip("How far the middle of the rope rises above the straight line between its ends, in board units.")]
@@ -97,7 +104,7 @@ namespace Game.Views
         public async UniTask ReleaseAsync(CancellationToken ct)
         {
             if (_lines == null) { Destroy(gameObject); return; }
-            await LMotion.Create(1f, 0f, M.LinkRelease).WithEase(Ease.InQuad).Bind(k =>
+            await LMotion.Create(1f, 0f, M.LinkRelease).WithScheduler(Sched).WithEase(Ease.InQuad).Bind(k =>
             {
                 for (int i = 0; i < _lines.Length; i++) if (_lines[i] != null) _lines[i].widthMultiplier = _widths[i] * k;
             }).AddTo(gameObject).ToUniTask(ct);

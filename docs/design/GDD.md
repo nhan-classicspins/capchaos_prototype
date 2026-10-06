@@ -238,6 +238,27 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 - **Coin**: ví của framework (`ResourceKeys.Coins`, lưu cùng save). Lần chạy đầu được `economy.startCoins` (1000); thắng
   một level được `economy.winReward` (50). HUD hiện số coin cạnh nút Home.
 
+### 5.6b Slot khoá theo lượt (R22, thêm 2026-10-06)
+- **R22** Level có thể khoá một số slot **mở sẵn** theo lượt: `slotLocks` trong level JSON, mỗi phần tử
+  `{ "slot": 3, "lockTurns": 5 }` (`slot` là chỉ số slot, 0 = trái nhất). Slot khoá **không nhận khay**: khay bay lên
+  slot trống trái nhất **không** bị khoá. Ô slot tối, có ổ khoá kèm số lượt (dùng lại prefab `TrayLock`). Bấm vào thì
+  không có gì xảy ra; slot này **không mua được** bằng coin / quảng cáo (R20 chỉ mở `extraSlots`).
+  - **Mỗi khay bay lên slot trừ 1**, một **cặp nối trừ 2** (R19), dù khay đi từ làn nào. Lượt được trừ **sau khi cả
+    nhóm khay của lần tap đó đã chọn slot**, nên cặp nối làm slot mở ra thì không hạ vào chính slot đó; slot nhận khay
+    từ lần tap sau. Fact `SlotLockTicked` (`Remaining = 0` ⇒ ổ khoá bật mở, ô sáng lên).
+  - Cặp nối cần **2 slot trống không bị khoá**. Hết slot dùng được thì xử lý như R20 / R15: còn `extraSlots` thì
+    `SlotsRanOut`, không còn thì thua.
+  - V10: `slot` phải là slot mở sẵn (`0 … slots − 1`), mỗi slot khoá tối đa 1 lần, và phải còn ít nhất 1 slot mở sẵn
+    không bị khoá. Domain: `CapChaosGame.TickSlotLocks`; test: `SkuHeadlessTests/CapChaos/SlotLockRulesTests.cs`.
+
+### 5.6c Item ẩn (R23, thêm 2026-10-06)
+- **R23** Một **hàng** trong hàng chờ của feeder có thể bị ẩn: field `hiddenRows` của feeder trong level JSON, ví dụ
+  `{ "bottles": [...], "hiddenRows": [1, 3] }`. Hàng `r` là các chai `r × width … r × width + width − 1` (hàng 0 nhập
+  loop đầu tiên). Chai của hàng ẩn được vẽ **xám phẳng #787878** (`DesignTokens.ItemHidden`) khi còn trong hàng chờ, và
+  **hiện màu thật khi nhập vào loop-conveyor** (fact `BottleFed`).
+- Đây chỉ là hiển thị: luật chơi, solver và V4 không đọc nó. V8: mỗi hàng ẩn phải có trong hàng chờ. Ghi chú: hình
+  dạng item vẫn là hình của màu thật.
+
 ### 5.7 Cỡ container (R21, thêm 2026-10-02)
 - **R21** Mỗi khay có một **cỡ**: field `size` trong level JSON là số **1 S · 2 M · 3 L · 4 XL** (mặc định 1, không
   bao giờ đổi số). Khay nhận `size × trayCapacity` item mới đầy; với `trayCapacity` 4 là **S 4 · M 8 · L 12 · XL 16**.
@@ -246,8 +267,17 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
   **bản sao của Container_S**: thêm 2/3/4 tầng anchor 2×2, hộp kéo cao lên, nắp, dấu "?" và khối băng nâng theo.
   Bản sao chỉ được tạo khi còn thiếu (menu `CapsChaos/Art/Wire Containers`); sau đó art có thể thay model, và menu này
   chỉ nối lại (re-wire) các tham chiếu.
-- Trên băng chuyền, container luôn **đóng nắp**. Khi bay lên slot, nắp bật ra và text `Count` ở mặt trước hộp hiện số
-  item **còn thiếu**. Mỗi item rơi vào thì số giảm 1; khi đủ thì text ẩn, nắp đóng và hộp bay đi.
+- (Đổi 2026-10-06 theo chủ SKU) **Mọi cỡ đều có 4 anchor** và cùng chiều cao với S. Text `Count` nằm **trên mặt nắp**
+  và luôn hiện số item **còn thiếu**, kể cả khi container còn trên băng chuyền. Khi container bay lên slot, nắp bay
+  (theo Bézier) ra **đỗ ngay trước container**, ngả về phía camera nên số vẫn đọc rõ.
+- Item bay lên **xếp chồng phía trên** container (mỗi item vào chồng thì số giảm 1). Đủ 4 item (hoặc là item cuối cùng)
+  thì **cả nhóm rơi xuống 4 anchor cùng lúc**. Container nhận hơn 4 item: mỗi khi 4 item rơi vào mà vẫn còn item tới
+  thì 4 item đó **bị ép dẹt (scale y → 0) rồi biến mất**, và nhóm sau mới rơi vào. Nhóm cuối giữ nguyên; khi đủ thì số
+  ẩn, nắp bay về chỗ cũ theo Bézier rồi hộp bay đi.
+- **Giữ ngón tay / chuột ở vùng trống** (không phải khay, không phải slot khoá) thì cả game chạy **x2**; thả ra thì về
+  bình thường. Không áp dụng khi đang có popup hoặc ván đã kết thúc.
+- Mọi thông số của các chuyển động trên (độ cao chồng item, thời gian bay / rơi / ép, chỗ đỗ và Bézier của nắp, tốc độ
+  khi giữ) nằm trong ScriptableObject `Content/Configs/BoardFeel.asset` (addressable `BoardFeel`, group Shared).
 - Level mẫu: `level_0021` "Big Boxes" (XL, L, M, S).
 
 ### 5.8 HUD
@@ -330,8 +360,10 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | `conveyor` | Id của file conveyor dùng chung (`Conveyors/<id>.json`, §6.2b). Không có file đó ⇒ lỗi V1 `$.conveyor` |
 | `slots` | Số slot mở sẵn, 1–6 (mặc định 4) |
 | `extraSlots` | (tuỳ chọn, mặc định 2) số slot khoá mở được bằng coin / quảng cáo (R20); `slots + extraSlots ≤ 6` |
+| `slotLocks` | (tuỳ chọn) slot mở sẵn bị **khoá theo lượt** (R22): `[{ "slot": 3, "lockTurns": 5 }]`, `lockTurns` 1–99 |
 | `trayCapacity` | Số nắp mỗi khay (mặc định 4) |
 | `colors` | Tập số màu dùng trong level; mọi màu trong `feeders`, `initial` và `lanes` phải thuộc tập này |
+| `feeders[f].hiddenRows` | (tuỳ chọn) các hàng của hàng chờ bị **ẩn** (xám) cho tới khi nhập loop (R23), ví dụ `[1, 3]` |
 | `feeders[f].bottles` | Hàng chờ của feeder `f` **của conveyor**, theo thứ tự phải, trái, giữa. Số phần tử = số feeder level dùng (0–3): 1 = chỉ feeder phải, 2 = phải + trái, 3 = cả ba. Chai đầu trước, ghi theo hàng `width` chai (chai `i` ở track `i % width`) |
 | `initial` | (tuỳ chọn) oval lúc bắt đầu, `rows` mảng × `width` số của conveyor (`0` = ô trống), hàng `r` bắt đầu ở vị trí `r`. Không có ⇒ oval bắt đầu trống, hàng chờ nhập dần (R4) |
 | `lanes[j]` | Hàng đợi của băng khay `j` (trái → phải), mỗi phần tử là một khay. Phần tử `[0]` là khay đầu làn |
@@ -414,6 +446,7 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
 | V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
+| V10 | `slotLocks` (R22): `slot` là slot mở sẵn, không trùng; còn ít nhất 1 slot mở sẵn không khoá | `V10 slotLocks[0]: slot 4 is not an open slot 0..3` |
 | V8 | Conveyor: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau. Level: hàng chờ có ít nhất 1 chai | `V8 conveyor oval_20.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
 | V9 | Spline của conveyor: loop ≥ 3 node, mỗi feeder ≥ 2 node, mọi số hữu hạn, hai node kề nhau không trùng chỗ | `V9 conveyor oval_16.feeders[2].nodes[0]: it and node 1 stand on the same spot` |
 | V6 | **Có lời giải**. Người chơi giả định "tap rồi chờ bàn đứng yên" (`CapChaosGame.Settle`) — mọi chuỗi thắng của người chơi đó cũng là chuỗi thắng thật. Nếu level có `meta.solution` thì **chạy lại** chuỗi tap đó (nhanh, chắc chắn). Nếu không thì solver DFS có memo, kèm budget node; vượt budget ⇒ `Unknown`, không bao giờ đoán | `V6 Unsolvable` / `V6 Unknown` |

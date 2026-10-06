@@ -251,5 +251,15 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(b.Status, Is.EqualTo(GameStatus.Playing));
             Assert.That(b.StateKey(), Is.Not.EqualTo(a.StateKey()));
         }
+
+        [Test]
+        public void R23_a_feeder_counts_the_queue_rows_that_joined_the_belt()
+        {
+            var g = new CapChaosGame(Level(new[] { ".." }, new[] { "R", "O" }, capacity: 2, feeders: new[] { "RROO" }));
+            Assert.That(g.Belt.FeederRowsJoined(0), Is.EqualTo(0));
+            for (int i = 0; i < 16 && !g.Step().OfType<BottleFed>().Any(); i++) { }
+            Assert.That(g.Belt.FeederRowsJoined(0), Is.EqualTo(1), "a whole queue row joins at once");
+            Assert.That(g.Belt.FeederAt(0, 0, 0), Is.EqualTo(CapColor.Orange), "depth 0 is now queue row 1");
+        }
     }
 }

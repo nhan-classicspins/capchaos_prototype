@@ -94,6 +94,8 @@ namespace Game.Views
         // ── Tray modifiers (GDD R17–R19) — decided here (rule 17), not in the art spec yet ─────
         /// <summary>The "?" printed on a hidden tray.</summary>
         public static readonly Color MysteryMark  = Hex("FFFFFF");
+        /// <summary>A hidden item (GDD R23): a queued feeder bottle drawn flat in this grey until it joins the loop.</summary>
+        public static readonly Color ItemHidden = Hex("787878");
         /// <summary>Lock (R18): a charcoal body that keeps the white count readable on any tray colour, under a
         /// light steel shackle that keeps the icon's silhouette on the dark belt rail.</summary>
         public static readonly Color LockBody     = Hex("2F3554");
@@ -177,9 +179,6 @@ namespace Game.Views
             public const float TrayHitCenterY = 0.12f;
             public const float TrayCellHalf = 0.21f, TrayCupY = 0.052f;
             public const float BoxExitX = 3.5f, BoxExitY = 4.5f;
-            /// <summary>Where a closing lid starts: this far above the box (the container model's own units — the box is
-            /// about 0.5 tall) and tilted this many degrees.</summary>
-            public const float LidDrop = 0.6f, LidTilt = 25f;
             /// <summary>The "+" on a locked slot (R20), slot-tile-local: arm length, arm width, thickness, height; and the
             /// tile's tap box.</summary>
             public const float SlotPlusLength = 0.46f, SlotPlusWidth = 0.13f, SlotPlusThickness = 0.03f, SlotPlusY = 0.04f;
@@ -187,6 +186,8 @@ namespace Game.Views
             /// <summary>Tray-local heights over the caps' tops (≈ 0.2): the lock icon, the rope's ends; and how far
             /// the rope arcs up between them.</summary>
             public const float LockY = 0.42f, RopeOffsetY = 0.05f, RopeArc = 0.16f;
+            /// <summary>R22: the padlock on a slot locked for turns stands this high over the tile.</summary>
+            public const float SlotLockY = 0.3f;
             public const int RopeSegments = 14;
         }
 
@@ -208,7 +209,7 @@ namespace Game.Views
             /// <summary>Its landing (SKU owner, 2026-10-02): the container squashes to (ImpactWide, ImpactFlat, ImpactWide)
             /// over ImpactSquash, then bounces back to 1 over ImpactRecover. Items only start flying in after it.</summary>
             public const float ImpactSquash = 0.10f, ImpactRecover = 0.15f, ImpactWide = 1.2f, ImpactFlat = 0.8f;
-            public const float BottleFlight = 0.30f, BottleArcHeight = 1.2f;
+            public const float BottleArcHeight = 1.2f;
             /// <summary>Oval belt speed (≈ the reference video's crowd), a feeder bottle sliding onto the belt, a feeder queue
             /// moving up one row; how far ahead of the last fixed tick the belt may be drawn.</summary>
             public const float BeltRowsPerSecond = 3.5f, FeederStep = 0.2f, BeltExtrapolateMax = 0.06f;
@@ -224,9 +225,10 @@ namespace Game.Views
             /// previous one into the same container, and none before the container has landed.</summary>
             public const float ItemIntoBoxStagger = 0.08f;
             public const float TrayShake = 0.35f, TrayShakeCycles = 3f;
-            /// <summary>A full container (R13): it holds BoxHold once its items are in, closes its lid over LidClose, then
-            /// flies off over BoxExit (the old carton's exit).</summary>
-            public const float BoxHold = 0.35f, LidClose = 0.3f, BoxExit = 0.40f;
+            /// <summary>A full container (R13): it holds BoxHold once its items are in, closes its lid (BoardFeel.LidClose),
+            /// then flies off over BoxExit (the old carton's exit). Item stacking and the lid's motion live in the BoardFeel
+            /// asset (SKU owner, 2026-10-06), not here.</summary>
+            public const float BoxHold = 0.35f, BoxExit = 0.40f;
             public const float RoundEndPause = 1.0f;
             /// <summary>A locked slot opening: its "+" shrinks away while the tile pops.</summary>
             public const float SlotUnlock = 0.3f;

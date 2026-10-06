@@ -5,6 +5,7 @@
   "conveyor": "oval_32",
   "slots": 4,
   "extraSlots": 2,
+  "slotLocks": [{ "slot": 3, "lockTurns": 3 }],
   "trayCapacity": 4,
   "colors": [1, 2, 3],
   "feeders": [

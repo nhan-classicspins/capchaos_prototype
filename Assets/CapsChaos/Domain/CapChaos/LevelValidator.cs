@@ -50,9 +50,32 @@ namespace Game.Domain
             }
             errors.AddRange(ConveyorValidator.Validate(lp.Conveyor));
             for (int f = 0; f < lp.Feeders.Count; f++)
-                if (lp.Feeders[f].Bottles.Count == 0) errors.Add($"V8 feeders[{f}].bottles: a feeder carries at least one bottle");
+            {
+                var fd = lp.Feeders[f];
+                if (fd.Bottles.Count == 0) errors.Add($"V8 feeders[{f}].bottles: a feeder carries at least one bottle");
+                int queueRows = fd.RowCount(lp.Width);
+                foreach (int row in fd.HiddenRows)                                              // R23
+                    if (row >= queueRows) errors.Add($"V8 feeders[{f}].hiddenRows: row {row} is past the queue's {queueRows} row(s)");
+            }
             ValidateTrayModifiers(level, errors);
+            ValidateSlotLocks(level, errors);
             return errors;
+        }
+
+        /// <summary>V10 (R22): a slot lock names one of the open slots (0 … slots − 1), each slot at most once, and at least
+        /// one open slot starts unlocked — with every slot locked no tray could ever fly, so no lock could count down.</summary>
+        private static void ValidateSlotLocks(LevelDefinition level, List<string> errors)
+        {
+            var seen = new HashSet<int>();
+            for (int i = 0; i < level.SlotLocks.Count; i++)
+            {
+                var l = level.SlotLocks[i];
+                if (l.Slot < 0 || l.Slot >= level.Slots)
+                    errors.Add($"V10 slotLocks[{i}]: slot {l.Slot} is not an open slot 0..{level.Slots - 1}");
+                else if (!seen.Add(l.Slot)) errors.Add($"V10 slotLocks[{i}]: slot {l.Slot} is locked twice");
+            }
+            if (level.Slots > 0 && seen.Count >= level.Slots)
+                errors.Add($"V10 slotLocks: all {level.Slots} open slots are locked — at least one must take a tray from the start");
         }
 
         /// <summary>V7: every lock / link names a real tray; a link joins two neighbours in one lane (consecutive) or the

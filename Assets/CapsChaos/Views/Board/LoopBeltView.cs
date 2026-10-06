@@ -37,6 +37,14 @@ namespace Game.Views
         private Transform _bottles;
         private Action<GameObject> _stamp;
         private IReadOnlyList<GameObject> _items;                       // [flavour − 1]: the item drawn for that colour
+        private GameTime _time;                                          // the gameplay clock (GameSpeed); null = engine time
+
+        /// <summary>Run on <paramref name="time"/> — the belt's drawing, the feeders and the joining bottles all move in
+        /// game seconds, so they speed up with <see cref="GameTime.GameSpeed"/>.</summary>
+        public void UseTime(GameTime time) => _time = time;
+
+        private float Dt => _time != null ? _time.DeltaTime : Time.deltaTime;
+        private double Now => _time != null ? _time.Now : Time.timeAsDouble;
 
         private GameObject[] _spots = Array.Empty<GameObject>();        // [row * width + track]
         // a bottle that just stepped on from a feeder: it slides from where it waited to its moving spot
@@ -55,12 +63,13 @@ namespace Game.Views
             public float Head;                                         // distance along the feeder of the head row
             public float Travel, TravelTarget;                         // belt travel (board units): eased toward the target
             public List<GameObject>[] Visible;                         // per track: the queued bottles drawn, head first
-            public Queue<TintFlavor>[] Hidden;                         // per track: the rest of the queue, not drawn yet
+            public Queue<(TintFlavor color, bool masked)>[] Pending;   // per track: the rest of the queue, not drawn yet
             public float[] Shift;                                      // per track: rows still to slide forward (eased to 0)
         }
         private readonly List<Feeder> _feeders = new List<Feeder>();
 
-        private float _phase, _phaseStamp, _rowsPerSecond;
+        private float _phase, _rowsPerSecond;
+        private double _phaseStamp;                 // game time of the last SetPhase
 
         /// <summary>Rows round the loop, bottles per row, rows in the pick zone; how big the belts and bottles are drawn;
         /// the loop's knots (board units, the first = the start of the pick zone); the ConveyorBelt prefab every belt is
@@ -85,13 +94,16 @@ namespace Game.Views
 
         /// <summary>A feeder joining at track position <paramref name="mergeAt"/>, running along <paramref name="path"/>
         /// (far end first, its last knot on the loop); <paramref name="tracks"/>[k] is the queue on track k, head first.
-        /// Its head row is placed in <see cref="Finish"/>.</summary>
-        public void AddFeeder(int mergeAt, IReadOnlyList<BeltNode> path, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks)
+        /// <paramref name="masked"/>[k][d] (null = none): that queued bottle is drawn grey (<see cref="DesignTokens.ItemHidden"/>,
+        /// GDD R23) until it steps onto the loop, where every bottle shows its colour. Its head row is placed in
+        /// <see cref="Finish"/>.</summary>
+        public void AddFeeder(int mergeAt, IReadOnlyList<BeltNode> path, IReadOnlyList<IReadOnlyList<TintFlavor>> tracks,
+            IReadOnlyList<IReadOnlyList<bool>> masked = null)
         {
             var f = new Feeder
             {
                 MergeAt = mergeAt,
-                Visible = new List<GameObject>[_width], Hidden = new Queue<TintFlavor>[_width], Shift = new float[_width],
+                Visible = new List<GameObject>[_width], Pending = new Queue<(TintFlavor, bool)>[_width], Shift = new float[_width],
             };
             f.Root = Group("Feeder" + _feeders.Count, transform);
             f.Root.localPosition = Vector3.down * B.FeederBeltSink;
@@ -100,12 +112,14 @@ namespace Game.Views
             for (int k = 0; k < _width; k++)
             {
                 f.Visible[k] = new List<GameObject>();
-                f.Hidden[k] = new Queue<TintFlavor>();
+                f.Pending[k] = new Queue<(TintFlavor, bool)>();
                 var queue = k < tracks.Count ? tracks[k] : Array.Empty<TintFlavor>();
+                var hide = masked != null && k < masked.Count ? masked[k] : null;
                 for (int d = 0; d < queue.Count; d++)
                 {
-                    if (d < B.FeederVisibleRows) f.Visible[k].Add(NewBottle(queue[d], f.Queue));
-                    else f.Hidden[k].Enqueue(queue[d]);
+                    bool m = hide != null && d < hide.Count && hide[d];
+                    if (d < B.FeederVisibleRows) f.Visible[k].Add(NewBottle(queue[d], f.Queue, m));
+                    else f.Pending[k].Enqueue((queue[d], m));
                 }
             }
             _feeders.Add(f);
@@ -141,7 +155,7 @@ namespace Game.Views
         public void SetPhase(float phase, float rowsPerSecond)
         {
             _phase = phase;
-            _phaseStamp = Time.time;
+            _phaseStamp = Now;
             _rowsPerSecond = rowsPerSecond;
         }
 
@@ -165,7 +179,12 @@ namespace Game.Views
             if (list.Count == 0) return;
             var go = list[0];
             list.RemoveAt(0);
-            if (f.Hidden[track].Count > 0) list.Add(NewBottle(f.Hidden[track].Dequeue(), f.Queue));
+            if (f.Pending[track].Count > 0)
+            {
+                var (color, masked) = f.Pending[track].Dequeue();
+                list.Add(NewBottle(color, f.Queue, masked));
+            }
+            Unmask(go);                                                 // R23: on the loop every bottle shows its colour
             f.Shift[track] += 1f;
             f.TravelTarget += B.LoopRowPitch / _width;
             go.transform.SetParent(_bottles, false);                    // every group sits at the loop's origin (within a hair)
@@ -181,7 +200,7 @@ namespace Game.Views
         private void LateUpdate()
         {
             if (_rows == 0 || _loop == null) return;
-            float phase = _phase + _rowsPerSecond * Mathf.Min(Time.time - _phaseStamp, M.BeltExtrapolateMax);
+            float phase = _phase + _rowsPerSecond * Mathf.Min((float)(Now - _phaseStamp), M.BeltExtrapolateMax);
             for (int row = 0; row < _rows; row++)
                 for (int k = 0; k < _width; k++)
                 {
@@ -192,8 +211,8 @@ namespace Game.Views
             foreach (var f in _feeders)
             {
                 for (int k = 0; k < _width; k++)
-                    f.Shift[k] = Mathf.MoveTowards(f.Shift[k], 0f, Time.deltaTime / M.FeederStep);
-                f.Travel = Mathf.MoveTowards(f.Travel, f.TravelTarget, Time.deltaTime * B.LoopRowPitch / M.FeederStep);
+                    f.Shift[k] = Mathf.MoveTowards(f.Shift[k], 0f, Dt / M.FeederStep);
+                f.Travel = Mathf.MoveTowards(f.Travel, f.TravelTarget, Dt * B.LoopRowPitch / M.FeederStep);
                 f.Belt.SetTravel(f.Travel);
                 LayoutFeeder(f);
             }
@@ -223,7 +242,7 @@ namespace Game.Views
             var target = SpotLocal(row, track, phase);
             if (_joining.TryGetValue(go, out var j))
             {
-                float dt = Time.deltaTime;
+                float dt = Dt;
                 j.Age += dt;
                 if (j.Wait > 0f) j.Wait -= dt;
                 else
@@ -270,7 +289,7 @@ namespace Game.Views
         /// <summary>The item of <paramref name="color"/>, wrapped: the wrapper is what rides the belt and flies to a tray;
         /// the model inside is scaled so its widest footprint is <see cref="DesignTokens.Board.ItemSize"/>, centred,
         /// standing on y = 0 — whatever the prefab's own scale and pivot.</summary>
-        private GameObject NewBottle(TintFlavor color, Transform parent)
+        private GameObject NewBottle(TintFlavor color, Transform parent, bool masked = false)
         {
             var go = new GameObject("Item_" + color);
             go.transform.SetParent(parent, false);
@@ -287,7 +306,35 @@ namespace Game.Views
             }
             else Debug.LogWarning($"[LoopBeltView] no item prefab for {color}");
             _stamp(go);
+            if (masked) Mask(go);
             return go;
+        }
+
+        // ── hidden items (GDD R23) ──────────────────────────────────────────────────────────
+        private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private readonly HashSet<GameObject> _masked = new HashSet<GameObject>();
+        private MaterialPropertyBlock _maskBlock;
+
+        /// <summary>Draw the bottle flat <see cref="DesignTokens.ItemHidden"/> grey: its colour texture swapped for white,
+        /// its base colour for the grey — a property block on each renderer, the shared materials untouched.</summary>
+        private void Mask(GameObject bottle)
+        {
+            if (_maskBlock == null)
+            {
+                _maskBlock = new MaterialPropertyBlock();
+                _maskBlock.SetTexture(BaseMapId, Texture2D.whiteTexture);
+                _maskBlock.SetColor(BaseColorId, DesignTokens.ItemHidden);
+            }
+            foreach (var r in bottle.GetComponentsInChildren<Renderer>(true)) r.SetPropertyBlock(_maskBlock);
+            _masked.Add(bottle);
+        }
+
+        /// <summary>The bottle shows its own colour again (its renderers' property blocks cleared).</summary>
+        private void Unmask(GameObject bottle)
+        {
+            if (!_masked.Remove(bottle)) return;
+            foreach (var r in bottle.GetComponentsInChildren<Renderer>(true)) r.SetPropertyBlock(null);
         }
 
         /// <summary>An empty grouping node at the loop's origin (so loop-local positions hold inside it).</summary>

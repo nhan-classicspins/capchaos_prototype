@@ -5,16 +5,30 @@ namespace Game.Domain
 {
     /// <summary>A feeder as played (GDD R4): it joins the loop at track position <see cref="MergeAt"/> (from the
     /// conveyor); its <see cref="Bottles"/> (from the level) queue row by row — bottle <c>i</c> on track
-    /// <c>i % width</c>, bottle 0 joins first.</summary>
+    /// <c>i % width</c>, bottle 0 joins first. <see cref="HiddenRows"/>: queue rows (row r = bottles r × width …
+    /// r × width + width − 1) whose bottles are drawn grey while they queue and show their colour once they join the
+    /// loop (R23) — a look only, the rules never read it.</summary>
     public sealed class FeederDefinition
     {
+        private readonly HashSet<int> _hidden;
+
         public int MergeAt { get; }
         public IReadOnlyList<CapColor> Bottles { get; }
-        public FeederDefinition(int mergeAt, IReadOnlyList<CapColor> bottles)
+        /// <summary>R23: queue rows hidden until they join the loop (0 = the first row to join).</summary>
+        public IReadOnlyCollection<int> HiddenRows => _hidden;
+
+        public FeederDefinition(int mergeAt, IReadOnlyList<CapColor> bottles, IEnumerable<int> hiddenRows = null)
         {
             MergeAt = mergeAt;
             Bottles = bottles ?? throw new ArgumentNullException(nameof(bottles));
+            _hidden = hiddenRows != null ? new HashSet<int>(hiddenRows) : new HashSet<int>();
         }
+
+        /// <summary>Is queue row <paramref name="row"/> hidden until it joins the loop (R23)?</summary>
+        public bool IsHiddenRow(int row) => _hidden.Contains(row);
+
+        /// <summary>How many queue rows the bottles make at <paramref name="width"/> bottles per row.</summary>
+        public int RowCount(int width) => width <= 0 ? 0 : (Bottles.Count + width - 1) / width;
     }
 
     /// <summary>
@@ -42,17 +56,19 @@ namespace Game.Domain
         public IReadOnlyList<IReadOnlyList<CapColor>> Initial { get; }
 
         /// <summary>A level's bottles on a shared conveyor: <paramref name="feederBottles"/>[f] is what conveyor feeder
-        /// f carries. A level uses the conveyor's first <c>feederBottles.Count</c> feeders; the rest stay empty and are
-        /// not drawn.</summary>
+        /// f carries, <paramref name="feederHiddenRows"/>[f] which of its queue rows are hidden (R23; null = none). A level
+        /// uses the conveyor's first <c>feederBottles.Count</c> feeders; the rest stay empty and are not drawn.</summary>
         public LoopDefinition(ConveyorDefinition conveyor, IReadOnlyList<IReadOnlyList<CapColor>> feederBottles,
-            IReadOnlyList<IReadOnlyList<CapColor>> initial = null)
+            IReadOnlyList<IReadOnlyList<CapColor>> initial = null, IReadOnlyList<IEnumerable<int>> feederHiddenRows = null)
         {
             Conveyor = conveyor ?? throw new ArgumentNullException(nameof(conveyor));
             if (feederBottles == null) throw new ArgumentNullException(nameof(feederBottles));
             if (feederBottles.Count > conveyor.FeederCount)
                 throw new ArgumentException($"{feederBottles.Count} feeder queue(s) for a conveyor with {conveyor.FeederCount} feeder(s)", nameof(feederBottles));
             var feeders = new List<FeederDefinition>(feederBottles.Count);
-            for (int f = 0; f < feederBottles.Count; f++) feeders.Add(new FeederDefinition(conveyor.MergeAt[f], feederBottles[f]));
+            for (int f = 0; f < feederBottles.Count; f++)
+                feeders.Add(new FeederDefinition(conveyor.MergeAt[f], feederBottles[f],
+                    feederHiddenRows != null && f < feederHiddenRows.Count ? feederHiddenRows[f] : null));
             Feeders = feeders;
             Initial = initial;
         }
@@ -109,6 +125,15 @@ namespace Game.Domain
         public TrayLock(TrayRef tray, int turns) { Tray = tray; Turns = turns; }
     }
 
+    /// <summary>A slot locked for turns (GDD R22): slot <see cref="Slot"/> (one of the open slots, 0 = left-most) takes no
+    /// tray until <see cref="Turns"/> trays have flown to the other slots.</summary>
+    public sealed class SlotLock
+    {
+        public int Slot { get; }
+        public int Turns { get; }
+        public SlotLock(int slot, int turns) { Slot = slot; Turns = turns; }
+    }
+
     /// <summary>Two linked trays (GDD R19): they leave the belt together or not at all. Either two neighbours in one
     /// lane, or the trays at the same position of two lanes (any two: side by side, or with lanes between them).</summary>
     public sealed class TrayLink
@@ -151,6 +176,8 @@ namespace Game.Domain
         public IReadOnlyCollection<TrayRef> HiddenTrays { get; }
         public IReadOnlyList<TrayLock> Locks { get; }
         public IReadOnlyList<TrayLink> Links { get; }
+        /// <summary>R22: open slots that take no tray until enough trays have flown to the others.</summary>
+        public IReadOnlyList<SlotLock> SlotLocks { get; }
 
         /// <summary>Trays bigger than <see cref="TraySize.S"/> (R21); every other tray is S.</summary>
         public IReadOnlyDictionary<TrayRef, TraySize> TraySizes { get; }
@@ -163,8 +190,9 @@ namespace Game.Domain
             string name = null, string difficulty = null, string notes = null,
             int formatVersion = CurrentFormatVersion, IReadOnlyList<int> solution = null,
             IEnumerable<TrayRef> hiddenTrays = null, IReadOnlyList<TrayLock> locks = null, IReadOnlyList<TrayLink> links = null,
-            int extraSlots = 0, IReadOnlyDictionary<TrayRef, TraySize> traySizes = null)
+            int extraSlots = 0, IReadOnlyDictionary<TrayRef, TraySize> traySizes = null, IReadOnlyList<SlotLock> slotLocks = null)
         {
+            SlotLocks = slotLocks ?? Array.Empty<SlotLock>();
             TraySizes = traySizes ?? new Dictionary<TrayRef, TraySize>();
             ExtraSlots = extraSlots;
             _hidden = hiddenTrays != null ? new HashSet<TrayRef>(hiddenTrays) : new HashSet<TrayRef>();
@@ -193,6 +221,13 @@ namespace Game.Domain
         public int LockTurns(TrayRef tray)
         {
             foreach (var l in Locks) if (l.Tray.Equals(tray)) return l.Turns;
+            return 0;
+        }
+
+        /// <summary>How many placements slot <paramref name="slot"/> stays locked for (R22); 0 = not locked.</summary>
+        public int SlotLockTurns(int slot)
+        {
+            foreach (var l in SlotLocks) if (l.Slot == slot) return l.Turns;
             return 0;
         }
 

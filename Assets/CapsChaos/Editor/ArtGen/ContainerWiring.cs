@@ -12,11 +12,12 @@ namespace Game.Editor
     /// its own parts only: the <c>Box</c> / <c>BoxLid</c> renderers, the "?" <c>Mystery</c> mark and the four
     /// <c>ItemAnchors</c> by name (01–04). Game.Editor may not reference Game.Views or Addressables (pinned graph), so
     /// both are reached by type name — the components through SerializedObject, Addressables through reflection.
-    /// (3) The bigger sizes (GDD R21, SKU owner 2026-10-02: "keep the S model, stack the items"): Container_M / L / XL
-    /// are COPIES of Container_S with 2 / 3 / 4 layers of the 2×2 anchors, the box stretched up and the lid, the "?"
-    /// mark and the ice raised by the same amount. A copy is made only when it is missing — once it exists it is the
-    /// art's to replace; it is only re-wired. (4) Every size gets a world-space <c>Count</c> text (TextMeshPro +
-    /// TextTint) on the front of the box: the items still missing while the tray fills.
+    /// (3) The bigger sizes (GDD R21): Container_M / L / XL are COPIES of Container_S. Since 2026-10-06 (SKU owner)
+    /// every size has the SAME four anchors and the S model's height — a bigger container takes its items four at a time
+    /// (BoardView) — so a copy adds no anchor layers and no rise. A copy is made only when it is missing — once it exists
+    /// it is the art's to replace; it is only re-wired. (4) Every size gets a <c>Lid</c> node holding the <c>BoxLid</c>
+    /// mesh and a world-space <c>Count</c> text (TextMeshPro + TextTint) lying on top of the lid: the items still
+    /// missing, shown on the belt and in the slot (the lid parks beside the container there, count up).
     /// </summary>
     internal static class ContainerWiring
     {
@@ -38,7 +39,7 @@ namespace Game.Editor
 
         // ── sizes (R21) ──────────────────────────────────────────────────────────────────────
         private const string Folder = "Assets/CapsChaos/Content/Art/Prefabs/Containers/";
-        private static readonly (string name, int layers)[] Sizes = { ("Container_S", 1), ("Container_M", 2), ("Container_L", 3), ("Container_XL", 4) };
+        private static readonly (string name, int layers)[] Sizes = { ("Container_S", 1), ("Container_M", 1), ("Container_L", 1), ("Container_XL", 1) };
 
         // Mirrors of Game.Views.DesignTokens.Board (Game.Editor may not reference Game.Views): the board fits a container
         // ContainerSize across and shows a collected item at ItemInTray of its own size. Together with the model's width
@@ -60,7 +61,7 @@ namespace Game.Editor
             float step = LayerStep();
             foreach (var (name, layers) in Sizes)
             {
-                if (layers == 1) continue;
+                if (name == "Container_S") continue;
                 string path = Folder + name + ".prefab";
                 if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) continue;
                 if (!AssetDatabase.CopyAsset(PrefabPath, path)) { made.Add(name + " COPY FAILED"); continue; }
@@ -221,6 +222,7 @@ namespace Game.Editor
                 so.FindProperty("_lid").objectReferenceValue = Find(root.transform, "BoxLid")?.GetComponent<Renderer>();
                 so.FindProperty("_mystery").objectReferenceValue = Find(root.transform, "Mystery")?.gameObject;
                 so.FindProperty("_rise").floatValue = rise;
+                so.FindProperty("_lidRoot").objectReferenceValue = EnsureLidRoot(root);
                 so.FindProperty("_count").objectReferenceValue = EnsureCount(root, rise);
                 so.FindProperty("_lock").objectReferenceValue = EnsureLock(root, rise);
                 var anchorsRoot = Find(root.transform, "ItemAnchors");
@@ -275,16 +277,44 @@ namespace Game.Editor
         /// black) standing in front of the box, tilted 60° toward the level GamePlay camera (board tilt −60°, ADR-001).
         /// Created once; an existing <c>Count</c> is kept as the art left it.
         /// </summary>
+        /// <summary>The <c>Lid</c> node — what moves as the lid: <c>BoxLid</c> wrapped at its own pivot, unrotated and
+        /// unscaled, so the count can lie on top of it.</summary>
+        private static Transform EnsureLidRoot(GameObject root)
+        {
+            var lid = Find(root.transform, "Lid");
+            if (lid != null) return lid;
+            var boxLid = Find(root.transform, "BoxLid");
+            if (boxLid == null) return null;
+            lid = new GameObject("Lid").transform;
+            lid.SetParent(boxLid.parent, false);
+            lid.localPosition = boxLid.localPosition;
+            boxLid.SetParent(lid, true);
+            return lid;
+        }
+
+        /// <summary>The count lies flat on the lid's top face, toward its front edge (Lid-local; the lid's top is ~0.21 above its pivot).</summary>
+        private static readonly Vector3 CountOnLid = new Vector3(0f, 0.22f, -0.25f);
+
         private static UnityEngine.Object EnsureCount(GameObject root, float rise)
         {
             var tmpType = Type.GetType(TextMeshProType);
             if (tmpType == null) return null;
-            var existing = Find(root.transform, "Count");
-            if (existing != null) return existing.GetComponent(tmpType);
+            var lid = Find(root.transform, "Lid");
+            var existing = root.transform.Find("Count") ?? (lid != null ? lid.Find("Count") : null);
+            if (existing != null)
+            {
+                if (lid != null && existing.parent != lid)
+                {
+                    existing.SetParent(lid, false);
+                    existing.localPosition = CountOnLid;
+                    existing.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                }
+                return existing.GetComponent(tmpType);
+            }
             var go = new GameObject("Count");
-            go.transform.SetParent(root.transform, false);
-            go.transform.localPosition = new Vector3(0f, 0.03f + rise * 0.5f, -0.8f);
-            go.transform.localRotation = Quaternion.Euler(60f, 0f, 0f);
+            go.transform.SetParent(lid != null ? lid : root.transform, false);
+            go.transform.localPosition = lid != null ? CountOnLid : new Vector3(0f, 0.03f + rise * 0.5f, -0.8f);
+            go.transform.localRotation = Quaternion.Euler(lid != null ? 90f : 60f, 0f, 0f);
             go.AddComponent<RectTransform>().sizeDelta = new Vector2(1f, 0.5f);
             var text = go.AddComponent(tmpType);
             void Set(string prop, object value) => tmpType.GetProperty(prop)?.SetValue(text, value);
@@ -302,7 +332,7 @@ namespace Game.Editor
                 flavor.enumValueIndex = Array.IndexOf(flavor.enumNames, "White");
                 tso.ApplyModifiedPropertiesWithoutUndo();
             }
-            go.SetActive(false);                                     // shown by the board once the tray is in a slot
+            go.SetActive(false);                                     // shown by the board (on the belt and in the slot)
             return text;
         }
 

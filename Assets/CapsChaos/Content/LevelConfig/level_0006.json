@@ -5,6 +5,7 @@
   "conveyor": "square_42",
   "slots": 4,
   "extraSlots": 2,
+  "slotLocks": [{ "slot": 3, "lockTurns": 4 }],
   "trayCapacity": 4,
   "colors": [1, 2, 3, 4],
   "feeders": [
