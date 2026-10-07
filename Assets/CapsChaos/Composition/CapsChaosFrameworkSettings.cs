@@ -39,11 +39,18 @@ namespace Game.Composition
             builder.RegisterInstance(new ConfigDefaults(new System.Collections.Generic.Dictionary<string, object>
             {
                 // GDD §5.6 / §9: the coin economy and the price of an extra slot (R20)
-                [GameConfigKeys.EconomyStartCoins.Value] = 1000,
                 [GameConfigKeys.EconomyWinReward.Value] = 50,
                 [GameConfigKeys.SlotUnlockPrice.Value] = 300,
                 [GameConfigKeys.SlotRescuePrice.Value] = 900,
+                // boosters: the coin price of one (a new player owns none — there is no starting pack)
+                [GameConfigKeys.BoosterShufflePrice.Value] = 200,
+                // past the last level the game loops from this one (1-based); the level NUMBER keeps counting up
+                [GameConfigKeys.LevelsLoopFrom.Value] = 5,
             }));
+
+            // The player's own saved progress (beside the framework's wallet), and the SKU service over it.
+            builder.Register<PlayerProgressModel>(Lifetime.Singleton).AsSelf().As<IUserModel>();
+            builder.Register<PlayerProfile>(Lifetime.Singleton);
 
             InstallBoot(builder);
         }

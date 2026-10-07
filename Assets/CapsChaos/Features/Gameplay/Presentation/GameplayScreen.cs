@@ -49,7 +49,8 @@ namespace Game.Presentation
         private readonly IWalletService _wallet;
         private readonly IAdsService _ads;
         private readonly IGameConfig _config;
-        private readonly IUserData _userData;
+        private readonly PlayerProfile _profile;
+        private BoosterCatalog _boosters;                                     // held from load to unload
         private readonly IWorldViewport _viewport;
         private readonly ILog _log;
         private readonly GameTime _time;   // the gameplay clock: GameSpeed scales the belt and every board animation
@@ -86,7 +87,7 @@ namespace Game.Presentation
         public GameplayScreen(GameplayParam param, LevelCatalog catalog, IRenderLayerRegistry layers,
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
             IDialogService dialogs, ILocalizationService loc, UiPaletteProvider palette, BeltClock clock,
-            IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, IUserData userData,
+            IGameplayGateControl gate, IWalletService wallet, IAdsService ads, IGameConfig config, PlayerProfile profile,
             IWorldViewport viewport, ContainerPaletteProvider containerPalette, BoardFloorView floor, GameTime time, ILoadingCover cover, ILog log = null)
         {
             _time = time;
@@ -97,7 +98,7 @@ namespace Game.Presentation
             _wallet = wallet;
             _ads = ads;
             _config = config;
-            _userData = userData;
+            _profile = profile;
             _clock = clock;
             _gate = gate;
             _loc = loc;
@@ -141,6 +142,8 @@ namespace Game.Presentation
                 _feel = GameFeel.CreateDefault();
             }
             _prefabs.Feel = _feel;
+            _boosters = await _assets.TryLoadAsync(new AssetKey<BoosterCatalog>(BoosterCatalog.Address), ct);
+            if (_boosters == null) _log?.Warn($"[Gameplay] no addressable '{BoosterCatalog.Address}' — no booster buttons");
             if (_prefabs.ContainerPalette == null)
                 _log?.Warn($"[Gameplay] no addressable '{ContainerPalette.Address}' — containers keep their authored material");
             _prefabs.Slot = await Hold(AssetKeys.Slot, ct);
@@ -151,9 +154,10 @@ namespace Game.Presentation
             _hud.Attach();
             _hud.RetryRequested += OnRetry;
             _hud.HomeRequested += GoHome;
+            _hud.BoosterRequested += OnBoosterRequested;
             _clock.Ticked += OnTick;
-            GrantStarterCoins();
             RefreshCoins();
+            RefreshBoosters();
             StartRound(_param.LevelIndex);
         }
 
@@ -162,7 +166,7 @@ namespace Game.Presentation
             HideCoverThenRunInAsync().Forget();                               // the board is built: the loading cover goes
             _hud.SetVisible(true);
             _hud.SetInteractable(true);
-            _log.Info($"[GameplayScreen] entered — {_level?.Id} ({_catalog.Normalize(_levelIndex) + 1}/{_catalog.Count}).");
+            _log.Info($"[GameplayScreen] entered — level {_levelIndex + 1}: {_level?.Id} (of {_catalog.Count}).");
         }
 
         // OnPause/OnResume also fire when the APP loses/regains focus: the HUD stays visible and only stops
@@ -217,11 +221,14 @@ namespace Game.Presentation
             _clock.Ticked -= OnTick;
             _hud.RetryRequested -= OnRetry;
             _hud.HomeRequested -= GoHome;
+            _hud.BoosterRequested -= OnBoosterRequested;
             _hud.Dispose();
             for (int i = _held.Count - 1; i >= 0; i--) _assets.Release(_held[i]);
             _held.Clear();
             if (_feelHeld) _assets.Release(_feel);
             _feelHeld = false;
+            if (_boosters != null) _assets.Release(_boosters);
+            _boosters = null;
             return UniTask.CompletedTask;
         }
 
@@ -229,9 +236,12 @@ namespace Game.Presentation
         private void StartRound(int index)
         {
             TeardownRound();
-            _levelIndex = _catalog.Normalize(index);
+            // _levelIndex is the PLAY position — it keeps counting past the last level (the HUD shows it + 1); the catalog
+            // decides which level that is, looping from levels.loopFrom once every level has been played
+            _levelIndex = Math.Max(0, index);
+            _hud.SetLevel(_loc.Get(LocKeys.HudLevel, _levelIndex + 1));
             // already parsed and validated at boot (LevelConfigNode) — a failure here means boot never loaded them
-            try { _level = _catalog.Get(_levelIndex); }
+            try { _level = _catalog.Get(_catalog.IndexForPlay(_levelIndex, _config.Get(GameConfigKeys.LevelsLoopFrom))); }
             catch (LevelLoadException e) { _log.Error("[GameplayScreen] " + e.Message); return; }
 
             _game = new CapChaosGame(_level);
@@ -496,6 +506,7 @@ namespace Game.Presentation
                         OfferSlotAsync(rescue: true, _roundCts.Token).Forget();
                         break;
                     case LevelCompleted _:
+                        _profile.CompleteLevel(_levelIndex);                     // the player is on the next level now
                         _wallet.Grant(ResourceKeys.Coins, _config.Get(GameConfigKeys.EconomyWinReward), GrantSource.Reward);
                         RefreshCoins();
                         _ending = true;
@@ -623,12 +634,28 @@ namespace Game.Presentation
             }
         }
 
-        /// <summary>The first time the game runs, the wallet has never held coins: give the starting balance once.</summary>
-        private void GrantStarterCoins()
+        // ── boosters ─────────────────────────────────────────────────────────────────────────
+        /// <summary>One HUD button per booster of the catalog, in its order: its icon and, at the corner, how many the
+        /// player owns — or the "+" when none. A button with no booster behind it is hidden.</summary>
+        private void RefreshBoosters()
         {
-            var wallet = _userData.Get<WalletModel>();
-            if (wallet != null && wallet.Balances.ContainsKey(ResourceKeys.Coins.Value)) return;
-            _wallet.Grant(ResourceKeys.Coins, _config.Get(GameConfigKeys.EconomyStartCoins), GrantSource.Reward);
+            for (int i = 0; i < _hud.BoosterSlots; i++)
+            {
+                var booster = _boosters != null && i < _boosters.Boosters.Count ? _boosters.Boosters[i] : null;
+                if (booster == null) { _hud.SetBooster(i, false, null, null); continue; }
+                long owned = _profile.BoosterCount(new ResourceKey(booster.Id));
+                _hud.SetBooster(i, true, booster.Icon, owned > 0 ? _loc.Get(LocKeys.HudBoosterCount, owned) : null);
+            }
+        }
+
+        /// <summary>A booster button was tapped. Its effect and the shop are not built yet: for now it only says so.</summary>
+        private void OnBoosterRequested(int index)
+        {
+            var booster = _boosters != null && index < _boosters.Boosters.Count ? _boosters.Boosters[index] : null;
+            if (booster == null || _game == null || _ending) return;
+            long owned = _profile.BoosterCount(new ResourceKey(booster.Id));
+            _log.Info($"[GameplayScreen] booster '{booster.Id}' tapped (owned {owned}) — " +
+                      (owned > 0 ? "its effect is not built yet." : "the shop is not built yet."));
         }
 
         private void RefreshCoins() => _hud.SetCoins(_loc.Get(LocKeys.HudCoins, _wallet.Balance(ResourceKeys.Coins)));
@@ -657,7 +684,7 @@ namespace Game.Presentation
         private async UniTask ShowResultAsync(bool won, CancellationToken ct)
         {
             var result = await _dialogs.ShowAsync<ResultDialog, Unit>(
-                new ResultArgs(won, _catalog.Normalize(_levelIndex) + 1), default, ct);
+                new ResultArgs(won, _levelIndex + 1), default, ct);
             // A torn-down round (Home, Restart, scene change) aborts the popup — nothing more to do.
             if (ct.IsCancellationRequested || result.Reason == DialogCloseReason.Aborted || result.Reason == DialogCloseReason.CloseAll)
                 return;

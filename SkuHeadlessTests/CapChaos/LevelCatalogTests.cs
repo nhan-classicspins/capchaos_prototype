@@ -203,5 +203,21 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             Assert.That(report.ChangedConveyors, Is.EqualTo(new[] { fresh }));
             Assert.That(c.Get(0).Conveyor.Id, Is.EqualTo(fresh));
         }
+
+        [Test]
+        public void Past_the_last_level_play_loops_from_loopFrom_while_the_number_keeps_counting()
+        {
+            var c = FromDisk();
+            int n = c.Count;                                         // e.g. 40
+            Assert.That(c.IndexForPlay(0, 5), Is.EqualTo(0));
+            Assert.That(c.IndexForPlay(n - 1, 5), Is.EqualTo(n - 1), "the last level is itself");
+            Assert.That(c.IndexForPlay(n, 5), Is.EqualTo(4), "the player's level n+1 is level 5");
+            Assert.That(c.IndexForPlay(n + 1, 5), Is.EqualTo(5));
+            Assert.That(c.IndexForPlay(n + (n - 4), 5), Is.EqualTo(4), "after the loop's last level, level 5 again");
+            Assert.That(c.IndexForPlay(n, 1), Is.EqualTo(0), "loopFrom 1 replays everything");
+            Assert.That(c.IndexForPlay(n, 0), Is.EqualTo(0), "below 1 is clamped");
+            Assert.That(c.IndexForPlay(n + 3, 999), Is.EqualTo(n - 1), "past Count: only the last level loops");
+            Assert.That(c.IndexForPlay(-3, 5), Is.EqualTo(0));
+        }
 }
 }

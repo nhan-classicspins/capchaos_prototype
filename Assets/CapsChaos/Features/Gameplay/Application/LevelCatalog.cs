@@ -33,6 +33,21 @@ namespace Game.Application
         public IReadOnlyList<string> Order => _order;
         public int Count => _levels.Count;
 
+        /// <summary>
+        /// The catalog index played at PLAY position <paramref name="play"/> (0 = the player's first level, growing for
+        /// ever): the levels in order, then — once past the last one — round and round from level
+        /// <paramref name="loopFrom"/> (1-based; clamped to 1 … Count) to the last. With 40 levels and loopFrom 5, play
+        /// position 40 (the player's level 41) is level 5 (index 4), 76 is level 5 again. The number the player sees is
+        /// always <c>play + 1</c>, never the catalog's.
+        /// </summary>
+        public int IndexForPlay(int play, int loopFrom)
+        {
+            if (Count == 0 || play <= 0) return 0;
+            if (play < Count) return play;
+            int start = Math.Min(Math.Max(loopFrom, 1), Count) - 1;
+            return start + (play - Count) % (Count - start);
+        }
+
         /// <summary>Index wraps past the end, so "next" after the last level replays from the first.</summary>
         public int Normalize(int index) => Count == 0 ? 0 : ((index % Count) + Count) % Count;
 

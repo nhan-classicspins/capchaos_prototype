@@ -9,9 +9,20 @@ namespace Game.Gen
     /// <summary>Typed LocKey VALUES for the SKU, generated from the Master localization CSV (the CSV IS the manifest — Story 2.5, FR-052). Member = PascalCase of the key; value = the raw key string. The runtime never parses the CSV — it reads the per-locale JSON under Resources/Localization/. Emitted into Game.Gen (references only Domain). Codegen-owned; never hand-edit. Rename a key by deprecate + add — an in-place rename silently orphans serialized _locKeyIds.</summary>
     public static class LocKeys
     {
+        public static readonly LocKey BoosterHandDescription        = new("booster.hand.description");
+        public static readonly LocKey BoosterHandName               = new("booster.hand.name");
+        public static readonly LocKey BoosterHandUnlocked           = new("booster.hand.unlocked");
+        public static readonly LocKey BoosterShuffleDescription     = new("booster.shuffle.description");
+        public static readonly LocKey BoosterShuffleName            = new("booster.shuffle.name");
+        public static readonly LocKey BoosterShuffleUnlocked        = new("booster.shuffle.unlocked");
         public static readonly LocKey GameplayContainerMissing      = new("gameplay.container_missing");
         public static readonly LocKey GameplayLockTurns             = new("gameplay.lock_turns");
+        public static readonly LocKey HudBoosterCount               = new("hud.booster_count");
         public static readonly LocKey HudCoins                      = new("hud.coins");
+        public static readonly LocKey HudLevel                      = new("hud.level");
+        public static readonly LocKey LevelSelectBoosterGrant       = new("level_select.booster_grant");
+        public static readonly LocKey LevelSelectBoosterOwned       = new("level_select.booster_owned");
+        public static readonly LocKey LevelSelectCoinsOwned         = new("level_select.coins_owned");
         public static readonly LocKey LevelSelectDifficultyBreather = new("level_select.difficulty_breather");
         public static readonly LocKey LevelSelectDifficultyEasy     = new("level_select.difficulty_easy");
         public static readonly LocKey LevelSelectDifficultyHard     = new("level_select.difficulty_hard");
@@ -19,16 +30,24 @@ namespace Game.Gen
         public static readonly LocKey LevelSelectDifficultyTutorial = new("level_select.difficulty_tutorial");
         public static readonly LocKey LevelSelectDifficultyUnknown  = new("level_select.difficulty_unknown");
         public static readonly LocKey LevelSelectNumber             = new("level_select.number");
+        public static readonly LocKey LevelSelectReset              = new("level_select.reset");
+        public static readonly LocKey LevelSelectResetLabel         = new("level_select.reset_label");
         public static readonly LocKey LevelSelectSync               = new("level_select.sync");
         public static readonly LocKey LevelSelectSyncBusy           = new("level_select.sync_busy");
         public static readonly LocKey LevelSelectSyncDone           = new("level_select.sync_done");
         public static readonly LocKey LevelSelectSyncFailed         = new("level_select.sync_failed");
         public static readonly LocKey LevelSelectSyncIdle           = new("level_select.sync_idle");
         public static readonly LocKey LevelSelectTitle              = new("level_select.title");
+        public static readonly LocKey LevelSelectUnlockAll          = new("level_select.unlock_all");
+        public static readonly LocKey LevelSelectUnlockAllLabel     = new("level_select.unlock_all_label");
         public static readonly LocKey LoadingTitle                  = new("loading.title");
         public static readonly LocKey LoseRestart                   = new("lose.restart");
         public static readonly LocKey LoseSubtitle                  = new("lose.subtitle");
         public static readonly LocKey LoseTitle                     = new("lose.title");
+        public static readonly LocKey MainDebugLevels               = new("main.debug_levels");
+        public static readonly LocKey MainDebugTitle                = new("main.debug_title");
+        public static readonly LocKey MainStartLevel                = new("main.start_level");
+        public static readonly LocKey MainStartPlay                 = new("main.start_play");
         public static readonly LocKey OfferFree                     = new("offer.free");
         public static readonly LocKey OfferPrice                    = new("offer.price");
         public static readonly LocKey OutOfSlotBody                 = new("out_of_slot.body");

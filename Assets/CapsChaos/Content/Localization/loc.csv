@@ -29,3 +29,22 @@ out_of_slot.restart,Restart,Chơi lại
 hud.coins,{0},{0}
 gameplay.container_missing,{0},{0}
 loading.title,LOADING,ĐANG TẢI
+booster.shuffle.name,Shuffle,Xáo Trộn
+booster.shuffle.description,Brings the boxes your conveyor needs to the front and shuffles the rest.,Đưa các box có màu đang trên băng chuyền lên đầu hàng và xáo trộn các box còn lại.
+booster.shuffle.unlocked,Shuffle unlocked! Stuck? Let it bring the right boxes to the front.,Đã mở khoá Xáo Trộn! Bí nước? Dùng nó để đưa đúng box lên đầu hàng.
+hud.booster_count,{0},{0}
+booster.hand.name,Hand,Bàn Tay
+booster.hand.description,Pick any box from the queues and send it straight to a slot.,Chọn một box bất kỳ trong hàng chờ và đưa thẳng lên slot.
+booster.hand.unlocked,Hand unlocked! Grab the box you need from anywhere in the queues.,Đã mở khoá Bàn Tay! Lấy box bạn cần ở bất kỳ đâu trong hàng chờ.
+level_select.booster_grant,+{0},+{0}
+level_select.booster_owned,{0}: {1},{0}: {1}
+hud.level,LEVEL {0},MÀN {0}
+main.start_level,LEVEL {0},MÀN {0}
+main.start_play,PLAY,CHƠI
+main.debug_title,DEBUG,DEBUG
+main.debug_levels,Levels,Màn chơi
+level_select.reset,RESET,ĐẶT LẠI
+level_select.reset_label,Fresh install,Như mới cài
+level_select.unlock_all,UNLOCK,MỞ KHOÁ
+level_select.unlock_all_label,All levels,Tất cả màn
+level_select.coins_owned,Coins: {0},Coin: {0}

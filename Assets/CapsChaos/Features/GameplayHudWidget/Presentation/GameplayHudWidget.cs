@@ -27,6 +27,11 @@ namespace Game.Presentation
 
         public event Action RetryRequested;
         public event Action HomeRequested;
+        /// <summary>Booster button <c>index</c> (left to right) was tapped.</summary>
+        public event Action<int> BoosterRequested;
+
+        /// <summary>How many booster buttons the HUD has.</summary>
+        public int BoosterSlots => _view != null ? _view.BoosterSlots : 0;
 
         public GameplayHudWidget(GameplayHudView sceneView, IRenderLayerRegistry layers, UiPaletteProvider palette)
         {
@@ -48,19 +53,40 @@ namespace Game.Presentation
                 UnityEngine.Object.Destroy(preview.gameObject);
             _view.RetryClicked += OnRetry;
             _view.HomeClicked += OnHome;
+            _view.BoosterClicked += OnBooster;
             _view.SetVisible(false);                                            // the screen decides the reveal
         }
 
         public void SetVisible(bool visible) => _view?.SetVisible(visible);
 
+        /// <summary>The level title reads <paramref name="text"/> (localized by the caller).</summary>
+        public void SetLevel(string text) => _view?.SetLevel(text);
+
         /// <summary>The coin pill shows <paramref name="text"/> (the balance, localized by the caller).</summary>
         public void SetCoins(string text) => _view?.SetCoins(text);
+
+        /// <summary>
+        /// Booster button <paramref name="index"/> shows <paramref name="icon"/> and, at its corner, the red badge reading
+        /// <paramref name="count"/> — or, when <paramref name="count"/> is null (the player owns none), the green "+".
+        /// <paramref name="present"/> false hides the button (no booster for that slot).
+        /// </summary>
+        public void SetBooster(int index, bool present, Sprite icon, string count)
+        {
+            var button = _view != null ? _view.Booster(index) : null;
+            if (button == null) return;
+            button.SetVisible(present);
+            if (!present) return;
+            button.SetIcon(icon);
+            if (count != null) button.ShowCount(count);
+            else button.ShowAddMore();
+        }
 
         /// <summary>Paused (app lost focus, or covered): stay on screen, just stop taking taps.</summary>
         public void SetInteractable(bool interactable) => _view?.SetInteractable(interactable);
 
         private void OnRetry() => RetryRequested?.Invoke();
         private void OnHome() => HomeRequested?.Invoke();
+        private void OnBooster(int index) => BoosterRequested?.Invoke(index);
 
         public void Dispose()
         {
@@ -68,10 +94,12 @@ namespace Game.Presentation
             _disposed = true;
             RetryRequested = null;
             HomeRequested = null;
+            BoosterRequested = null;
             if (_view != null)
             {
                 _view.RetryClicked -= OnRetry;
                 _view.HomeClicked -= OnHome;
+                _view.BoosterClicked -= OnBooster;
             }
             if (_viewGo != null) UnityEngine.Object.Destroy(_viewGo);
             _viewGo = null;

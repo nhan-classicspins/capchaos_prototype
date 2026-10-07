@@ -230,7 +230,7 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
   - Slot đã mở **chỉ có hiệu lực trong ván đó**: restart hoặc sang level khác lại về 4 slot.
   - Băng oval **dừng** khi popup đang mở.
   - V6 chứng minh level giải được **chỉ với slot mở sẵn**: slot trả phí là trợ giúp, không phải lời giải.
-- **Coin**: ví của framework (`ResourceKeys.Coins`, lưu cùng save). Lần chạy đầu được `economy.startCoins` (1000); thắng
+- **Coin**: ví của framework (`ResourceKeys.Coins`, lưu cùng save). Người chơi mới **không có quà khởi đầu** (0 coin, 0 booster — bỏ 2026-10-07); thắng
   một level được `economy.winReward` (50). HUD hiện số coin cạnh nút Home.
 
 ### 5.6b Slot khoá theo lượt (R22, thêm 2026-10-06)
@@ -560,7 +560,6 @@ Loc key khởi đầu: `title.play`, `hud.level` (arg `{0}`), `win.title`, `win.
 
 | Key | Mặc định | Nguồn |
 |---|---|---|
-| `economy.startCoins` | 1000 | coin lần chạy đầu (R20) |
 | `economy.winReward` | 50 | coin mỗi lần thắng |
 | `slots.unlockPrice` | 300 | Parking Slot (R20) |
 | `slots.rescuePrice` | 900 | Out of Slot (R20) |

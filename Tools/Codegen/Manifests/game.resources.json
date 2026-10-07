@@ -5,9 +5,11 @@
   "usings": [
     "ClassicSpins.PrototypeFramework.Domain"
   ],
-  "summary": "Typed ResourceKey VALUES for the SKU: the countable resources the wallet gate mutates. Coins buy an extra slot (GDD §5.6). Codegen-owned; never hand-edit.",
+  "summary": "Typed ResourceKey VALUES for the SKU: the countable resources the wallet gate mutates. Coins buy an extra slot (GDD §5.6); each booster kind is a count the player owns (granted or bought). A value is the save key of that balance: never rename one that shipped. Codegen-owned; never hand-edit.",
   "outputPath": "Assets/CapsChaos/Gen/ResourceKeys.gen.cs",
   "entries": [
-    { "id": "Coins", "value": "coins", "order": 0 }
+    { "id": "Coins", "value": "coins", "order": 0 },
+    { "id": "BoosterHand", "value": "booster_hand", "order": 1 },
+    { "id": "BoosterShuffle", "value": "booster_shuffle", "order": 2 }
   ]
 }

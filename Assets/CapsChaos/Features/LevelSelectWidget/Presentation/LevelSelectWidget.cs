@@ -54,6 +54,22 @@ namespace Game.Presentation
 
         /// <summary>The Sync Config pill was tapped; the screen runs the sync.</summary>
         public event Action SyncRequested;
+        /// <summary>The Home screen's Start button was tapped.</summary>
+        public event Action StartRequested;
+        /// <summary>The debug button (show / hide the level list) was tapped.</summary>
+        public event Action DebugToggleRequested;
+        /// <summary>The bottom bar's coin button was tapped.</summary>
+        public event Action CoinGrantRequested;
+        /// <summary>Debug Reset: the player back on level 1.</summary>
+        public event Action ResetRequested;
+        /// <summary>Debug Unlock All: the player on the last level.</summary>
+        public event Action UnlockAllRequested;
+
+        /// <summary>A bottom-bar booster button was tapped: the id of its booster (a ResourceKey value). The screen
+        /// decides what that gives.</summary>
+        public event Action<string> BoosterGrantRequested;
+
+        private BoosterCatalog _boosters;                                     // held from CreateAsync to Dispose
 
         public LevelSelectWidget(LevelSelectView sceneView, IAssetService assets, IRenderLayerRegistry layers,
             ILocalizationService loc, LevelCatalog catalog, UiPaletteProvider palette, ILog log = null)
@@ -82,7 +98,18 @@ namespace Game.Presentation
 
                 for (int i = 0; i < _catalog.Count; i++) AddTile(i);
                 _view.SyncClicked += OnSyncClicked;
+                _view.StartClicked += OnStartClicked;
+                _view.DebugToggleClicked += OnDebugToggleClicked;
+                _view.ResetClicked += OnResetClicked;
+                _view.CoinGrantClicked += OnCoinGrantClicked;
+                _view.UnlockAllClicked += OnUnlockAllClicked;
+                _view.SetProgressButtons(_loc.Get(LocKeys.LevelSelectReset), _loc.Get(LocKeys.LevelSelectResetLabel),
+                    _loc.Get(LocKeys.LevelSelectUnlockAll), _loc.Get(LocKeys.LevelSelectUnlockAllLabel));
+                _view.SetDebugToggle(_loc.Get(LocKeys.MainDebugTitle), _loc.Get(LocKeys.MainDebugLevels));
                 SetSyncStatus(null, busy: false);
+                _boosters = await _assets.TryLoadAsync(new AssetKey<BoosterCatalog>(BoosterCatalog.Address), ct);
+                if (_disposed) { ReleaseBoosters(); return; }
+                _view.BoosterGrantClicked += OnBoosterGrantClicked;
                 _view.ScrollToTop();
                 _log.Info($"[LevelSelectWidget] {_catalog.Count} levels listed.");
             }
@@ -108,6 +135,49 @@ namespace Game.Presentation
         }
 
         private void OnSyncClicked() => SyncRequested?.Invoke();
+        private void OnStartClicked() => StartRequested?.Invoke();
+        private void OnDebugToggleClicked() => DebugToggleRequested?.Invoke();
+        private void OnResetClicked() => ResetRequested?.Invoke();
+        private void OnCoinGrantClicked() => CoinGrantRequested?.Invoke();
+
+        /// <summary>The coin button: <paramref name="amount"/> on top, the player's coins under it.</summary>
+        public void SetCoinGrant(long amount, long owned) =>
+            _view?.SetCoinGrant(_loc.Get(LocKeys.LevelSelectBoosterGrant, amount), _loc.Get(LocKeys.LevelSelectCoinsOwned, owned));
+        private void OnUnlockAllClicked() => UnlockAllRequested?.Invoke();
+
+        /// <summary>The level list over the Home screen (true) or just the Home screen's Start button (false).</summary>
+        public void ShowLevelList(bool shown) => _view?.ShowLevelList(shown);
+
+        /// <summary>The Start button: the player's current level NUMBER (1-based, past the last level too).</summary>
+        public void SetStartLevel(int levelNumber) =>
+            _view?.SetStart(_loc.Get(LocKeys.MainStartLevel, levelNumber), _loc.Get(LocKeys.MainStartPlay));
+
+        /// <summary>
+        /// The bottom bar: one button per booster of the catalog, in its order — <paramref name="title"/> on top (the
+        /// grant, e.g. "+10") and the booster's name with what the player owns under it (<paramref name="owned"/> by
+        /// booster id). A button with no booster behind it is hidden.
+        /// </summary>
+        public void SetBoosterGrants(string title, Func<string, long> owned)
+        {
+            if (_view == null) return;
+            for (int i = 0; i < _view.BoosterGrantSlots; i++)
+            {
+                var b = _boosters != null && i < _boosters.Boosters.Count ? _boosters.Boosters[i] : null;
+                if (b == null) { _view.SetBoosterGrant(i, false, null, null); continue; }
+                _view.SetBoosterGrant(i, true, title, _loc.Get(LocKeys.LevelSelectBoosterOwned, _loc.Get(new LocKey(b.NameKey)), owned(b.Id)));
+            }
+        }
+
+        private void OnBoosterGrantClicked(int index)
+        {
+            var b = _boosters != null && index < _boosters.Boosters.Count ? _boosters.Boosters[index] : null;
+            if (b != null) BoosterGrantRequested?.Invoke(b.Id);
+        }
+
+        private void ReleaseBoosters()
+        {
+            if (_boosters != null) { _assets.Release(_boosters); _boosters = null; }
+        }
 
         /// <summary>Paused (app lost focus, or covered): stay on screen, just stop taking taps.</summary>
         public void SetInteractable(bool interactable) => _view?.SetInteractable(interactable);
@@ -153,7 +223,23 @@ namespace Game.Presentation
             _disposed = true;
             LevelChosen = null;
             SyncRequested = null;
-            if (_view != null) _view.SyncClicked -= OnSyncClicked;
+            BoosterGrantRequested = null;
+            StartRequested = null;
+            DebugToggleRequested = null;
+            ResetRequested = null;
+            CoinGrantRequested = null;
+            UnlockAllRequested = null;
+            if (_view != null)
+            {
+                _view.SyncClicked -= OnSyncClicked;
+                _view.BoosterGrantClicked -= OnBoosterGrantClicked;
+                _view.StartClicked -= OnStartClicked;
+                _view.DebugToggleClicked -= OnDebugToggleClicked;
+                _view.ResetClicked -= OnResetClicked;
+                _view.CoinGrantClicked -= OnCoinGrantClicked;
+                _view.UnlockAllClicked -= OnUnlockAllClicked;
+            }
+            ReleaseBoosters();
             foreach (var (tile, handler) in _tiles)
                 if (tile != null) tile.Clicked -= handler;
             _tiles.Clear();

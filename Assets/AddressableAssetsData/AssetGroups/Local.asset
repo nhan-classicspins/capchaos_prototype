@@ -60,11 +60,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 642b25fcde8d74efa8ba7785d1244624
-    m_Address: Containers/IceCube_S
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6c25accb319c64b5a97b19668f16b0b9
     m_Address: PF/DialogDim
     m_ReadOnly: 0

@@ -9,9 +9,10 @@ namespace Game.Gen
     /// <summary>Typed ConfigKey<T> VALUES for the SKU (GDD §9): the coin economy and the price of an extra slot. Defaults are registered once in CapsChaosFrameworkSettings. Codegen-owned; never hand-edit.</summary>
     public static class GameConfigKeys
     {
-        public static readonly ConfigKey<int> EconomyStartCoins = new("economy.startCoins");
-        public static readonly ConfigKey<int> EconomyWinReward  = new("economy.winReward");
-        public static readonly ConfigKey<int> SlotUnlockPrice   = new("slots.unlockPrice");
-        public static readonly ConfigKey<int> SlotRescuePrice   = new("slots.rescuePrice");
+        public static readonly ConfigKey<int> EconomyWinReward    = new("economy.winReward");
+        public static readonly ConfigKey<int> SlotUnlockPrice     = new("slots.unlockPrice");
+        public static readonly ConfigKey<int> SlotRescuePrice     = new("slots.rescuePrice");
+        public static readonly ConfigKey<int> BoosterShufflePrice = new("booster.shuffle.price");
+        public static readonly ConfigKey<int> LevelsLoopFrom      = new("levels.loopFrom");
     }
 }

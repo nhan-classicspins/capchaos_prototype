@@ -6,9 +6,11 @@ using ClassicSpins.PrototypeFramework.Domain;
 
 namespace Game.Gen
 {
-    /// <summary>Typed ResourceKey VALUES for the SKU: the countable resources the wallet gate mutates. Coins buy an extra slot (GDD §5.6). Codegen-owned; never hand-edit.</summary>
+    /// <summary>Typed ResourceKey VALUES for the SKU: the countable resources the wallet gate mutates. Coins buy an extra slot (GDD §5.6); each booster kind is a count the player owns (granted or bought). A value is the save key of that balance: never rename one that shipped. Codegen-owned; never hand-edit.</summary>
     public static class ResourceKeys
     {
-        public static readonly ResourceKey Coins = new("coins");
+        public static readonly ResourceKey Coins          = new("coins");
+        public static readonly ResourceKey BoosterHand    = new("booster_hand");
+        public static readonly ResourceKey BoosterShuffle = new("booster_shuffle");
     }
 }

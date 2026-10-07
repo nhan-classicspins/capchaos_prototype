@@ -3,6 +3,7 @@
     "com.anandev.splinemesh": "https://github.com/AnanD3V/SplineMesh.git",
     "com.classicspins.prototype-framework": "file:../../ai_prototype_framework/Packages/com.classicspins.prototype-framework",
     "com.ivanmurzak.unity.mcp": "0.93.2",
+    "com.unity.2d.sprite": "1.0.0",
     "com.unity.ai.navigation": "2.0.11",
     "com.unity.collab-proxy": "2.11.4",
     "com.unity.ide.rider": "3.0.39",
