@@ -25,6 +25,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 154e7ac7cbb4f4407b104739ab3dc6c3
+    m_Address: SheetSyncSettingsConveyors
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 280332feff88f45359338acc44505a31
     m_Address: Fonts/LilitaOne-Regular Bitmap
     m_ReadOnly: 0

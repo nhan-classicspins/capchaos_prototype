@@ -253,15 +253,18 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 
 ### 5.6d Item khoá (R24, thêm 2026-10-06)
 - **R24** Một hàng trong hàng chờ của feeder có thể bị **khoá**: field `lockedRows` của feeder, ví dụ
-  `{ "bottles": [...], "lockedRows": [{ "row": 3, "lockTurns": 5 }] }`. Hàng khoá **không nhập vào loop**: nó dừng ở
-  điểm merge và **chặn mọi hàng phía sau**. Trên hàng có ổ khoá kèm số lượt (dùng lại prefab `TrayLock`).
-  - **Mỗi container được đưa lên slot thành công thì trừ 1 lượt**.
-  - **Chỉ bắt đầu đếm khi hàng đã tới điểm merge**, tức là thành hàng đầu của hàng chờ. Hàng khoá nằm phía sau thì
-    chưa đếm.
-  - Về 0 thì ổ khoá bật mở (fact `FeederRowLockTicked`, `Remaining = 0`) và hàng nhập loop ngay khi belt có chỗ.
-  - Hàng khoá được coi là "không nhập được" khi xét bàn đứng yên. Nếu không còn container nào đưa lên slot được thì
-    khoá không bao giờ mở, và ván thua (`NoMovesLeft`) thay vì treo. V6 (solver) tính cả khoá này. V8: hàng khoá phải
-    có trong hàng chờ. Domain: `LoopBelt.TickRowLocks`; test: `SkuHeadlessTests/CapChaos/FeederRowLockRulesTests.cs`.
+  `{ "bottles": [...], "lockedRows": [{ "row": 3, "lockTurns": 5 }] }`. Trên hàng có ổ khoá kèm số lượt (dùng lại prefab
+  `TrayLock`). (Viết lại 2026-10-07 theo feedback chủ SKU.)
+  - Hàng khoá **vẫn nhập loop bình thường** (không chặn hàng phía sau), nhưng khi còn khoá thì item của nó **không được
+    collect vào box**: chạy qua vùng lấy mà không bay đi. Ổ khoá đi theo hàng trên loop.
+  - **Chỉ đếm khi hàng đã ở trên loop**: mỗi box được đưa lên slot thành công trừ 1 lượt. Hàng khoá còn trong hàng chờ
+    thì chưa đếm.
+  - Về 0 thì ổ khoá bật mở (fact `FeederRowLockTicked`, `Remaining = 0`) và từ đó item được collect như thường.
+  - **Hết box trong mọi làn** mà vẫn còn hàng khoá (trên loop hoặc chưa nhập) thì **tất cả tự mở** ngay (cũng là
+    `FeederRowLockTicked` với `Remaining = 0`), để game không bị chặn.
+  - Item khoá không tính là "còn chai khớp màu" khi xét bàn đứng yên: slot đầy mà chỉ còn item khoá khớp màu thì thua
+    (R15). V6 (solver) tính cả khoá này. V8: hàng khoá phải có trong hàng chờ. Domain: `LoopBelt.TickRowLocks`,
+    `LoopBelt.ReleaseRowLocks`; test: `SkuHeadlessTests/CapChaos/FeederRowLockRulesTests.cs`.
 
 ### 5.7 Cỡ container (R21, thêm 2026-10-02)
 - **R21** Mỗi khay có một **cỡ**: field `size` trong level JSON là số **1 S · 2 M · 3 L · 4 XL** (mặc định 1, không

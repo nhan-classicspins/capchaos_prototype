@@ -4,7 +4,7 @@
   "id": "level_0001",
   "conveyor": "oval_32",
   "slots": 4,
-  "extraSlots": 2,
+  "extraSlots": 0,
   "trayCapacity": 4,
   "colors": [1, 2],
   "feeders": [
@@ -18,5 +18,5 @@
     [{ "color": 2 }]
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "First Caps", "difficulty": "tutorial", "notes": "Teaches: tap a tray, bottles fly in, the box ships.", "solution": [0, 1] }
+  "meta": { "name": "First Caps", "difficulty": "tutorial", "notes": "Teaches: tap a tray, bottles fly in, the box ships.", "solution": [1, 0] }
 }

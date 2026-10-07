@@ -348,7 +348,7 @@ namespace Game.Views
             return padlock != null ? padlock.PlayTickAsync(label, destroyCancellationToken) : UniTask.CompletedTask;
         }
 
-        /// <summary>The locked row opens (R24): its padlock springs off; the row joins the loop as the belt lets it.</summary>
+        /// <summary>The locked row opens (R24): its padlock springs off; trays take its bottles from now on.</summary>
         public UniTask UnlockFeederRow(int feeder, int row)
         {
             var padlock = _loop != null ? _loop.DetachRowLock(feeder, row) : null;

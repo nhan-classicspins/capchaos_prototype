@@ -2,47 +2,36 @@
   "$schema": "../../../../../docs/design/level.schema.json",
   "formatVersion": 4,
   "id": "level_0014",
-  "conveyor": "heart_44",
+  "conveyor": "oval_32",
   "slots": 4,
   "extraSlots": 2,
   "trayCapacity": 4,
   "colors": [1, 2, 3, 4, 5],
   "feeders": [
     { "bottles": [
-      1, 1, 1, 1,
-      4, 4, 4, 4,
-      4, 4, 4, 4,
+      5, 5, 5, 5,
+      3, 3, 3, 3,
+      3, 3, 3, 3,
+      3, 3, 3, 3,
       4, 4, 4, 4,
       4, 4, 4, 4,
       4, 4, 4, 4,
       2, 2, 2, 2,
-      2, 2, 2, 2,
-      3, 3, 3, 3,
-      3, 3, 3, 3
-    ] },
-    { "bottles": [
-      3, 3, 3, 3,
       1, 1, 1, 1,
-      1, 1, 1, 1,
-      1, 1, 1, 1,
-      5, 5, 5, 5,
-      5, 5, 5, 5,
-      5, 5, 5, 5,
-      5, 5, 5, 5,
-      3, 3, 3, 3,
-      3, 3, 3, 3,
       2, 2, 2, 2,
       2, 2, 2, 2,
-      1, 1, 1, 1,
       5, 5, 5, 5,
-      2, 2, 2, 2
-    ] }
+      5, 5, 5, 5,
+      1, 1, 1, 1,
+      1, 1, 1, 1,
+      1, 1, 1, 1
+    ], "hiddenRows": [7, 13] }
   ],
   "lanes": [
-    [{ "color": 2 }, { "color": 4 }, { "color": 5 }, { "color": 5 }, { "color": 5 }, { "color": 1 }, { "color": 4 }, { "color": 3 }, { "color": 1 }],
-    [{ "color": 5 }, { "color": 3 }, { "color": 1 }, { "color": 2 }, { "color": 4 }, { "color": 3 }, { "color": 5 }, { "color": 2 }],
-    [{ "color": 1 }, { "color": 3 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 4 }, { "color": 1 }, { "color": 2 }]
+    [{ "color": 5 }, { "color": 2 }, { "color": 1 }, { "color": 3 }, { "color": 4 }],
+    [{ "color": 5 }, { "color": 3, "lockTurns": 2 }, { "color": 5 }, { "color": 1, "lockTurns": 2 }, { "color": 4 }],
+    [{ "color": 1, "size": 2 }, { "color": 4 }, { "color": 2 }, { "color": 3 }, { "color": 2 }]
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "Side Entrance", "difficulty": "medium", "solution": [2, 0, 1, 0, 2, 0, 1, 2, 0, 1, 2, 2, 0, 1, 1, 0, 0, 1, 1, 2, 1, 0, 2, 0, 2] }
+  "meta": { "name": "Under Lock", "difficulty": "medium", "notes": "Introduces locked boxes (R18): a locked tray opens after N trays fly while it stands at the front.", "solution": [1, 0, 2, 1, 0, 0, 1, 2, 2, 0, 1, 0, 2, 2, 1, 2] }
 }

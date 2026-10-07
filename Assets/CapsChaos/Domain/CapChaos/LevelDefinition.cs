@@ -17,8 +17,8 @@ namespace Game.Domain
         public IReadOnlyList<CapColor> Bottles { get; }
         /// <summary>R23: queue rows hidden until they join the loop (0 = the first row to join).</summary>
         public IReadOnlyCollection<int> HiddenRows => _hidden;
-        /// <summary>R24: locked queue rows → their lock turns. A locked row stops at the merge point (and holds every row
-        /// behind it) until that many trays have flown to the slots while it waits there.</summary>
+        /// <summary>R24: locked queue rows → their lock turns. A locked row joins the loop like any other, but no tray
+        /// takes its bottles until that many trays have flown to the slots while it is on the loop.</summary>
         public IReadOnlyDictionary<int, int> LockedRows => _locked;
 
         public FeederDefinition(int mergeAt, IReadOnlyList<CapColor> bottles, IEnumerable<int> hiddenRows = null,

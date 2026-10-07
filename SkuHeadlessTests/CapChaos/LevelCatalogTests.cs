@@ -167,7 +167,8 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             var c = FromDisk();
             string id = c.Get(0).Conveyor.Id!;
             var before = c.Get(0);
-            var report = c.Override(NoLevels, new Dictionary<string, string> { [id] = ShippedConveyor(id) + "\n" });
+            string elsewhere = ShippedConveyor(id).Replace("\"$schema\": \"../", "\"$schema\": \"../../") + "\n";
+            var report = c.Override(NoLevels, new Dictionary<string, string> { [id] = elsewhere });
             Assert.That(report.ChangedConveyors, Is.Empty);
             Assert.That(report.Unchanged, Is.EqualTo(1));
             report = c.Override(NoLevels, new Dictionary<string, string> { [id] = "{ \"id\": \"" + id + "\" }" });

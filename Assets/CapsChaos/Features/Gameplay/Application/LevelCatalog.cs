@@ -199,8 +199,11 @@ namespace Game.Application
             return -1;
         }
 
-        // line endings and the trailing newline never count as a change
-        private static string Normalize(string text) => text.Replace("\r\n", "\n").Trim();
+        // line endings, the trailing newline and the "$schema" line (a relative path that depends on where a copy sits —
+        // the rules never read it) never count as a change
+        private static readonly System.Text.RegularExpressions.Regex SchemaLine =
+            new System.Text.RegularExpressions.Regex("\"\\$schema\"\\s*:\\s*\"[^\"]*\"\\s*,?");
+        private static string Normalize(string text) => SchemaLine.Replace(text.Replace("\r\n", "\n"), "").Trim();
 
         /// <summary>Every conveyor text → the library the levels are parsed against. A broken conveyor is reported
         /// once, by file, and left out — the levels naming it then fail on their own <c>$.conveyor</c>.</summary>

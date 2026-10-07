@@ -270,6 +270,7 @@ namespace Game.Domain
             TickSlotLocks(1, facts);                                                            // R22
             _belt.TickRowLocks(1, facts);                                                       // R24
             facts.Add(new LaneAdvanced(lane, LaneRemaining(lane)));                             // R7: the lane moves up on its own
+            if (NoTrayLeftInLanes() && _belt.AnyRowLocked) _belt.ReleaseRowLocks(facts);        // R24: never strand a locked row
 
             for (int j = 0; j < _lanes.Length; j++)
             {
@@ -333,6 +334,12 @@ namespace Game.Domain
             int budget = (_belt.Count + _belt.FeederRemainingTotal + 2) * _belt.Rows;
             while (Status == GameStatus.Playing && !IsQuiescent && budget-- > 0) facts.AddRange(Step());
             return facts;
+        }
+
+        private bool NoTrayLeftInLanes()
+        {
+            for (int j = 0; j < _lanes.Length; j++) if (LaneRemaining(j) > 0) return false;
+            return true;
         }
 
         /// <summary>Would a tap on <paramref name="lane"/> be accepted?</summary>
@@ -409,7 +416,7 @@ namespace Game.Domain
                 for (int k = 0; k < _belt.Width; k++)
                 {
                     var c = _belt.At(row, k);
-                    if (c == CapColor.None) continue;
+                    if (c == CapColor.None || _belt.IsLocked(row, k)) continue;                // R24: locked bottles ride on
                     int s = SlotWaitingFor(c);
                     if (s < 0) continue;
                     _belt.Take(row, k);

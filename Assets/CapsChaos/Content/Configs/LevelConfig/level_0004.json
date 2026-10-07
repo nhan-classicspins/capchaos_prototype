@@ -4,38 +4,30 @@
   "id": "level_0004",
   "conveyor": "oval_32",
   "slots": 4,
-  "extraSlots": 2,
+  "extraSlots": 0,
   "trayCapacity": 4,
-  "colors": [1, 2, 3],
+  "colors": [1, 2, 3, 4],
   "feeders": [
     { "bottles": [
-      3, 3, 3, 3,
+      2, 2, 2, 2,
+      2, 2, 2, 2,
+      2, 2, 2, 2,
       1, 1, 1, 1,
       1, 1, 1, 1,
       1, 1, 1, 1,
-      1, 1, 1, 1,
-      2, 2, 2, 2,
-      2, 2, 2, 2,
-      2, 2, 2, 2,
-      2, 2, 2, 2,
-      2, 2, 2, 2,
-      2, 2, 2, 2,
+      4, 4, 4, 4,
       3, 3, 3, 3,
       3, 3, 3, 3,
       3, 3, 3, 3,
-      1, 1, 1, 1,
-      1, 1, 1, 1,
-      1, 1, 1, 1,
-      2, 2, 2, 2,
-      3, 3, 3, 3,
-      3, 3, 3, 3
-    ] }
+      4, 4, 4, 4,
+      4, 4, 4, 4
+    ], "hiddenRows": [3, 8, 9] }
   ],
   "lanes": [
-    [{ "color": 2 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 2 }, { "color": 1 }, { "color": 2 }],
-    [{ "color": 1 }, { "color": 2 }, { "color": 1 }, { "color": 3 }, { "color": 3 }, { "color": 1 }],
-    [{ "color": 2 }, { "color": 3 }, { "color": 1 }, { "color": 1 }, { "color": 3 }, { "color": 2 }, { "color": 3 }]
+    [{ "color": 2 }, { "color": 3 }, { "color": 3 }, { "color": 1 }, { "color": 3 }],
+    [{ "color": 1 }, { "color": 1 }, { "color": 4 }, { "color": 4 }],
+    [{ "color": 4 }, { "color": 2 }, { "color": 2 }]
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "Joining In", "difficulty": "easy", "notes": "Teaches: the queue joins the oval wherever a picked bottle left a gap.", "solution": [2, 1, 0, 0, 0, 2, 1, 1, 0, 2, 1, 2, 1, 0, 2, 0, 2, 1, 0, 2] }
+  "meta": { "name": "Grey Queue", "difficulty": "easy", "notes": "Introduces hidden items (R23): grey bottles show their colour once they join the loop.", "solution": [0, 2, 1, 0, 0, 1, 1, 2, 0, 2, 0, 1] }
 }

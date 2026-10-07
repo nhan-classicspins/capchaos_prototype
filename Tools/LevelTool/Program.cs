@@ -10,7 +10,8 @@ using Game.Domain;
 namespace CapsChaos.LevelTool
 {
     /// <summary>
-    ///   LevelTool generate [--specs P] [--out DIR] [--check]   build seed levels (--check: exit 1 if any file would change)
+    ///   LevelTool generate [--specs P] [--out DIR] [--check] [--plays N]   build seed levels (--check: exit 1 if any file would change;
+    ///                                                            --plays: print each level's random-play win rate, a difficulty read-out)
     ///   LevelTool validate [--dir DIR] [--budget N]            V1–V9 over every ../ConveyorConfig/*.json, every level_*.json + the index
     ///   LevelTool migrate  [--dir DIR] [--check]               rewrite every conveyor and level file in the current format, content unchanged
     /// Levels name a shared conveyor layout in DIR/../ConveyorConfig/&lt;id&gt;.json (beside the level folder) (GDD §6.2b); generate never writes one.
@@ -33,7 +34,8 @@ namespace CapsChaos.LevelTool
                 switch (args[0])
                 {
                     case "generate":
-                        return Generate(Path.Combine(root, Get(opts, "specs", DefaultSpecs)), Path.Combine(root, Get(opts, "out", DefaultDir)), opts.ContainsKey("check"));
+                        return Generate(Path.Combine(root, Get(opts, "specs", DefaultSpecs)), Path.Combine(root, Get(opts, "out", DefaultDir)), opts.ContainsKey("check"),
+                            int.Parse(Get(opts, "plays", "0"), CultureInfo.InvariantCulture));
                     case "conveyors":
                         return Conveyors(Path.Combine(root, Get(opts, "dir", DefaultDir)));
                     case "validate":
@@ -56,34 +58,50 @@ namespace CapsChaos.LevelTool
 
         private static int Usage()
         {
-            Console.Error.WriteLine("usage: LevelTool generate [--specs P] [--out DIR] [--check] | validate [--dir DIR] [--budget N] | migrate [--dir DIR] [--check] | stats [--dir DIR] [--plays N] | conveyors [--dir DIR]");
+            Console.Error.WriteLine("usage: LevelTool generate [--specs P] [--out DIR] [--check] [--plays N] | validate [--dir DIR] [--budget N] | migrate [--dir DIR] [--check] | stats [--dir DIR] [--plays N] | conveyors [--dir DIR]");
             return Error;
         }
 
         // ── generate ─────────────────────────────────────────────────────────────────────────
-        private static int Generate(string specsPath, string outDir, bool check)
+        private static int Generate(string specsPath, string outDir, bool check, int plays)
         {
             var library = LoadLibrary(outDir);
             var specs = ReadSpecs(specsPath, library);
             Directory.CreateDirectory(outDir);
             var drift = new List<string>();
             var ids = new List<string>();
-            Console.WriteLine($"{"id",-11} {"seed",6} {"colors",-6} {"bottles",7} {"trays",5} {"conveyor",-15} {"tries",5}  lanes");
-            foreach (var (spec, seed) in specs)
+            Console.WriteLine($"{"id",-11} {"seed",6} {"colors",-8} {"bottles",7} {"trays",5} {"conveyor",-12} {"rsd",5} {"proof",-7} {"random win",10}  lanes");
+            foreach (var (spec, seed, mods) in specs)
             {
-                var gen = new LevelGenerator(new Pcg32(seed)).Generate(spec);
-                var errors = LevelValidator.Validate(gen.Level);
-                if (errors.Count > 0) throw new InvalidOperationException($"{spec.Id}: generator produced an invalid level: {string.Join("; ", errors)}");
-                if (LevelSolver.Prove(gen.Level).Status != SolveStatus.Solvable) throw new InvalidOperationException($"{spec.Id}: construction solution does not win");
-
-                string text = LevelJson.Write(gen.Level);
+                // a spec with a targetWin band is regenerated (seed, seed + 1·Reseed, …) until a placement lands in the band;
+                // every stream derives from the spec's seed (rule #14: one logged seed per level)
+                Candidate best = null;
+                for (int r = 0; r < (mods.HasTarget ? MaxReseeds : 1) && !(best?.InBand ?? false); r++)
+                {
+                    long s = seed + r * Reseed;
+                    var gen = new LevelGenerator(new Pcg32(s)).Generate(spec);
+                    var built = LevelValidator.Validate(gen.Level);
+                    if (built.Count > 0) throw new InvalidOperationException($"{spec.Id}: generator produced an invalid level: {string.Join("; ", built)}");
+                    if (LevelSolver.Prove(gen.Level).Status != SolveStatus.Solvable) throw new InvalidOperationException($"{spec.Id}: construction solution does not win");
+                    var c = mods.Any ? Decorate(gen.Level, mods, new Pcg32(s * 7919 + 17)) : mods.Rate(gen.Level, "built");
+                    if (c != null) c.Reseed = r;
+                    if (c != null && (best == null || c.Miss < best.Miss)) best = c;
+                }
+                if (best == null) throw new InvalidOperationException($"{spec.Id}: no provable placement of {mods} — fewer / shorter locks");
+                var level = best.Level;
+                string proof = best.Proof;
+                if (!best.InBand) Console.WriteLine($"warn {spec.Id}: closest to targetWin {mods.TargetMin}..{mods.TargetMax}% is {best.Win:0.0}%");
+                var errors = LevelValidator.Validate(level);
+                if (errors.Count > 0) throw new InvalidOperationException($"{spec.Id}: decorated level is invalid: {string.Join("; ", errors)}");
+                string text = LevelJson.Write(level);
                 string file = Path.Combine(outDir, spec.Id + ".json");
                 Emit(file, text, check, drift);
                 ids.Add(spec.Id);
 
-                int bottles = gen.Level.Loop.AllBottles().Count();
-                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-6} {bottles,7} {bottles / spec.TrayCapacity,5} {spec.Conveyor.Id,-15} {gen.Attempts,5}  " +
-                                  string.Join(" ", gen.Level.Lanes.Select(l => l.Count)));
+                int bottles = level.Loop.AllBottles().Count();
+                string win = plays > 0 ? $"{100.0 * RandomWins(level, plays) / plays,9:0.0}%" : mods.HasTarget ? $"{best.Win,9:0.0}%" : "";
+                Console.WriteLine($"{spec.Id,-11} {seed,6} {CapColorCodes.ToCodes(spec.Colors),-8} {bottles,7} {bottles / spec.TrayCapacity,5} {spec.Conveyor.Id,-12} {best.Reseed,5} {proof,-7} {win,10}  " +
+                                  string.Join(" ", level.Lanes.Select(l => l.Count)) + (mods.Any ? "  " + mods : ""));
             }
             int generated = ids.Count;
             // hand-authored levels (not in the spec) are kept; the play order is the id order, so a level's number is its place
@@ -209,30 +227,14 @@ namespace CapsChaos.LevelTool
         /// solver effort per level.</summary>
         private static int Stats(string dir, int plays)
         {
-            const long seed = 20260930;
-            Console.WriteLine($"random-play seed {seed}, {plays} plays per level");
+            Console.WriteLine($"random-play seed {RandomPlaySeed}, {plays} plays per level");
             Console.WriteLine($"{"id",-11} {"difficulty",-9} {"trays",5} {"random win",10} {"solver nodes",12} {"dead-end",8}");
             var library = LoadLibrary(dir);
             foreach (var f in Directory.GetFiles(dir, "level_*.json").OrderBy(f => f, StringComparer.Ordinal))
             {
                 var level = LevelJson.Parse(File.ReadAllText(f), library).Level;
                 if (level == null) { Console.WriteLine($"{Path.GetFileName(f)}: does not parse (run validate)"); continue; }
-                var rng = new Pcg32(seed);
-                int wins = 0;
-                for (int p = 0; p < plays; p++)
-                {
-                    var g = new CapChaosGame(level);
-                    g.Settle();
-                    var open = new List<int>();
-                    while (g.Status == GameStatus.Playing)
-                    {
-                        open.Clear();
-                        for (int j = 0; j < g.LaneCount; j++) if (g.LaneRemaining(j) > 0) open.Add(j);
-                        g.Tap(open[rng.NextInt(0, open.Count)]);
-                        g.Settle();
-                    }
-                    if (g.Status == GameStatus.Won) wins++;
-                }
+                int wins = RandomWins(level, plays);
                 var search = LevelSolver.Solve(level);
                 Console.WriteLine($"{level.Id,-11} {level.Difficulty ?? "-",-9} {level.Lanes.Sum(l => l.Count),5} {100.0 * wins / plays,9:0.0}% " +
                                   $"{(search.Status == SolveStatus.Solvable ? search.NodesExplored.ToString(CultureInfo.InvariantCulture) : search.Status.ToString()),12} {search.DeadEndRatio,8:0.00}");
@@ -315,11 +317,11 @@ namespace CapsChaos.LevelTool
         }
 
         // ── specs ────────────────────────────────────────────────────────────────────────────
-        private static List<(LevelSpec spec, long seed)> ReadSpecs(string path, ConveyorLibrary library)
+        private static List<(LevelSpec spec, long seed, Modifiers mods)> ReadSpecs(string path, ConveyorLibrary library)
         {
             var root = JsonReader.Parse(File.ReadAllText(path));
             if (!root.TryGet("levels", out var levels)) throw new InvalidDataException("specs: 'levels' missing");
-            var list = new List<(LevelSpec, long)>();
+            var list = new List<(LevelSpec, long, Modifiers)>();
             foreach (var l in levels.Items)
             {
                 var spec = new LevelSpec
@@ -327,6 +329,7 @@ namespace CapsChaos.LevelTool
                     Id = S(l, "id"), Name = S(l, "name"), Difficulty = S(l, "difficulty"), Notes = S(l, "notes"),
                     Colors = CapColorCodes.ParseList(S(l, "colors") ?? "ROBG"),
                     Slots = (int)N(l, "slots", LevelDefinition.DefaultSlots),
+                    ExtraSlots = (int)N(l, "extraSlots", LevelDefinition.DefaultExtraSlots),
                     TrayCapacity = (int)N(l, "trayCapacity", LevelDefinition.DefaultTrayCapacity),
                     Lanes = (int)N(l, "lanes", 3),
                     Greed = N(l, "greed", 0.6),
@@ -339,9 +342,210 @@ namespace CapsChaos.LevelTool
                 if (!l.TryGet("feeders", out var feeders) || feeders.Kind != JsonKind.Array)
                     throw new InvalidDataException($"{spec.Id}: 'feeders' missing — bottles per conveyor feeder, e.g. [64, 32]");
                 foreach (var f in feeders.Items) spec.FeederBottles.Add((int)f.Number);
-                list.Add((spec, (long)N(l, "seed", 1)));
+                list.Add((spec, (long)N(l, "seed", 1), ReadModifiers(l, spec.Id)));
             }
             return list;
+        }
+
+        /// <summary>
+        /// Optional "modifiers" of a spec — how many of each special element the level gets; WHERE they go is picked by the
+        /// tool from the level's seed: <c>{"hiddenRows": 3, "hiddenTrays": 2, "lockedRows": 1, "lockedTrays": 2,
+        /// "lockTurns": [2, 4], "sizedTrays": 2, "sizes": [2, 3], "slotLocks": [{"slot": 3, "lockTurns": 4}]}</c>.
+        /// </summary>
+        private static Modifiers ReadModifiers(JsonValue spec, string id)
+        {
+            var m = new Modifiers();
+            if (spec.TryGet("targetWin", out var top) && top.Kind == JsonKind.Array && top.Items.Count == 2)
+            { m.TargetMin = top.Items[0].Number; m.TargetMax = top.Items[1].Number; }
+            if (!spec.TryGet("modifiers", out var o)) return m;
+            m.HiddenRows = (int)N(o, "hiddenRows", 0);
+            m.HiddenTrays = (int)N(o, "hiddenTrays", 0);
+            m.LockedRows = (int)N(o, "lockedRows", 0);
+            m.LockedTrays = (int)N(o, "lockedTrays", 0);
+            m.SizedTrays = (int)N(o, "sizedTrays", 0);
+            if (o.TryGet("sizes", out var sz) && sz.Kind == JsonKind.Array && sz.Items.Count == 2)
+            { m.SizeMin = (int)sz.Items[0].Number; m.SizeMax = (int)sz.Items[1].Number; }
+            if (m.SizeMin < 2 || m.SizeMax > 4 || m.SizeMax < m.SizeMin) throw new InvalidDataException($"{id}: modifiers.sizes must be [min, max] within 2..4");
+            if (o.TryGet("lockTurns", out var t) && t.Kind == JsonKind.Array && t.Items.Count == 2)
+            { m.LockMin = (int)t.Items[0].Number; m.LockMax = (int)t.Items[1].Number; }
+            if (m.LockMin < 1 || m.LockMax < m.LockMin) throw new InvalidDataException($"{id}: modifiers.lockTurns must be [min, max], 1 ≤ min ≤ max");
+            if (o.TryGet("targetWin", out var tw) && tw.Kind == JsonKind.Array && tw.Items.Count == 2)
+            { m.TargetMin = tw.Items[0].Number; m.TargetMax = tw.Items[1].Number; }
+            if (o.TryGet("slotLocks", out var sl) && sl.Kind == JsonKind.Array)
+                foreach (var s in sl.Items) m.SlotLocks.Add(new SlotLock((int)N(s, "slot", 0), (int)N(s, "lockTurns", 1)));
+            return m;
+        }
+
+        private sealed class Modifiers
+        {
+            public int HiddenRows, HiddenTrays, LockedRows, LockedTrays;
+            /// <summary>R21: how many bigger containers, each of a size drawn from SizeMin..SizeMax (2 M · 3 L · 4 XL).</summary>
+            public int SizedTrays, SizeMin = 2, SizeMax = 2;
+            public int LockMin = 2, LockMax = 4;
+            public readonly List<SlotLock> SlotLocks = new List<SlotLock>();
+            /// <summary>"targetWin": [min, max] — the random-play win rate (%, open slots only) the level must land in.</summary>
+            public double TargetMin = 0, TargetMax = 100;
+            public bool HasTarget => TargetMin > 0 || TargetMax < 100;
+            /// <summary>The level with its random-play win rate and how far that is from the band (0 = inside).</summary>
+            public Candidate Rate(LevelDefinition level, string proof)
+            {
+                double win = HasTarget ? 100.0 * RandomWins(level, TargetPlays) / TargetPlays : 100;
+                double miss = !HasTarget ? 0 : win < TargetMin ? TargetMin - win : win > TargetMax ? win - TargetMax : 0;
+                return new Candidate { Level = level, Proof = proof, Win = win, Miss = miss };
+            }
+            public bool Any => HiddenRows + HiddenTrays + LockedRows + LockedTrays + SizedTrays + SlotLocks.Count > 0;
+            /// <summary>Hidden rows / trays are a look only (R17, R23); locks change what can be played.</summary>
+            public bool ChangesRules => LockedRows + LockedTrays + SizedTrays + SlotLocks.Count > 0;
+            public override string ToString()
+            {
+                var parts = new List<string>();
+                if (HiddenRows > 0) parts.Add($"hiddenRows {HiddenRows}");
+                if (HiddenTrays > 0) parts.Add($"hiddenTrays {HiddenTrays}");
+                if (LockedRows > 0) parts.Add($"lockedRows {LockedRows}");
+                if (LockedTrays > 0) parts.Add($"lockedTrays {LockedTrays}");
+                if (SizedTrays > 0) parts.Add($"sized {SizedTrays} ({SizeMin}..{SizeMax})");
+                foreach (var s in SlotLocks) parts.Add($"slot {s.Slot} locked {s.Turns}");
+                return string.Join(", ", parts);
+            }
+        }
+
+        /// <summary>Merge <see cref="Modifiers.SizedTrays"/> containers: each picks a lane and a colour it has at least
+        /// `size` trays of, keeps the first of them as one tray of that size (R21: size × trayCapacity bottles) and drops the
+        /// others. The construction solution no longer fits the lanes; the caller proves the result again.</summary>
+        private static List<IReadOnlyList<CapColor>> MergeTrays(IReadOnlyList<IReadOnlyList<CapColor>> source, Modifiers m, IRandom rng,
+            out Dictionary<TrayRef, TraySize> sizes)
+        {
+            var lanes = source.Select(l => new List<CapColor>(l)).ToList();
+            var size = lanes.Select(l => l.Select(_ => 1).ToList()).ToList();   // per tray, kept in step with lanes
+            for (int n = 0; n < m.SizedTrays; n++)
+            {
+                int want = rng.NextInt(m.SizeMin, m.SizeMax + 1);
+                var options = new List<(int lane, CapColor color)>();
+                for (int j = 0; j < lanes.Count; j++)
+                    foreach (var c in lanes[j].Distinct())
+                        if (Enumerable.Range(0, lanes[j].Count).Count(t => lanes[j][t] == c && size[j][t] == 1) >= want && lanes[j].Count > want)
+                            options.Add((j, c));
+                if (options.Count == 0) continue;
+                var (lane, color) = options[rng.NextInt(0, options.Count)];
+                var at = Enumerable.Range(0, lanes[lane].Count).Where(t => lanes[lane][t] == color && size[lane][t] == 1).ToList();
+                int keep = at[0];
+                for (int k = want - 1; k >= 1; k--) { lanes[lane].RemoveAt(at[k]); size[lane].RemoveAt(at[k]); }
+                size[lane][keep] = want;
+            }
+            sizes = new Dictionary<TrayRef, TraySize>();
+            for (int j = 0; j < lanes.Count; j++)
+                for (int t = 0; t < lanes[j].Count; t++)
+                    if (size[j][t] > 1) sizes[new TrayRef(j, t)] = (TraySize)size[j][t];
+            return lanes.Select(l => (IReadOnlyList<CapColor>)l).ToList();
+        }
+
+        private sealed class Candidate
+        {
+            public LevelDefinition Level;
+            public string Proof;
+            public double Win, Miss;
+            /// <summary>Which reseed it came from: generator seed = spec seed + Reseed × 100003.</summary>
+            public int Reseed;
+            public bool InBand => Miss == 0;
+        }
+
+        private const int DecorateTries = 40, MaxReseeds = 12, TargetPlays = 200;
+        private const long Reseed = 100_003;
+
+        /// <summary>
+        /// Put the spec's modifiers on a generated level. Places are drawn from <paramref name="rng"/>: hidden / locked queue
+        /// rows never on a feeder's first row, hidden trays never at the front (they would show at once), a tray or row is
+        /// never both hidden and locked. A placement that changes the rules must still win: the construction solution is
+        /// replayed first, else the solver searches; a placement it can not prove, or whose random-play win rate is outside
+        /// the spec's targetWin band, is drawn again. Returns the first placement in the band, else the provable one closest
+        /// to it (the caller may reseed), else null.
+        /// </summary>
+        private static Candidate Decorate(LevelDefinition g, Modifiers m, IRandom rng)
+        {
+            Candidate best = null;
+            int width = g.Loop.Width;
+            var feeders = g.Loop.Feeders;
+            for (int attempt = 1; attempt <= DecorateTries; attempt++)
+            {
+                var hiddenRows = feeders.Select(_ => new HashSet<int>()).ToList();
+                var lockedRows = feeders.Select(_ => new Dictionary<int, int>()).ToList();
+                var rowPool = new List<(int f, int row)>();
+                for (int f = 0; f < feeders.Count; f++)
+                    for (int r = 1; r < feeders[f].RowCount(width); r++) rowPool.Add((f, r));
+                rng.Shuffle(rowPool);
+                int next = 0;
+                for (int i = 0; i < m.HiddenRows && next < rowPool.Count; i++, next++) hiddenRows[rowPool[next].f].Add(rowPool[next].row);
+                // a lock waits at the merge point: keep it off the last few rows so it holds something back
+                for (int i = 0; i < m.LockedRows && next < rowPool.Count; next++)
+                {
+                    var (f, r) = rowPool[next];
+                    if (r < 2 || r > feeders[f].RowCount(width) - 3) continue;
+                    lockedRows[f][r] = rng.NextInt(m.LockMin, m.LockMax + 1);
+                    i++;
+                }
+
+                // R21 first: bigger containers are trays of one colour in one lane merged into the first of them, so the
+                // bottle count per colour (V4) holds; the lanes shrink, so hidden / locked trays are placed afterwards
+                var lanes = MergeTrays(g.Lanes, m, rng, out var sizes);
+                var trayPool = new List<TrayRef>();
+                for (int j = 0; j < lanes.Count; j++)
+                    for (int t = 0; t < lanes[j].Count; t++) trayPool.Add(new TrayRef(j, t));
+                rng.Shuffle(trayPool);
+                var hiddenTrays = new List<TrayRef>();
+                var locks = new List<TrayLock>();
+                foreach (var t in trayPool)
+                {
+                    if (hiddenTrays.Count < m.HiddenTrays && t.Index > 0) hiddenTrays.Add(t);
+                    else if (locks.Count < m.LockedTrays) locks.Add(new TrayLock(t, rng.NextInt(m.LockMin, m.LockMax + 1)));
+                }
+
+                var loop = new LoopDefinition(g.Conveyor, feeders.Select(f => f.Bottles).ToList(), g.Loop.Initial,
+                    hiddenRows.Select(h => (IEnumerable<int>)h).ToList(), lockedRows.Select(d => (IReadOnlyDictionary<int, int>)d).ToList());
+                LevelDefinition Build(IReadOnlyList<int> solution) => new LevelDefinition(g.Id, g.Slots, g.TrayCapacity, g.Colors, loop, lanes,
+                    g.CameraPreset, g.Name, g.Difficulty, g.Notes, solution: solution, hiddenTrays: hiddenTrays, locks: locks,
+                    extraSlots: g.ExtraSlots, traySizes: sizes, slotLocks: m.SlotLocks);
+
+                var level = Build(g.Solution);
+                if (LevelValidator.Validate(level).Count > 0) continue;
+                var c = m.Rate(level, "replay");
+                if (best != null && c.Miss >= best.Miss) continue;               // not closer: skip the (costly) proof
+                if (m.ChangesRules && LevelSolver.Prove(level).Status != SolveStatus.Solvable)
+                {
+                    var search = LevelSolver.Solve(level);
+                    if (search.Status != SolveStatus.Solvable) continue;
+                    c.Level = Build(search.Solution);
+                    c.Proof = "search";
+                }
+                best = c;
+                if (best.InBand || !m.HasTarget) return best;
+            }
+            return best;
+        }
+
+        private const long RandomPlaySeed = 20260930;
+
+        /// <summary>How many of <paramref name="plays"/> random players win with the open slots only (uniform over non-empty
+        /// lanes, tapping when the board is quiet, fixed seed): a difficulty read-out, not a gate.</summary>
+        private static int RandomWins(LevelDefinition level, int plays)
+        {
+            var rng = new Pcg32(RandomPlaySeed);
+            int wins = 0;
+            for (int p = 0; p < plays; p++)
+            {
+                var g = new CapChaosGame(level);
+                g.Settle();
+                var open = new List<int>();
+                while (g.Status == GameStatus.Playing && !g.SlotsRanOut)   // needing a paid slot counts as not winning
+                {
+                    open.Clear();
+                    for (int j = 0; j < g.LaneCount; j++) if (g.LaneRemaining(j) > 0) open.Add(j);
+                    if (open.Count == 0) break;
+                    g.Tap(open[rng.NextInt(0, open.Count)]);
+                    g.Settle();
+                }
+                if (g.Status == GameStatus.Won) wins++;
+            }
+            return wins;
         }
 
         private static string S(JsonValue o, string k) => o.TryGet(k, out var v) && v.Kind == JsonKind.String ? v.String : null;

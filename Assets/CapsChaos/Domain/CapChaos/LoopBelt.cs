@@ -32,8 +32,11 @@ namespace Game.Domain
         private readonly int[] _mergeAt;             // per feeder: the track position it joins at
         private readonly CapColor[][][] _feeders;    // [feeder][track] → queue, immutable after construction
         private readonly int[] _feederRow;           // [feeder] → queue rows already on the belt
-        private readonly IReadOnlyDictionary<int, int>[] _rowLocks;   // [feeder] → locked queue row → turns (R24), shared by clones
-        private readonly int[] _headLock;            // [feeder] → turns the front queue row (at the merge point) still waits
+        private readonly IReadOnlyDictionary<int, int>[] _rowLocks;   // [feeder] → locked queue row → authored turns (R24), shared by clones
+        // R24, live: queue row key (LockKey) → turns left, for every locked row that has joined the loop (it counts down)
+        // or was let go (0). A locked row still queued is not here: it keeps its authored turns and does not count.
+        private readonly Dictionary<int, int> _lockLeft = new Dictionary<int, int>();
+        private readonly int[] _spotLock;            // [row * Width + track] → LockKey of the locked queue row its bottle came from, 0 = none
 
         private LoopBelt(int rows, int width, int pickRows, int[] mergeAt, CapColor[][][] feeders,
             IReadOnlyDictionary<int, int>[] rowLocks = null)
@@ -44,11 +47,13 @@ namespace Game.Domain
             _feeders = feeders;
             _feederRow = new int[feeders.Length];
             _rowLocks = rowLocks ?? new IReadOnlyDictionary<int, int>[feeders.Length];
-            _headLock = new int[feeders.Length];
-            for (int f = 0; f < feeders.Length; f++) _headLock[f] = RowLock(f, 0);
+            _spotLock = new int[rows * width];
         }
 
         private int RowLock(int f, int row) => _rowLocks[f] != null && _rowLocks[f].TryGetValue(row, out var t) ? t : 0;
+
+        // one key per (feeder, queue row); never 0, so 0 means "no lock" in _spotLock
+        private static int LockKey(int f, int row) => f * 1_000_000 + row + 1;
 
         /// <summary>
         /// The belt as the round starts: the authored <see cref="LoopDefinition.Initial"/> rows, or — when the level
@@ -90,7 +95,8 @@ namespace Game.Domain
             var c = new LoopBelt(Rows, Width, PickRows, _mergeAt, _feeders, _rowLocks) { Offset = Offset, Count = Count };
             Array.Copy(_spots, c._spots, _spots.Length);
             Array.Copy(_feederRow, c._feederRow, _feederRow.Length);
-            Array.Copy(_headLock, c._headLock, _headLock.Length);
+            Array.Copy(_spotLock, c._spotLock, _spotLock.Length);
+            foreach (var kv in _lockLeft) c._lockLeft[kv.Key] = kv.Value;
             return c;
         }
 
@@ -111,11 +117,32 @@ namespace Game.Domain
         /// <summary>Queue rows of <paramref name="feeder"/> already on the belt: the bottle at depth d of any of its
         /// tracks is in queue row <c>FeederRowsJoined + d</c> (R23 hides by queue row).</summary>
         public int FeederRowsJoined(int feeder) => _feederRow[feeder];
-        /// <summary>R24: turns the front queue row of <paramref name="feeder"/> — waiting at the merge point — is still
-        /// locked for; 0 = it joins as soon as a belt row has room.</summary>
-        public int FeederLockLeft(int feeder) => _headLock[feeder];
+        /// <summary>R24: turns queue row <paramref name="row"/> of <paramref name="feeder"/> is locked for NOW — counting
+        /// down once it is on the loop, its authored turns while still queued; 0 = not (or no longer) locked.</summary>
+        public int FeederRowLockLeft(int feeder, int row) =>
+            _lockLeft.TryGetValue(LockKey(feeder, row), out var left) ? left : RowLock(feeder, row);
         /// <summary>R24: the lock queue row <paramref name="row"/> of <paramref name="feeder"/> starts with; 0 = none.</summary>
         public int FeederRowLockTurns(int feeder, int row) => RowLock(feeder, row);
+        /// <summary>R24: the bottle on (row, track) came from a locked queue row that is still locked — it rides the loop
+        /// but no tray takes it.</summary>
+        public bool IsLocked(int row, int track)
+        {
+            int key = _spotLock[row * Width + track];
+            return key != 0 && _lockLeft.TryGetValue(key, out var left) && left > 0;
+        }
+        /// <summary>Is any locked queue row still locked — on the loop or still queued?</summary>
+        public bool AnyRowLocked
+        {
+            get
+            {
+                for (int f = 0; f < _rowLocks.Length; f++)
+                {
+                    if (_rowLocks[f] == null) continue;
+                    foreach (var kv in _rowLocks[f]) if (FeederRowLockLeft(f, kv.Key) > 0) return true;
+                }
+                return false;
+            }
+        }
         /// <summary>The <paramref name="depth"/>-th queued bottle of a feeder track (0 = the next to join).</summary>
         public CapColor FeederAt(int feeder, int track, int depth) => _feeders[feeder][track][_feederRow[feeder] + depth];
 
@@ -129,9 +156,11 @@ namespace Game.Domain
             }
         }
 
+        /// <summary>Is a bottle of <paramref name="color"/> on the belt that a tray could take (not locked, R24)?</summary>
         public bool Contains(CapColor color)
         {
-            for (int i = 0; i < _spots.Length; i++) if (_spots[i] == color) return true;
+            for (int i = 0; i < _spots.Length; i++)
+                if (_spots[i] == color && !IsLocked(i / Width, i % Width)) return true;
             return false;
         }
 
@@ -151,7 +180,6 @@ namespace Game.Domain
         /// track it needs.</summary>
         private bool FrontRowFits(int f, int row)
         {
-            if (_headLock[f] > 0) return false;                                  // R24: a locked front row holds the queue
             bool any = false;
             for (int k = 0; k < Width; k++)
             {
@@ -172,6 +200,7 @@ namespace Game.Domain
             var c = _spots[i];
             if (c == CapColor.None) throw new InvalidOperationException($"no bottle at row {row} track {track}");
             _spots[i] = CapColor.None;
+            _spotLock[i] = 0;
             Count--;
             return c;
         }
@@ -188,28 +217,58 @@ namespace Game.Domain
                 int row = NearestFreeRow(f);
                 if (row < 0) continue;
                 int q = _feederRow[f]++;
+                int key = LockKey(f, q);
+                int locked = FeederRowLockLeft(f, q);                              // R24: a locked row joins locked
+                if (locked > 0) _lockLeft[key] = locked;
                 for (int k = 0; k < Width; k++)
                 {
                     if (q >= _feeders[f][k].Length) continue;
                     var c = _feeders[f][k][q];
                     _spots[row * Width + k] = c;
+                    _spotLock[row * Width + k] = locked > 0 ? key : 0;
                     Count++;
                     facts?.Add(new BottleFed(f, k, row, c));
                 }
-                _headLock[f] = RowLock(f, _feederRow[f]);                          // R24: the next row reached the merge point
             }
         }
 
-        /// <summary>R24: <paramref name="placed"/> trays just flew to the slots — every locked queue row waiting at its
-        /// feeder's merge point counts them down. A locked row further back has not started counting yet.</summary>
+        /// <summary>R24: <paramref name="placed"/> trays just flew to the slots — every locked row ON THE LOOP counts them
+        /// down. A locked row still queued has not started counting.</summary>
         internal void TickRowLocks(int placed, List<GameFact> facts)
         {
-            for (int f = 0; f < _feeders.Length; f++)
+            if (_lockLeft.Count == 0) return;
+            foreach (int key in SortedKeys())
             {
-                if (_headLock[f] == 0) continue;
-                _headLock[f] = Math.Max(0, _headLock[f] - placed);
-                facts?.Add(new FeederRowLockTicked(f, _feederRow[f], _headLock[f]));
+                int left = _lockLeft[key];
+                if (left == 0) continue;
+                _lockLeft[key] = left = Math.Max(0, left - placed);
+                facts?.Add(new FeederRowLockTicked((key - 1) / 1_000_000, (key - 1) % 1_000_000, left));
             }
+        }
+
+        /// <summary>R24: no tray is left in the lanes — every row still locked (on the loop or queued) opens now, or its
+        /// bottles could never be taken.</summary>
+        internal void ReleaseRowLocks(List<GameFact> facts)
+        {
+            for (int f = 0; f < _rowLocks.Length; f++)
+            {
+                if (_rowLocks[f] == null) continue;
+                var rows = new List<int>(_rowLocks[f].Keys);
+                rows.Sort();
+                foreach (int row in rows)
+                {
+                    if (FeederRowLockLeft(f, row) == 0) continue;
+                    _lockLeft[LockKey(f, row)] = 0;
+                    facts?.Add(new FeederRowLockTicked(f, row, 0));
+                }
+            }
+        }
+
+        private List<int> SortedKeys()
+        {
+            var keys = new List<int>(_lockLeft.Keys);
+            keys.Sort();
+            return keys;
         }
 
         /// <summary>The belt row nearest feeder <paramref name="f"/>'s entrance that its front queue row fits: the one at
@@ -232,7 +291,9 @@ namespace Game.Domain
             sb.Append(Offset).Append('@');
             foreach (var c in _spots) sb.Append(CapColorCodes.ToCode(c));
             sb.Append('|');
-            for (int f = 0; f < _feeders.Length; f++) sb.Append(_feederRow[f]).Append(':').Append(_headLock[f]).Append(',');
+            for (int f = 0; f < _feeders.Length; f++) sb.Append(_feederRow[f]).Append(',');
+            foreach (int key in SortedKeys()) sb.Append(key).Append('=').Append(_lockLeft[key]).Append(',');
+            for (int i = 0; i < _spotLock.Length; i++) if (_spotLock[i] != 0 && IsLocked(i / Width, i % Width)) sb.Append('L').Append(i);
         }
     }
 }

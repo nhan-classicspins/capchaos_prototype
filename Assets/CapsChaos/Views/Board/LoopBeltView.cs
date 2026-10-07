@@ -82,6 +82,7 @@ namespace Game.Views
             public readonly List<Joiner> Batch = new List<Joiner>();   // the bottles that stepped on this frame (one row)
             public int BatchFrame = -1;
             public readonly Dictionary<int, TrayLockView> Locks = new Dictionary<int, TrayLockView>();   // R24: queue row → its padlock
+            public readonly Dictionary<int, List<GameObject>> LockedOnLoop = new Dictionary<int, List<GameObject>>();   // R24: a locked row's bottles once on the loop
         }
         private readonly List<Feeder> _feeders = new List<Feeder>();
 
@@ -235,6 +236,13 @@ namespace Game.Views
                 list.Add(NewBottle(color, f.Queue, masked));
             }
             Unmask(go);                                                 // R23: on the loop every bottle shows its colour
+            int queueRow = f.Joined[track];
+            if (f.Locks.ContainsKey(queueRow))                          // R24: the padlock rides on with its row's bottles
+            {
+                if (!f.LockedOnLoop.TryGetValue(queueRow, out var riders)) f.LockedOnLoop[queueRow] = riders = new List<GameObject>();
+                riders.Add(go);
+                f.Locks[queueRow].transform.SetParent(_bottles, false);
+            }
             f.RowsJoined = Math.Max(f.RowsJoined, ++f.Joined[track]);
             f.Shift[track] += 1f;
             f.TravelTarget += RowPitch / _width;
@@ -422,15 +430,27 @@ namespace Game.Views
         {
             var padlock = RowLock(feeder, row);
             if (padlock != null) _feeders[feeder].Locks.Remove(row);
+            if (feeder >= 0 && feeder < _feeders.Count) _feeders[feeder].LockedOnLoop.Remove(row);
             return padlock;
         }
 
-        /// <summary>Each padlock over the middle of its row, as the queue is laid out; hidden while the row is not drawn.</summary>
+        /// <summary>Each padlock over the middle of its row: in the queue as it is laid out (hidden while the row is not
+        /// drawn), and once the row has joined, over its bottles riding the loop.</summary>
         private void LayoutRowLocks(Feeder f)
         {
             foreach (var kv in f.Locks)
             {
                 if (kv.Value == null) continue;
+                if (f.LockedOnLoop.TryGetValue(kv.Key, out var riders) && riders.Count > 0)
+                {
+                    var mid = Vector3.zero;
+                    int n = 0;
+                    foreach (var b in riders) if (b != null) { mid += b.transform.localPosition; n++; }
+                    if (n == 0) continue;
+                    if (!kv.Value.gameObject.activeSelf) kv.Value.gameObject.SetActive(true);
+                    kv.Value.transform.localPosition = mid / n + Vector3.up * (B.RowLockY / _scale);
+                    continue;
+                }
                 int d = kv.Key - f.RowsJoined;
                 float along = HeadAt(f) - (d + f.Shift[0] + f.Intro) * RowPitch;
                 bool drawn = d >= 0 && d < B.FeederVisibleRows && along >= 0f;

@@ -84,9 +84,10 @@ namespace Game.Domain
         public SlotUnlocked(int slot) { Slot = slot; }
     }
 
-    /// <summary>The locked queue row <see cref="Row"/> of <see cref="Feeder"/>, waiting at the merge point, counted the trays
-    /// that just flew to the slots down (R24); <see cref="Remaining"/> more to go, 0 = it is open and joins the loop as
-    /// soon as a belt row has room.</summary>
+    /// <summary>The locked queue row <see cref="Row"/> of <see cref="Feeder"/>, riding the loop, counted the tray that just
+    /// flew to a slot down (R24); <see cref="Remaining"/> more to go, 0 = it is open and trays take its bottles. Also 0 for
+    /// every row still locked — on the loop or queued — when the lanes run out of trays (it opens so it can never strand
+    /// the round).</summary>
     public sealed class FeederRowLockTicked : GameFact
     {
         public int Feeder { get; } public int Row { get; } public int Remaining { get; }

@@ -284,7 +284,7 @@ namespace Game.Presentation
                 foreach (var kv in _level.Loop.Feeders[f].LockedRows)
                 {
                     if (kv.Key < belt.FeederRowsJoined(f)) continue;
-                    int turns = kv.Key == belt.FeederRowsJoined(f) ? belt.FeederLockLeft(f) : kv.Value;
+                    int turns = belt.FeederRowLockLeft(f, kv.Key);
                     if (turns > 0) _board.LockFeederRow(f, kv.Key, LockLabel(turns));
                 }
             _beltTime = 0f;

@@ -72,7 +72,7 @@
           },
           "lockedRows": {
             "type": "array",
-            "description": "Locked items (R24): a locked queue row stops at the merge point instead of joining the loop, and holds every row behind it, until lockTurns trays have flown to the slots. It only starts counting once it has reached the merge point. V8: every row exists in the queue.",
+            "description": "Locked items (R24): a locked queue row joins the loop like any other, but no tray takes its bottles until lockTurns trays have flown to the slots while it is on the loop (a row still queued does not count). When the lanes run out of trays every row still locked opens. V8: every row exists in the queue.",
             "items": {
               "type": "object",
               "additionalProperties": false,
