@@ -6,7 +6,7 @@ namespace Game.Views
     /// <summary>
     /// The game's tunable feel (SKU owner, 2026-10-06): how the conveyor rows are spaced, how items stack into a
     /// container, where the lid waits while the container fills and how it flies back, and how fast the game runs while
-    /// the player holds an empty spot. ONE
+    /// the player holds an empty spot, and how the booster prompt, banner and toast move (real time). ONE
     /// asset for the session (addressable <see cref="Address"/>, <c>Content/Configs/GameFeel.asset</c>), loaded by the
     /// Gameplay screen and handed to the board; without it the defaults below apply (<see cref="CreateDefault"/>).
     /// </summary>
@@ -65,6 +65,45 @@ namespace Game.Views
         [Tooltip("The game runs this many times faster while the player holds an empty spot of the board.")]
         [SerializeField] private float _holdSpeed = 2f;
 
+        [Header("Booster — prompt (waiting for the player's pick; real time, canvas px)")]
+        [Tooltip("Seconds the prompt fades in while it drops into place.")]
+        [SerializeField] private float _promptIn = 0.2f;
+        [Tooltip("How far above its place the prompt starts its drop.")]
+        [SerializeField] private float _promptDrop = 40f;
+        [SerializeField] private Ease _promptInEase = Ease.OutCubic;
+        [Tooltip("Seconds the prompt fades out.")]
+        [SerializeField] private float _promptOut = 0.15f;
+
+        [Header("Booster — banner (the booster acting; real time, canvas px)")]
+        [Tooltip("Seconds the dim fades in while the ribbon unrolls (scale x 0 → 1).")]
+        [SerializeField] private float _bannerIn = 0.2f;
+        [SerializeField] private Ease _bannerInEase = Ease.OutBack;
+        [Tooltip("How steeply the ribbon art climbs left → right (degrees, measured on bg-active-booster): the icon runs along it.")]
+        [SerializeField] private float _ribbonAngle = 6f;
+        [Tooltip("The icon enters at this many px left of the centre, along the ribbon.")]
+        [SerializeField] private float _bannerEnterX = 700f;
+        [Tooltip("Seconds the icon takes to reach the centre (slowing down with the ease).")]
+        [SerializeField] private float _bannerArrive = 0.35f;
+        [SerializeField] private Ease _bannerArriveEase = Ease.OutCubic;
+        [Tooltip("Seconds the icon holds at the centre.")]
+        [SerializeField] private float _bannerHold = 0.5f;
+        [Tooltip("The icon leaves for this many px right of the centre — further than it came in, so it is well off screen.")]
+        [SerializeField] private float _bannerExitX = 1000f;
+        [Tooltip("Seconds the icon takes to leave (speeding up with the ease).")]
+        [SerializeField] private float _bannerLeave = 0.3f;
+        [SerializeField] private Ease _bannerLeaveEase = Ease.InCubic;
+        [Tooltip("Seconds the whole banner fades out once the icon has gone.")]
+        [SerializeField] private float _bannerOut = 0.2f;
+
+        [Header("Booster — toast (real time, canvas px)")]
+        [Tooltip("Seconds a toast stays on screen, rising and fading.")]
+        [SerializeField] private float _toastDuration = 2f;
+        [Tooltip("How far a toast rises over its life.")]
+        [SerializeField] private float _toastRise = 180f;
+        [Tooltip("The share of its life a toast is fully shown before it starts to fade.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float _toastHold = 0.4f;
+
         public float FeederRowPitch => _feederRowPitch;
         public float TrackSpacing => _trackSpacing;
         public float FeederIntroSeconds => _feederIntroSeconds;
@@ -86,6 +125,29 @@ namespace Game.Views
         public float LidCloseArc => _lidCloseArc;
         public Ease LidCloseEase => _lidCloseEase;
         public float HoldSpeed => _holdSpeed;
+        public float PromptIn => _promptIn;
+        public float PromptDrop => _promptDrop;
+        public Ease PromptInEase => _promptInEase;
+        public float PromptOut => _promptOut;
+        public float BannerIn => _bannerIn;
+        public Ease BannerInEase => _bannerInEase;
+        public float RibbonAngle => _ribbonAngle;
+        public float BannerEnterX => _bannerEnterX;
+        public float BannerArrive => _bannerArrive;
+        public Ease BannerArriveEase => _bannerArriveEase;
+        public float BannerHold => _bannerHold;
+        public float BannerExitX => _bannerExitX;
+        public float BannerLeave => _bannerLeave;
+        public Ease BannerLeaveEase => _bannerLeaveEase;
+        public float BannerOut => _bannerOut;
+        public float ToastDuration => _toastDuration;
+        public float ToastRise => _toastRise;
+        public float ToastHold => _toastHold;
+
+        private static GameFeel _defaults;
+
+        /// <summary>One shared defaults instance — what a View uses until it is handed the session's feel (gallery-safe).</summary>
+        public static GameFeel Defaults => _defaults != null ? _defaults : (_defaults = CreateDefault());
 
         /// <summary>A runtime instance holding the defaults — used when the asset is missing.</summary>
         public static GameFeel CreateDefault()

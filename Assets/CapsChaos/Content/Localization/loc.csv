@@ -48,3 +48,7 @@ level_select.reset_label,Fresh install,Như mới cài
 level_select.unlock_all,UNLOCK,MỞ KHOÁ
 level_select.unlock_all_label,All levels,Tất cả màn
 level_select.coins_owned,Coins: {0},Coin: {0}
+booster.hand.prompt_title,HAND,BÀN TAY
+booster.hand.prompt_hint,Tap any box in the queues to send it to a slot,Chạm vào box bất kỳ trong hàng chờ để đưa lên slot
+toast.no_slots,No available slots,Hết slot trống
+toast.no_box_left,No Box Left,Không còn box nào

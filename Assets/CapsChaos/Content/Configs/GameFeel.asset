@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Game.Views::Game.Views.BoardFeel
   _feederRowPitch: 0.55
   _trackSpacing: 0.4
+  _feederIntroSeconds: 1.5
+  _mergeSeconds: 0.3
+  _mergeStagger: 0.04
+  _mergeEase: 3
   _itemStackY: 0.45
   _itemToStack: 0.2
   _itemDrop: 0.15
@@ -29,3 +33,21 @@ MonoBehaviour:
   _lidCloseArc: 0.8
   _lidCloseEase: 6
   _holdSpeed: 2
+  _promptIn: 0.2
+  _promptDrop: 40
+  _promptInEase: 8
+  _promptOut: 0.15
+  _bannerIn: 0.2
+  _bannerInEase: 26
+  _ribbonAngle: 6
+  _bannerEnterX: 700
+  _bannerArrive: 0.35
+  _bannerArriveEase: 8
+  _bannerHold: 0.5
+  _bannerExitX: 1000
+  _bannerLeave: 0.3
+  _bannerLeaveEase: 7
+  _bannerOut: 0.2
+  _toastDuration: 2
+  _toastRise: 180
+  _toastHold: 0.4

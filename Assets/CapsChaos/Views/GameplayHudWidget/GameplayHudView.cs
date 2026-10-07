@@ -21,6 +21,11 @@ namespace Game.Views
         [Tooltip("The level number at the top (\"LEVEL 41\").")]
         [SerializeField] private TextProxy _level;
         [SerializeField] private BoosterButtonView[] _boosters = Array.Empty<BoosterButtonView>();
+        [Tooltip("Full-screen node the boosters' prompt and banner prefabs (BoosterCatalog) are put under at runtime — " +
+                 "above the HUD's own buttons, below the toast.")]
+        [SerializeField] private RectTransform _boosterOverlays;
+        [Tooltip("The notice band in the lower third (\"No available slots\").")]
+        [SerializeField] private ToastView _toast;
 
         public event Action RetryClicked;
         public event Action HomeClicked;
@@ -33,12 +38,17 @@ namespace Game.Views
         /// <summary>Booster button <paramref name="index"/>, or null.</summary>
         public BoosterButtonView Booster(int index) => index >= 0 && index < _boosters.Length ? _boosters[index] : null;
 
+        /// <summary>Where the boosters' prompt and banner instances go (falls back to the HUD root).</summary>
+        public RectTransform BoosterOverlays => _boosterOverlays != null ? _boosterOverlays : (RectTransform)transform;
+        public ToastView Toast => _toast;
+
         private Action[] _boosterHandlers = Array.Empty<Action>();
 
         private void Awake()
         {
             if (_retry != null) _retry.onClick.AddListener(OnRetry);
             if (_home != null) _home.onClick.AddListener(OnHome);
+            if (_toast != null) _toast.gameObject.SetActive(false);
             _boosterHandlers = new Action[_boosters.Length];
             for (int i = 0; i < _boosters.Length; i++)
             {
@@ -54,6 +64,12 @@ namespace Game.Views
             if (_home != null) _home.onClick.RemoveListener(OnHome);
             for (int i = 0; i < _boosters.Length && i < _boosterHandlers.Length; i++)
                 if (_boosters[i] != null) _boosters[i].Clicked -= _boosterHandlers[i];
+        }
+
+        /// <summary>The session's feel: how the toast moves (the booster overlays get it from the widget).</summary>
+        public void UseFeel(GameFeel feel)
+        {
+            if (_toast != null) _toast.UseFeel(feel);
         }
 
         /// <summary>The level title, already formatted.</summary>

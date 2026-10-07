@@ -47,6 +47,16 @@ namespace Game.Views
 
         public void SetVisible(bool visible) => gameObject.SetActive(visible);
 
+        /// <summary>false: it takes no tap and reads as off (another booster is in play).</summary>
+        public void SetInteractable(bool interactable)
+        {
+            if (_button != null) _button.interactable = interactable;
+            if (_group == null && !TryGetComponent(out _group)) _group = gameObject.AddComponent<CanvasGroup>();
+            _group.alpha = interactable ? 1f : DesignTokens.Booster.ButtonDisabledAlpha;
+        }
+
+        private CanvasGroup _group;
+
         private void Awake()
         {
             if (_button != null) _button.onClick.AddListener(OnClick);

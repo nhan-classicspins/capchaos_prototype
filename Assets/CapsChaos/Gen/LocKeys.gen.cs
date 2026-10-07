@@ -11,6 +11,8 @@ namespace Game.Gen
     {
         public static readonly LocKey BoosterHandDescription        = new("booster.hand.description");
         public static readonly LocKey BoosterHandName               = new("booster.hand.name");
+        public static readonly LocKey BoosterHandPromptHint         = new("booster.hand.prompt_hint");
+        public static readonly LocKey BoosterHandPromptTitle        = new("booster.hand.prompt_title");
         public static readonly LocKey BoosterHandUnlocked           = new("booster.hand.unlocked");
         public static readonly LocKey BoosterShuffleDescription     = new("booster.shuffle.description");
         public static readonly LocKey BoosterShuffleName            = new("booster.shuffle.name");
@@ -55,6 +57,8 @@ namespace Game.Gen
         public static readonly LocKey OutOfSlotTitle                = new("out_of_slot.title");
         public static readonly LocKey ParkingSlotBody               = new("parking_slot.body");
         public static readonly LocKey ParkingSlotTitle              = new("parking_slot.title");
+        public static readonly LocKey ToastNoBoxLeft                = new("toast.no_box_left");
+        public static readonly LocKey ToastNoSlots                  = new("toast.no_slots");
         public static readonly LocKey WinNext                       = new("win.next");
         public static readonly LocKey WinSubtitle                   = new("win.subtitle");
         public static readonly LocKey WinTitle                      = new("win.title");

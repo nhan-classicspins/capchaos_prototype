@@ -324,6 +324,21 @@ namespace Game.Views
         }
 
         /// <summary>
+        /// Booster play colours (SKU owner, 2026-10-07 — no art spec row; decided here, rule 17): the black shade at the
+        /// top while a booster waits for its target, the dim behind the ribbon banner while it acts, the toast band. How
+        /// they MOVE (timings, eases, distances) is tunable feel: <see cref="GameFeel"/>, "Booster" headers.
+        /// </summary>
+        public static class Booster
+        {
+            public static readonly Color PromptShade = new Color(0f, 0f, 0f, 0.85f);
+            public static readonly Color BannerDim = new Color(0f, 0f, 0f, 0.5f);
+            public static readonly Color ToastBand = new Color(0f, 0f, 0f, 0.6f);
+
+            /// <summary>A booster button that takes no tap right now (another booster is in play).</summary>
+            public const float ButtonDisabledAlpha = 0.45f;
+        }
+
+        /// <summary>
         /// The "one more slot" offers (GDD R20 — refs: Parking Slot / Out of Slot popups) and the HUD coin pill. Not in the
         /// art spec — decided here (rule 17), read off the reference: a royal-blue panel under a banner with a gold rim, a
         /// cream card, a yellow FREE button and a green coin button, each over a darker lip; a red round ✕. Defaults only —

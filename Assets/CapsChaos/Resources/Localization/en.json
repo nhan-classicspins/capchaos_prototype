@@ -1,6 +1,8 @@
 {
   "booster.hand.description": "Pick any box from the queues and send it straight to a slot.",
   "booster.hand.name": "Hand",
+  "booster.hand.prompt_hint": "Tap any box in the queues to send it to a slot",
+  "booster.hand.prompt_title": "HAND",
   "booster.hand.unlocked": "Hand unlocked! Grab the box you need from anywhere in the queues.",
   "booster.shuffle.description": "Brings the boxes your conveyor needs to the front and shuffles the rest.",
   "booster.shuffle.name": "Shuffle",
@@ -45,6 +47,8 @@
   "out_of_slot.title": "Out of Slot",
   "parking_slot.body": "Open one more slot",
   "parking_slot.title": "Parking Slot",
+  "toast.no_box_left": "No Box Left",
+  "toast.no_slots": "No available slots",
   "win.next": "NEXT",
   "win.subtitle": "Level {0} cleared!",
   "win.title": "GOOD\\nJOB"

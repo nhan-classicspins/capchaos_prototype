@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using LitMotion;
+using LitMotion.Adapters;
+using UnityEngine;
 
 namespace Game.Views
 {
@@ -17,6 +19,24 @@ namespace Game.Views
     {
         private readonly ManualMotionDispatcher _motions = new ManualMotionDispatcher();
         private float _speed = 1f;
+
+        /// <summary>
+        /// The dispatcher keeps one runner per value type in a dictionary it walks on every <see cref="Advance"/>, and makes
+        /// a runner the first time a tween of that type is scheduled. A tween that completes inside Advance resumes its
+        /// awaiter right there; if that awaiter schedules the scope's FIRST tween of another type (a container's Vector3
+        /// impact after its float flight), the dictionary changes mid-walk and Advance throws. So every type the game
+        /// tweens on this clock gets its runner up front — add a type here when a game-time tween starts using it.
+        /// </summary>
+        public GameTime()
+        {
+            _motions.EnsureStorageCapacity<float, NoOptions, FloatMotionAdapter>(Prewarm);
+            _motions.EnsureStorageCapacity<Vector2, NoOptions, Vector2MotionAdapter>(Prewarm);
+            _motions.EnsureStorageCapacity<Vector3, NoOptions, Vector3MotionAdapter>(Prewarm);
+            _motions.EnsureStorageCapacity<Quaternion, NoOptions, QuaternionMotionAdapter>(Prewarm);
+            _motions.EnsureStorageCapacity<Color, NoOptions, ColorMotionAdapter>(Prewarm);
+        }
+
+        private const int Prewarm = 32;
 
         /// <summary>How many game seconds pass per real second: 1 = normal, 2 = twice as fast. Never negative.</summary>
         public float GameSpeed

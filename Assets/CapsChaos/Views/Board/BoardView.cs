@@ -422,18 +422,19 @@ namespace Game.Views
 
         // ── animations (the fact replay) ─────────────────────────────────────────────────────
         /// <summary>
-        /// The front tray of <paramref name="lane"/> becomes tray <paramref name="trayId"/> and flies to a slot:
+        /// Belt tray <paramref name="index"/> of <paramref name="lane"/> (0 = the front one; any with Booster Hand) becomes
+        /// tray <paramref name="trayId"/> and flies to a slot:
         /// <paramref name="preferredSlot"/> if it is clear on screen, else the left-most clear one. Claimed
         /// synchronously when a slot is clear (the controller only releases a tray when
         /// <see cref="HasClearSlot"/>), so bottles can already fly to it and the next tap sees the slot taken.
         /// </summary>
-        public async UniTask PlaceTray(int trayId, int lane, int preferredSlot)
+        public async UniTask PlaceTray(int trayId, int lane, int preferredSlot, int index = 0)
         {
             var list = _lanes[lane];
-            if (list.Count == 0) return;
-            var tray = list[0];
-            list.RemoveAt(0);
-            _lanePos[lane].RemoveAt(0);                               // its position stays empty until LayoutLane moves the rest
+            if (index < 0 || index >= list.Count) return;
+            var tray = list[index];
+            list.RemoveAt(index);
+            _lanePos[lane].RemoveAt(index);                           // its position stays empty until LayoutLane moves the rest
             var hit = tray.GetComponent<Collider>();
             if (hit != null) hit.enabled = false;                     // off the belt: no longer tappable
             ReleaseLinks(tray.transform);                             // R19: the link ends when the trays fly

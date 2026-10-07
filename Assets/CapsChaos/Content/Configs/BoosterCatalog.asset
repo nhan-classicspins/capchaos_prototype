@@ -18,8 +18,18 @@ MonoBehaviour:
     _descriptionKey: booster.hand.description
     _unlockedDescriptionKey: booster.hand.unlocked
     _icon: {fileID: 21300000, guid: 21ba0dfe3103b4834a606ebfe0078bc3, type: 3}
+    _waitsForTarget: 1
+    _prompt: {fileID: 5688091182344970861, guid: e534ee93c278a4fae9210f54315ad72c, type: 3}
+    _promptTitleKey: booster.hand.prompt_title
+    _promptHintKey: booster.hand.prompt_hint
+    _banner: {fileID: 1796527627794477554, guid: 3f365b76f6bc24369bff4cd812006ed0, type: 3}
   - _id: booster_shuffle
     _nameKey: booster.shuffle.name
     _descriptionKey: booster.shuffle.description
     _unlockedDescriptionKey: booster.shuffle.unlocked
     _icon: {fileID: 21300000, guid: 141770372fb1c44ff81a7213cd5aa2c0, type: 3}
+    _waitsForTarget: 0
+    _prompt: {fileID: 0}
+    _promptTitleKey: 
+    _promptHintKey: 
+    _banner: {fileID: 8731242317624206467, guid: 31261f1be8d1e478eb94d8fb6c94446a, type: 3}

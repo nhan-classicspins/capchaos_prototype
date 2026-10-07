@@ -29,17 +29,20 @@ namespace Game.Presentation
             public static readonly AssetKey<GameObject> Items_07 = new("Items/Items_07");
             public static readonly AssetKey<GameObject> Items_08 = new("Items/Items_08");
         }
-        public static readonly AssetKey<GameObject> ConveyorBelt      = new("ConveyorBelt");
-        public static readonly AssetKey<GameObject> Floor             = new("Floor");
-        public static readonly AssetKey<GameObject> GameplayHudWidget = new("GameplayHudWidget");
-        public static readonly AssetKey<GameObject> Lane              = new("Lane");
-        public static readonly AssetKey<GameObject> LevelButton       = new("LevelButton");
-        public static readonly AssetKey<GameObject> LevelSelectWidget = new("LevelSelectWidget");
-        public static readonly AssetKey<GameObject> OutOfSlotDialog   = new("OutOfSlotDialog");
-        public static readonly AssetKey<GameObject> ParkingSlotDialog = new("ParkingSlotDialog");
-        public static readonly AssetKey<GameObject> ResultDialog      = new("ResultDialog");
-        public static readonly AssetKey<GameObject> Slot              = new("Slot");
-        public static readonly AssetKey<GameObject> TrayLink          = new("TrayLink");
-        public static readonly AssetKey<GameObject> TrayLock          = new("TrayLock");
+        public static readonly AssetKey<GameObject> BoosterBanner_Hand    = new("BoosterBanner_Hand");
+        public static readonly AssetKey<GameObject> BoosterBanner_Shuffle = new("BoosterBanner_Shuffle");
+        public static readonly AssetKey<GameObject> BoosterPrompt_Hand    = new("BoosterPrompt_Hand");
+        public static readonly AssetKey<GameObject> ConveyorBelt          = new("ConveyorBelt");
+        public static readonly AssetKey<GameObject> Floor                 = new("Floor");
+        public static readonly AssetKey<GameObject> GameplayHudWidget     = new("GameplayHudWidget");
+        public static readonly AssetKey<GameObject> Lane                  = new("Lane");
+        public static readonly AssetKey<GameObject> LevelButton           = new("LevelButton");
+        public static readonly AssetKey<GameObject> LevelSelectWidget     = new("LevelSelectWidget");
+        public static readonly AssetKey<GameObject> OutOfSlotDialog       = new("OutOfSlotDialog");
+        public static readonly AssetKey<GameObject> ParkingSlotDialog     = new("ParkingSlotDialog");
+        public static readonly AssetKey<GameObject> ResultDialog          = new("ResultDialog");
+        public static readonly AssetKey<GameObject> Slot                  = new("Slot");
+        public static readonly AssetKey<GameObject> TrayLink              = new("TrayLink");
+        public static readonly AssetKey<GameObject> TrayLock              = new("TrayLock");
     }
 }

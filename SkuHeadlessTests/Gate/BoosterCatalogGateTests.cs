@@ -10,8 +10,10 @@ namespace CapsChaos.SkuHeadlessTests.Gate
     /// <summary>
     /// The booster config (<c>Content/Configs/BoosterCatalog.asset</c>, a <c>Game.Views.BoosterCatalog</c>) stays true to
     /// the two things it names by string: every booster id is a resource the wallet counts (<c>game.resources.json</c>),
-    /// once, and every text key is a row of <c>loc.csv</c> (read from the <c>LocKeys.gen.cs</c> codegen makes of it). Read off the asset's YAML, so a typo in the Inspector fails
-    /// here instead of showing a raw key (or a count that never moves) on screen.
+    /// once, and every text key is a row of <c>loc.csv</c> (read from the <c>LocKeys.gen.cs</c> codegen makes of it). A
+    /// booster that waits for a target has a prompt prefab and prompt texts. Read off the asset's YAML, so a typo in the
+    /// Inspector fails here instead of showing a raw key (or a count that never moves, or a booster that waits for a pick
+    /// nobody asked for) on screen.
     /// </summary>
     [TestFixture]
     public sealed class BoosterCatalogGateTests
@@ -25,7 +27,7 @@ namespace CapsChaos.SkuHeadlessTests.Gate
             Dictionary<string, string> current = null;
             foreach (var line in File.ReadAllLines(Asset))
             {
-                var m = Regex.Match(line, @"^\s*(-\s+)?(_id|_nameKey|_descriptionKey|_unlockedDescriptionKey):\s*(.*)$");
+                var m = Regex.Match(line, @"^\s*(-\s+)?(_id|_nameKey|_descriptionKey|_unlockedDescriptionKey|_waitsForTarget|_promptTitleKey|_promptHintKey|_prompt|_banner):\s*(.*)$");
                 if (!m.Success) continue;
                 if (m.Groups[1].Success && m.Groups[1].Value.Length > 0) list.Add(current = new Dictionary<string, string>());
                 current![m.Groups[2].Value] = m.Groups[3].Value.Trim();
@@ -45,12 +47,35 @@ namespace CapsChaos.SkuHeadlessTests.Gate
                 Assert.That(resources, Does.Contain(id), $"booster '{id}' is not a resource in game.resources.json — the wallet would never count it");
         }
 
+        // the keys codegen generated from loc.csv (LocKeys.gen.cs) — the same set the game can resolve
+        private static HashSet<string> LocKeys() =>
+            Regex.Matches(File.ReadAllText(RepoLayout.Path("Assets", "CapsChaos", "Gen", "LocKeys.gen.cs")),
+                "new\\(\"([^\"]+)\"\\)").Select(m => m.Groups[1].Value).ToHashSet();
+
+        /// <summary>A serialized object reference that points at an asset (not <c>{fileID: 0}</c>).</summary>
+        private static bool IsSet(Dictionary<string, string> b, string field) =>
+            b.TryGetValue(field, out var r) && r.Contains("guid:");
+
+        [Test]
+        public void Every_booster_that_waits_for_a_target_has_a_prompt_and_its_texts()
+        {
+            var keys = LocKeys();
+            foreach (var b in Boosters())
+            {
+                if (!b.TryGetValue("_waitsForTarget", out var waits) || waits != "1") continue;
+                Assert.That(IsSet(b, "_prompt"), Is.True, $"booster '{b["_id"]}' waits for a target but has no prompt prefab");
+                foreach (var field in new[] { "_promptTitleKey", "_promptHintKey" })
+                {
+                    Assert.That(b.TryGetValue(field, out var key) && key.Length > 0, Is.True, $"booster '{b["_id"]}' waits for a target but has no {field}");
+                    Assert.That(keys, Does.Contain(key), $"booster '{b["_id"]}' {field} '{key}' is not a localization key — add it to loc.csv and run Framework/Codegen/Generate");
+                }
+            }
+        }
+
         [Test]
         public void Every_booster_text_is_a_localization_key()
         {
-            // the keys codegen generated from loc.csv (LocKeys.gen.cs) — the same set the game can resolve
-            var keys = Regex.Matches(File.ReadAllText(RepoLayout.Path("Assets", "CapsChaos", "Gen", "LocKeys.gen.cs")),
-                    "new\\(\"([^\"]+)\"\\)").Select(m => m.Groups[1].Value).ToHashSet();
+            var keys = LocKeys();
             foreach (var b in Boosters())
                 foreach (var field in new[] { "_nameKey", "_descriptionKey", "_unlockedDescriptionKey" })
                 {

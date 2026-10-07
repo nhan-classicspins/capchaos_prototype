@@ -32,7 +32,10 @@ namespace Game.Views
         }
     }
 
-    /// <summary>One booster as the player sees it.</summary>
+    /// <summary>One booster as the player sees it — its texts, its icon, and the UI it plays with: a booster that
+    /// <see cref="WaitsForTarget"/> shows its <see cref="Prompt"/> until the player picks (Hand: a box); every booster
+    /// plays its <see cref="Banner"/> as it acts. Each booster has its own prompt / banner prefabs
+    /// (<c>Content/UI/Boosters/&lt;Name&gt;/</c>), since each may want its own layout.</summary>
     [Serializable]
     public sealed class BoosterDefinition
     {
@@ -48,10 +51,28 @@ namespace Game.Views
         [Tooltip("Its icon (button, shop, unlock popup).")]
         [SerializeField] private Sprite _icon;
 
+        [Header("In play")]
+        [Tooltip("On: tapping the booster first waits for the player to pick its target (Hand: a box), showing Prompt; " +
+                 "tapping it again cancels. Off: it acts at once (Shuffle).")]
+        [SerializeField] private bool _waitsForTarget;
+        [Tooltip("The prompt prefab shown while it waits for a target (only with Waits For Target).")]
+        [SerializeField] private BoosterPromptView _prompt;
+        [Tooltip("Localization key of the prompt's title, e.g. booster.hand.prompt_title (only with Waits For Target).")]
+        [SerializeField] private string _promptTitleKey;
+        [Tooltip("Localization key of the prompt's hint line (only with Waits For Target).")]
+        [SerializeField] private string _promptHintKey;
+        [Tooltip("The banner prefab played as it acts; none = it acts without one.")]
+        [SerializeField] private BoosterBannerView _banner;
+
         public string Id => _id;
         public string NameKey => _nameKey;
         public string DescriptionKey => _descriptionKey;
         public string UnlockedDescriptionKey => _unlockedDescriptionKey;
         public Sprite Icon => _icon;
+        public bool WaitsForTarget => _waitsForTarget;
+        public BoosterPromptView Prompt => _prompt;
+        public string PromptTitleKey => _promptTitleKey;
+        public string PromptHintKey => _promptHintKey;
+        public BoosterBannerView Banner => _banner;
     }
 }

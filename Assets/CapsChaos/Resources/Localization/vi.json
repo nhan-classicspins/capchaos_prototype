@@ -1,6 +1,8 @@
 {
   "booster.hand.description": "Chọn một box bất kỳ trong hàng chờ và đưa thẳng lên slot.",
   "booster.hand.name": "Bàn Tay",
+  "booster.hand.prompt_hint": "Chạm vào box bất kỳ trong hàng chờ để đưa lên slot",
+  "booster.hand.prompt_title": "BÀN TAY",
   "booster.hand.unlocked": "Đã mở khoá Bàn Tay! Lấy box bạn cần ở bất kỳ đâu trong hàng chờ.",
   "booster.shuffle.description": "Đưa các box có màu đang trên băng chuyền lên đầu hàng và xáo trộn các box còn lại.",
   "booster.shuffle.name": "Xáo Trộn",
@@ -45,6 +47,8 @@
   "out_of_slot.title": "Hết Slot",
   "parking_slot.body": "Mở thêm một slot",
   "parking_slot.title": "Thêm Slot",
+  "toast.no_box_left": "Không còn box nào",
+  "toast.no_slots": "Hết slot trống",
   "win.next": "TIẾP",
   "win.subtitle": "Đã qua màn {0}!",
   "win.title": "LÀM TỐT\\nLẮM"

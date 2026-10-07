@@ -70,7 +70,6 @@ namespace Game.Presentation
         private BoardView _board;
         private BoardInputView _input;
         private int[] _laneShown;          // how many trays of each lane have been put on the belt so far
-        private int[] _laneTaken;          // how many trays have left each lane (== the rules' lane head, kept in step with the belt)
         private int[] _trayInSlot;         // rules slot → id of the tray the RULES currently have there
         private readonly Dictionary<int, int> _cells = new Dictionary<int, int>();   // tray id → bottles assigned so far
         private readonly Dictionary<int, int> _capacity = new Dictionary<int, int>();   // tray id → items it takes (R21)
@@ -83,6 +82,11 @@ namespace Game.Presentation
         private bool _ending;              // the rules finished the round; the result is on its way
         private bool _offering;            // a slot offer (R20) is on screen or paying
         private bool _leaving;
+        private BoosterPhase _boosterPhase;  // Booster Hand: waiting for the player to pick a box, or playing it
+        private int _activeBooster = -1;     // HUD index of the booster in play
+        private CancellationTokenSource _boosterCts;
+
+        private enum BoosterPhase { None, Choosing, Acting }
 
         public GameplayScreen(GameplayParam param, LevelCatalog catalog, IRenderLayerRegistry layers,
             IAssetService assets, ISceneService scenes, GameplaySceneRoot root, GameplayHudWidget hud,
@@ -152,6 +156,8 @@ namespace Game.Presentation
             _prefabs.TrayLink = await Hold(AssetKeys.TrayLink, ct);
             _prefabs.ConveyorBelt = await Hold(AssetKeys.ConveyorBelt, ct);
             _hud.Attach();
+            _hud.UseFeel(_feel);
+            BindBoosterOverlays();
             _hud.RetryRequested += OnRetry;
             _hud.HomeRequested += GoHome;
             _hud.BoosterRequested += OnBoosterRequested;
@@ -302,7 +308,6 @@ namespace Game.Presentation
             _board.SetBeltPhase(belt.Offset, DesignTokens.Motion.BeltRowsPerSecond);
 
             _laneShown = new int[_level.Lanes.Count];
-            _laneTaken = new int[_level.Lanes.Count];
             for (int j = 0; j < _level.Lanes.Count; j++)
                 for (; _laneShown[j] < _level.Lanes[j].Count && OnVisibleBelt(j, _laneShown[j]); _laneShown[j]++)
                     _board.AddLaneTray(j, LookOf(j, _laneShown[j]), _game.TrayPosition(j, _laneShown[j]));
@@ -339,6 +344,7 @@ namespace Game.Presentation
             }
             _holding = false;
             ApplySpeed();
+            EndBooster();
             _roundCts?.Cancel();
             _roundCts?.Dispose();
             _roundCts = null;
@@ -365,7 +371,10 @@ namespace Game.Presentation
         private void OnTrayTapped(int lane, int index)
         {
             if (_game == null || _game.Status != GameStatus.Playing) return;
-            int tray = _laneTaken[lane] + index;
+            if (_boosterPhase == BoosterPhase.Acting) return;
+            int tray = _game.TrayAtPosition(lane, index);
+            if (tray < 0) return;
+            if (_boosterPhase == BoosterPhase.Choosing) { OnBoosterTarget(lane, tray); return; }
             bool linked = _game.TryPartner(lane, tray, out var partner);
 
             if (!_game.IsAtFront(lane, tray)) { Shake(lane, tray, linked, partner); return; }
@@ -378,22 +387,38 @@ namespace Game.Presentation
                     Shake(lane, tray, linked, partner);
                 return;
             }
+            PlayRelease(result.Facts).Forget();
+        }
 
-            // Immediate feedback: the released trays leave the belt NOW, and the belt / reveal / lock beats play at once
-            // too; the bottles the trays take from the pick zone fly as they are listed.
+        /// <summary>
+        /// The facts of a tap (or of Booster Hand): the released tray leaves the belt NOW, and the belt / reveal / lock
+        /// beats play at once too; the bottles the trays take from the pick zone fly as they are listed. Returns the
+        /// tray's flight to its slot (done once it has landed).
+        /// </summary>
+        private UniTask PlayRelease(IReadOnlyList<GameFact> facts)
+        {
+            TrayPlaced placed = null;                             // one per release; Hand may reveal / untie it first
+            foreach (var f in facts) if (f is TrayPlaced p) { placed = p; break; }
+            bool IsPlaced(int lane, int tray) => placed != null && placed.Lane == lane && placed.Tray == tray;
+            var flight = UniTask.CompletedTask;
             var moved = new HashSet<int>();                       // lanes a tray left
-            foreach (var f in result.Facts)
+            foreach (var f in facts)
             {
                 switch (f)
                 {
+                    case TrayRevealed r when IsPlaced(r.Lane, r.Tray):                  // Hand: it shows its colour as it lifts
+                        _board.RevealLaneTray(r.Lane, placed.Position, r.Color.ToTint()).Forget();
+                        break;
+                    case TrayLinkBroken b when IsPlaced(b.A.Lane, b.A.Index) || IsPlaced(b.B.Lane, b.B.Index):
+                        _board.UnlinkTrays(b.A.Lane, BoardIndex(b.A, placed), b.B.Lane, BoardIndex(b.B, placed));
+                        break;
                     case TrayPlaced t:
                         int id = ++_nextTray;
                         _trayInSlot[t.Slot] = id;
                         _cells[id] = 0;
                         _capacity[id] = t.Capacity;
-                        _laneTaken[t.Lane]++;
                         moved.Add(t.Lane);
-                        _board.PlaceTray(id, t.Lane, t.Slot).Forget();
+                        flight = _board.PlaceTray(id, t.Lane, t.Slot, t.Position).Preserve();
                         _board.SetTrayCount(id, CountLabel(t.Capacity));      // R21: how many items it still misses
                         break;
                     case LaneAdvanced a:
@@ -409,21 +434,24 @@ namespace Game.Presentation
                 }
             }
             foreach (int movedLane in moved) SyncLane(movedLane);
-            foreach (var f in result.Facts)
+            foreach (var f in facts)
             {
                 switch (f)
                 {
+                    case TrayRevealed r when IsPlaced(r.Lane, r.Tray):
+                    case TrayLinkBroken b when IsPlaced(b.A.Lane, b.A.Index) || IsPlaced(b.B.Lane, b.B.Index):
+                        break;                                                          // played above, before it flew
                     case TrayLinkBroken b:                                              // R19: both at the front
-                        _board.UnlinkTrays(b.A.Lane, b.A.Index - _laneTaken[b.A.Lane], b.B.Lane, b.B.Index - _laneTaken[b.B.Lane]);
+                        _board.UnlinkTrays(b.A.Lane, _game.TrayPosition(b.A.Lane, b.A.Index), b.B.Lane, _game.TrayPosition(b.B.Lane, b.B.Index));
                         break;
                     case TrayRevealed r:
-                        _board.RevealLaneTray(r.Lane, r.Tray - _laneTaken[r.Lane], r.Color.ToTint()).Forget();
+                        _board.RevealLaneTray(r.Lane, _game.TrayPosition(r.Lane, r.Tray), r.Color.ToTint()).Forget();
                         break;
                     case TrayLockTicked k when k.Remaining > 0:
-                        _board.SetTrayLock(k.Lane, k.Tray - _laneTaken[k.Lane], LockLabel(k.Remaining)).Forget();
+                        _board.SetTrayLock(k.Lane, _game.TrayPosition(k.Lane, k.Tray), LockLabel(k.Remaining)).Forget();
                         break;
                     case TrayLockTicked k:
-                        _board.UnlockTray(k.Lane, k.Tray - _laneTaken[k.Lane]).Forget();
+                        _board.UnlockTray(k.Lane, _game.TrayPosition(k.Lane, k.Tray)).Forget();
                         break;
                     case SlotLockTicked k when k.Remaining > 0:                         // R22
                         _board.SetSlotTurns(k.Slot, LockLabel(k.Remaining)).Forget();
@@ -439,8 +467,15 @@ namespace Game.Presentation
                         break;
                 }
             }
-            PlayBelt(result.Facts);
+            PlayBelt(facts);
+            return flight;
         }
+
+        /// <summary>Where tray <paramref name="t"/> stands on its belt as the board has it BEFORE <paramref name="placed"/>
+        /// leaves: the placed tray at the spot it left, any other where the rules have it (a link joins two lanes, so the
+        /// placement never moved it).</summary>
+        private int BoardIndex(TrayRef t, TrayPlaced placed) =>
+            t.Lane == placed.Lane && t.Index == placed.Tray ? placed.Position : _game.TrayPosition(t.Lane, t.Index);
 
         /// <summary>Holding an empty spot of the board sets <see cref="GameTime.GameSpeed"/> to the feel's HoldSpeed (2) —
         /// the belt's steps and every board animation run on that clock; letting go sets it back to 1 (SKU owner,
@@ -511,11 +546,13 @@ namespace Game.Presentation
                         RefreshCoins();
                         _ending = true;
                         ApplySpeed();
+                        if (_boosterPhase == BoosterPhase.Choosing) EndBooster();     // nothing left to pick for
                         EndRoundAsync(f, _roundCts.Token).Forget();
                         break;
                     case LevelFailed _:
                         _ending = true;
                         ApplySpeed();
+                        if (_boosterPhase == BoosterPhase.Choosing) EndBooster();     // nothing left to pick for
                         EndRoundAsync(f, _roundCts.Token).Forget();
                         break;
                 }
@@ -525,8 +562,8 @@ namespace Game.Presentation
         /// <summary>"Not this one": the tray shakes — with its partner, when it is linked and the partner is on the belt.</summary>
         private void Shake(int lane, int tray, bool linked, TrayRef partner)
         {
-            _board.ShakeTray(lane, tray - _laneTaken[lane]).Forget();
-            if (linked && OnBelt(partner.Lane, partner.Index)) _board.ShakeTray(partner.Lane, partner.Index - _laneTaken[partner.Lane]).Forget();
+            _board.ShakeTray(lane, _game.TrayPosition(lane, tray)).Forget();
+            if (linked && OnBelt(partner.Lane, partner.Index)) _board.ShakeTray(partner.Lane, _game.TrayPosition(partner.Lane, partner.Index)).Forget();
         }
 
         /// <summary>How authored tray <paramref name="tray"/> of <paramref name="lane"/> looks right now (R17, R18, R21: the
@@ -542,7 +579,7 @@ namespace Game.Presentation
         private string LockLabel(int turns) => _loc.Get(LocKeys.GameplayLockTurns, turns);
         private string CountLabel(int missing) => _loc.Get(LocKeys.GameplayContainerMissing, missing);
 
-        private bool OnBelt(int lane, int tray) => tray >= _laneTaken[lane] && tray < _laneShown[lane];
+        private bool OnBelt(int lane, int tray) => tray < _laneShown[lane] && _game.TrayPosition(lane, tray) >= 0;
 
         /// <summary>Does tray <paramref name="tray"/> of <paramref name="lane"/> stand on the drawn stretch of its belt?</summary>
         private bool OnVisibleBelt(int lane, int tray)
@@ -560,8 +597,12 @@ namespace Game.Presentation
             var tails = new List<TrayLook>();
             for (; _laneShown[lane] < _level.Lanes[lane].Count && OnVisibleBelt(lane, _laneShown[lane]); _laneShown[lane]++)
                 tails.Add(LookOf(lane, _laneShown[lane]));
-            var positions = new List<int>(_laneShown[lane] - _laneTaken[lane]);
-            for (int t = _laneTaken[lane]; t < _laneShown[lane]; t++) positions.Add(_game.TrayPosition(lane, t));
+            var positions = new List<int>(_laneShown[lane] - _game.LaneHead(lane));
+            for (int t = _game.LaneHead(lane); t < _laneShown[lane]; t++)
+            {
+                int position = _game.TrayPosition(lane, t);
+                if (position >= 0) positions.Add(position);                 // a tray Booster Hand took is gone
+            }
             _board.LayoutLane(lane, positions, tails).Forget();
             for (int t = shownBefore; t < _laneShown[lane]; t++) LinkIfShown(lane, t);
         }
@@ -570,7 +611,7 @@ namespace Game.Presentation
         private void LinkIfShown(int lane, int tray)
         {
             if (!_game.TryPartner(lane, tray, out var p) || !OnBelt(p.Lane, p.Index) || !OnBelt(lane, tray)) return;
-            _board.LinkTrays(lane, tray - _laneTaken[lane], p.Lane, p.Index - _laneTaken[p.Lane]);
+            _board.LinkTrays(lane, _game.TrayPosition(lane, tray), p.Lane, _game.TrayPosition(p.Lane, p.Index));
         }
 
         // ── extra slots (R20) ───────────────────────────────────────────────────────────────
@@ -578,6 +619,7 @@ namespace Game.Presentation
         private void OnLockedSlotTapped(int slot)
         {
             if (_game == null || _game.Status != GameStatus.Playing || _ending || _offering || _game.SlotsRanOut) return;
+            if (_boosterPhase != BoosterPhase.None) return;
             OfferSlotAsync(rescue: false, _roundCts.Token).Forget();
         }
 
@@ -641,21 +683,166 @@ namespace Game.Presentation
         {
             for (int i = 0; i < _hud.BoosterSlots; i++)
             {
-                var booster = _boosters != null && i < _boosters.Boosters.Count ? _boosters.Boosters[i] : null;
+                var booster = BoosterAt(i);
                 if (booster == null) { _hud.SetBooster(i, false, null, null); continue; }
                 long owned = _profile.BoosterCount(new ResourceKey(booster.Id));
                 _hud.SetBooster(i, true, booster.Icon, owned > 0 ? _loc.Get(LocKeys.HudBoosterCount, owned) : null);
             }
         }
 
-        /// <summary>A booster button was tapped. Its effect and the shop are not built yet: for now it only says so.</summary>
+        /// <summary>Each booster button gets its booster's prompt and banner (BoosterCatalog), once per screen.</summary>
+        private void BindBoosterOverlays()
+        {
+            for (int i = 0; i < _hud.BoosterSlots; i++)
+            {
+                var booster = BoosterAt(i);
+                if (booster != null && booster.WaitsForTarget && booster.Prompt == null)
+                    _log.Warn($"[GameplayScreen] booster '{booster.Id}' waits for a target but has no prompt prefab — nothing tells the player what to pick.");
+                _hud.SetBoosterOverlays(i, booster?.WaitsForTarget == true ? booster.Prompt : null, booster?.Banner);
+            }
+        }
+
+        private BoosterDefinition BoosterAt(int index) =>
+            _boosters != null && index >= 0 && index < _boosters.Boosters.Count ? _boosters.Boosters[index] : null;
+
+        /// <summary>
+        /// A booster button was tapped. With none owned the shop would open (not built yet). A booster that cannot do
+        /// anything right now says why in a toast and spends nothing (Hand: no box left in the queues, no slot free).
+        /// One that <see cref="BoosterDefinition.WaitsForTarget"/> shows its prompt and waits for the pick (the other
+        /// boosters off; tapping it again cancels, spending nothing); any other acts at once.
+        /// </summary>
         private void OnBoosterRequested(int index)
         {
-            var booster = _boosters != null && index < _boosters.Boosters.Count ? _boosters.Boosters[index] : null;
+            var booster = BoosterAt(index);
             if (booster == null || _game == null || _ending) return;
-            long owned = _profile.BoosterCount(new ResourceKey(booster.Id));
-            _log.Info($"[GameplayScreen] booster '{booster.Id}' tapped (owned {owned}) — " +
-                      (owned > 0 ? "its effect is not built yet." : "the shop is not built yet."));
+            if (_boosterPhase == BoosterPhase.Acting) return;
+            if (_boosterPhase == BoosterPhase.Choosing)
+            {
+                if (index == _activeBooster) { _log.Info($"[GameplayScreen] booster '{booster.Id}' cancelled."); EndBooster(); }
+                return;
+            }
+            var resource = new ResourceKey(booster.Id);
+            long owned = _profile.BoosterCount(resource);
+            if (owned <= 0) { _log.Info($"[GameplayScreen] booster '{booster.Id}' tapped with none owned — the shop is not built yet."); return; }
+            if (!CanUse(resource, out var why))
+            {
+                if (why.HasValue) _hud.ShowToast(_loc.Get(why.Value));
+                return;
+            }
+
+            _activeBooster = index;
+            _boosterCts = CancellationTokenSource.CreateLinkedTokenSource(_roundCts.Token);
+            if (!booster.WaitsForTarget)
+            {
+                ActAsync(index, default, _boosterCts.Token).Forget();
+                return;
+            }
+            _boosterPhase = BoosterPhase.Choosing;
+            for (int i = 0; i < _hud.BoosterSlots; i++) _hud.SetBoosterInteractable(i, i == index);
+            _hud.ShowBoosterPrompt(index, booster.Icon, Text(booster.PromptTitleKey), Text(booster.PromptHintKey));
+            _log.Info($"[GameplayScreen] booster '{booster.Id}': pick a target.");
+        }
+
+        private string Text(string key) => string.IsNullOrEmpty(key) ? string.Empty : _loc.Get(new LocKey(key));
+
+        /// <summary>Can booster <paramref name="booster"/> do anything right now? When not, <paramref name="why"/> is the
+        /// toast to show (null = say nothing: its effect is not built).</summary>
+        private bool CanUse(ResourceKey booster, out LocKey? why)
+        {
+            why = null;
+            if (booster == ResourceKeys.BoosterHand)
+            {
+                if (!AnyBoxInQueues()) { why = LocKeys.ToastNoBoxLeft; return false; }
+                if (!SlotFreeOnScreen()) { why = LocKeys.ToastNoSlots; return false; }
+                return true;
+            }
+            _log.Info($"[GameplayScreen] booster '{booster.Value}' — its effect is not built yet.");
+            return false;
+        }
+
+        private bool AnyBoxInQueues()
+        {
+            for (int j = 0; j < _game.LaneCount; j++) if (_game.LaneRemaining(j) > 0) return true;
+            return false;
+        }
+
+        private bool SlotFreeOnScreen() => _game.HasFreeSlot && _board.ClearSlotCount > 0;
+
+        /// <summary>The player picked a target for the booster waiting for one: belt tray <paramref name="tray"/> of
+        /// <paramref name="lane"/>.</summary>
+        private void OnBoosterTarget(int lane, int tray)
+        {
+            var booster = BoosterAt(_activeBooster);
+            if (booster == null) { EndBooster(); return; }
+            if (new ResourceKey(booster.Id) == ResourceKeys.BoosterHand && !SlotFreeOnScreen())
+            {
+                _hud.ShowToast(_loc.Get(LocKeys.ToastNoSlots));
+                return;
+            }
+            ActAsync(_activeBooster, new TrayRef(lane, tray), _boosterCts.Token).Forget();
+        }
+
+        /// <summary>
+        /// A booster acts: every booster button off, its banner plays its pass and goes (none = straight on), then its
+        /// effect plays on the board; if the rules took it, it is spent. Once the effect is done the buttons come back.
+        /// The board takes no tap meanwhile (the banner covers it, and the phase refuses it).
+        /// <paramref name="target"/> is the pick of a booster that waits for one; default otherwise.
+        /// </summary>
+        private async UniTaskVoid ActAsync(int index, TrayRef target, CancellationToken ct)
+        {
+            var booster = BoosterAt(index);
+            var resource = new ResourceKey(booster.Id);
+            _boosterPhase = BoosterPhase.Acting;
+            for (int i = 0; i < _hud.BoosterSlots; i++) _hud.SetBoosterInteractable(i, false);
+            _hud.HideBoosterPrompts();
+            try
+            {
+                await _hud.PlayBoosterBannerAsync(index, booster.Icon, ct);
+                var effect = Apply(resource, target);
+                if (effect == null) return;                                    // refused: nothing spent
+                _profile.TryUseBooster(resource);
+                RefreshBoosters();
+                await effect.Value.AttachExternalCancellation(ct);
+            }
+            catch (OperationCanceledException) { /* round torn down */ }
+            finally
+            {
+                if (!ct.IsCancellationRequested) EndBooster();
+            }
+        }
+
+        /// <summary>The booster's effect on the rules, played on the board; null when the rules refused it (nothing to
+        /// spend). The task is done once the board has caught up.</summary>
+        private UniTask? Apply(ResourceKey booster, TrayRef target)
+        {
+            if (booster == ResourceKeys.BoosterHand)
+            {
+                var result = _game.TakeTray(target.Lane, target.Index);
+                if (!result.Accepted)
+                {
+                    _log.Info($"[GameplayScreen] Hand refused L{target.Lane}#{target.Index}: {result.Outcome} — nothing spent.");
+                    if (result.Outcome == TapOutcome.RejectedNoFreeSlot) _hud.ShowToast(_loc.Get(LocKeys.ToastNoSlots));
+                    return null;
+                }
+                _log.Info($"[GameplayScreen] Hand took L{target.Lane}#{target.Index} out of its queue.");
+                return PlayRelease(result.Facts);
+            }
+            _log.Info($"[GameplayScreen] booster '{booster.Value}' has no effect yet — nothing spent.");
+            return null;
+        }
+
+        /// <summary>No booster in play: the prompt goes, every booster button is back on.</summary>
+        private void EndBooster()
+        {
+            if (_boosterPhase == BoosterPhase.None && _activeBooster < 0) return;
+            _boosterPhase = BoosterPhase.None;
+            _activeBooster = -1;
+            _boosterCts?.Cancel();
+            _boosterCts?.Dispose();
+            _boosterCts = null;
+            _hud.HideBoosterPrompts();
+            _hud.StopBoosterBanners();
+            for (int i = 0; i < _hud.BoosterSlots; i++) _hud.SetBoosterInteractable(i, true);
         }
 
         private void RefreshCoins() => _hud.SetCoins(_loc.Get(LocKeys.HudCoins, _wallet.Balance(ResourceKeys.Coins)));

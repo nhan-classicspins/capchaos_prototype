@@ -7,13 +7,19 @@ namespace Game.Domain
     /// </summary>
     public abstract class GameFact { }
 
-    /// <summary>The front tray of <see cref="Lane"/> moved into <see cref="Slot"/>.</summary>
+    /// <summary>A tray of <see cref="Lane"/> moved into <see cref="Slot"/> — the front one on a tap, any waiting one with
+    /// Booster Hand.</summary>
     public sealed class TrayPlaced : GameFact
     {
         public int Lane { get; } public int Slot { get; } public CapColor Color { get; }
         /// <summary>Items the tray takes before it is full (R21: its size × the level's trayCapacity).</summary>
         public int Capacity { get; }
-        public TrayPlaced(int lane, int slot, CapColor color, int capacity) { Lane = lane; Slot = slot; Color = color; Capacity = capacity; }
+        /// <summary>Its authored index in the lane; −1 = it came from no lane (the generator).</summary>
+        public int Tray { get; }
+        /// <summary>Where it stood on its belt when it left (0 = the front).</summary>
+        public int Position { get; }
+        public TrayPlaced(int lane, int slot, CapColor color, int capacity, int tray = -1, int position = 0)
+        { Lane = lane; Slot = slot; Color = color; Capacity = capacity; Tray = tray; Position = position; }
     }
 
     /// <summary>A conveyor stepped one tray forward (R7); <see cref="Remaining"/> trays are left on it.</summary>
