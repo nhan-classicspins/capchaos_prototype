@@ -14,7 +14,8 @@
         "ClassicSpins.PrototypeFramework.Domain",
         "UniTask",
         "Unity.Addressables",
-        "Unity.ResourceManager"
+        "Unity.ResourceManager",
+        "SheetSync.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,0 +1,11 @@
+{
+  "name": "com.cardfactory.sheetsync",
+  "displayName": "Sheet Sync",
+  "version": "1.0.0",
+  "unity": "6000.0",
+  "description": "Syncs JSON configs kept in a published Google Sheet (one row per Id, one column per config type) into the project's bundled JSON files from an editor window, and optionally overrides the loaded configs from the same sheet at runtime.",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.2",
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  }
+}

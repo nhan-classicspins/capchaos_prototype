@@ -53,7 +53,7 @@ namespace Game.Domain
     /// The TOP conveyor's layout (GDD R1–R4, §6.2b): one LOOP and three FEEDER conveyors (right, left, middle — in that
     /// order), each a spline of <see cref="ConveyorNode"/>s, plus the rule numbers: how many rows run round the loop,
     /// how many bottles stand in a row, how many rows make the pick zone, where each feeder's queue joins. NO bottles.
-    /// One file per layout in <c>Content/LevelConfig/Conveyors/&lt;id&gt;.json</c>, SHARED: many levels name the same
+    /// One file per layout in <c>Content/Configs/ConveyorConfig/&lt;id&gt;.json</c>, SHARED: many levels name the same
     /// conveyor; a level supplies the bottles of the feeders it uses (the first N) — <see cref="LoopDefinition"/> joins
     /// the two. Immutable.
     /// <para>The rules never read the splines: a row is a row wherever it is drawn. The view spreads the rows evenly

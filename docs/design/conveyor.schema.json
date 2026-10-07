@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://classicspins.local/capschaos/conveyor.schema.json",
   "title": "Cap Chaos top conveyor — format v2",
-  "description": "The LAYOUT of the top conveyor (GDD R1–R4, §6.2b), shared by every level that names it (`conveyor` in level.schema.json): one LOOP and three FEEDER conveyors — right, left, middle, in that order — each a spline of nodes the way ConveyorKit stores a conveyor, plus the rule numbers (rows, bottles per row, pick zone, where each feeder's queue joins). No bottles: a level supplies those, for the first N feeders it uses. One file per layout in Assets/CapsChaos/Content/LevelConfig/Conveyors/<id>.json. Coordinates are BOARD units (x right, z away from the player). Structural checks live here; V8 (pick zone, merge points) and V9 (splines) are ConveyorValidator. Format v1 (preset shapes) no longer loads.",
+  "description": "The LAYOUT of the top conveyor (GDD R1–R4, §6.2b), shared by every level that names it (`conveyor` in level.schema.json): one LOOP and three FEEDER conveyors — right, left, middle, in that order — each a spline of nodes the way ConveyorKit stores a conveyor, plus the rule numbers (rows, bottles per row, pick zone, where each feeder's queue joins). No bottles: a level supplies those, for the first N feeders it uses. One file per layout in Assets/CapsChaos/Content/Configs/ConveyorConfig/<id>.json. Coordinates are BOARD units (x right, z away from the player). Structural checks live here; V8 (pick zone, merge points) and V9 (splines) are ConveyorValidator. Format v1 (preset shapes) no longer loads.",
   "type": "object",
   "additionalProperties": false,
   "required": ["formatVersion", "id", "rows", "pickRows", "loop", "feeders"],

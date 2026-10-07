@@ -11,16 +11,16 @@ namespace CapsChaos.LevelTool
 {
     /// <summary>
     ///   LevelTool generate [--specs P] [--out DIR] [--check]   build seed levels (--check: exit 1 if any file would change)
-    ///   LevelTool validate [--dir DIR] [--budget N]            V1–V9 over every Conveyors/*.json, every level_*.json + the index
+    ///   LevelTool validate [--dir DIR] [--budget N]            V1–V9 over every ../ConveyorConfig/*.json, every level_*.json + the index
     ///   LevelTool migrate  [--dir DIR] [--check]               rewrite every conveyor and level file in the current format, content unchanged
-    /// Levels name a shared conveyor layout in DIR/Conveyors/&lt;id&gt;.json (GDD §6.2b); generate never writes one.
+    /// Levels name a shared conveyor layout in DIR/../ConveyorConfig/&lt;id&gt;.json (beside the level folder) (GDD §6.2b); generate never writes one.
     /// Exit codes (framework CLI contract): 0 Ok · 1 Drift · 2 Error.
     /// </summary>
     public static class Program
     {
         private const int Ok = 0, Drift = 1, Error = 2;
         private const string DefaultSpecs = "Tools/LevelTool/seed-levels.json";
-        private const string DefaultDir = "Assets/CapsChaos/Content/LevelConfig";
+        private const string DefaultDir = "Assets/CapsChaos/Content/Configs/LevelConfig";
         private const string IndexFile = "levels.index.json";
 
         public static int Main(string[] args)
@@ -281,7 +281,7 @@ namespace CapsChaos.LevelTool
 
         private static List<string> ConveyorFiles(string dir)
         {
-            string folder = Path.Combine(dir, ConveyorJson.Folder);
+            string folder = Path.Combine(dir, "..", ConveyorJson.Folder);   // beside the level folder
             return Directory.Exists(folder)
                 ? Directory.GetFiles(folder, "*.json").OrderBy(f => f, StringComparer.Ordinal).ToList()
                 : new List<string>();

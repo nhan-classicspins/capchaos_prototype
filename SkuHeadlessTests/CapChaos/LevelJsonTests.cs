@@ -86,7 +86,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         {
             var r = Parse(Minimal.Replace("\"formatVersion\": 4", "\"formatVersion\": 3"));
             Assert.That(r.Ok, Is.False);
-            Assert.That(r.Errors.Single(), Does.Contain("Conveyors/").And.Contain("\"conveyor\""));
+            Assert.That(r.Errors.Single(), Does.Contain("ConveyorConfig/").And.Contain("\"conveyor\""));
         }
 
         [TestCase("\"id\": \"level_0007\"", "\"id\": \"L7\"", "$.id: 'L7' must match level_NNNN")]
@@ -120,7 +120,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [TestCase("\"conveyor\": \"test_8_1f\",", "", "$.conveyor: required")]
-        [TestCase("\"test_8_1f\"", "\"oval_99\"", "$.conveyor: 'oval_99' is not a conveyor (Conveyors/oval_99.json not found)")]
+        [TestCase("\"test_8_1f\"", "\"oval_99\"", "$.conveyor: 'oval_99' is not a conveyor (ConveyorConfig/oval_99.json not found)")]
         [TestCase("{ \"bottles\": [1, 2, 1, 2] } ]", "{ \"bottles\": [1, 2] }, { \"bottles\": [1, 2] } ]",
             "$.feeders: 2 queue(s), but conveyor 'test_8_1f' has 1 feeder(s)")]
         public void The_level_must_fit_the_conveyor_it_names(string find, string replace, string expected)

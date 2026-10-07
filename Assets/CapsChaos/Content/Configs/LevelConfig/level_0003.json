@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../../../docs/design/level.schema.json",
+  "formatVersion": 4,
+  "id": "level_0003",
+  "conveyor": "oval_32",
+  "slots": 4,
+  "extraSlots": 2,
+  "trayCapacity": 4,
+  "colors": [1, 2, 3],
+  "feeders": [
+    { "bottles": [
+      1, 1, 1, 1,
+      1, 1, 1, 1,
+      2, 2, 2, 2,
+      2, 2, 2, 2,
+      3, 3, 3, 3,
+      3, 3, 3, 3
+    ] }
+  ],
+  "lanes": [
+    [{ "color": 2 }],
+    [{ "color": 3 }, { "color": 2 }],
+    [{ "color": 1 }, { "color": 1 }, { "color": 3 }]
+  ],
+  "view": { "cameraPreset": "default" },
+  "meta": { "name": "Round and Round", "difficulty": "tutorial", "notes": "Teaches: only bottles passing in front of the slots are picked; the rest come round again.", "solution": [2, 0, 1, 1, 2, 2] }
+}

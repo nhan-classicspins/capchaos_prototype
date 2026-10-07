@@ -58,7 +58,7 @@ namespace Game.Composition
         /// <see cref="IBootNode"/>, and SKU installers run last, so these land in the graph with no
         /// framework-code edit. The order is expressed purely as capability edges (AD-4):
         /// <c>AssetReady → LoadingScene → TestWait → FirstScene</c> and, in parallel,
-        /// <c>AssetReady → LevelConfig → FirstScene</c>. The decorator adds exactly TWO SKU edges in front
+        /// <c>AssetReady → LevelConfig → LevelSync → FirstScene</c>. The decorator adds exactly TWO SKU edges in front
         /// of the framework's FirstScene node — <c>GameBootCaps.TestWaitDone</c> and
         /// <c>GameBootCaps.LevelsLoaded</c> — and nothing else; see the comment at the override for why the
         /// monetization caps are not there.
@@ -77,6 +77,9 @@ namespace Game.Composition
             // Levels load during the Loading stage, into a Root singleton every screen scope inherits.
             builder.Register<LevelCatalog>(Lifetime.Singleton);
             builder.Register<LevelConfigNode>(Lifetime.Singleton).As<IBootNode>();
+            // …then resynced from the level config sheet (every start; Main's Sync Config button asks again).
+            builder.Register<SheetLevelConfigSync>(Lifetime.Singleton).As<ILevelConfigSync>();
+            builder.Register<LevelSyncNode>(Lifetime.Singleton).As<IBootNode>();
 
             // The UI palette: one instance for the whole session, cached in Root, loaded during Loading.
             builder.Register<UiPaletteProvider>(Lifetime.Singleton).AsSelf();
@@ -120,7 +123,7 @@ namespace Game.Composition
             });
 
             // The AD-17 seam: swap the framework FirstScene node for the same node behind the
-            // TestWaitDone + LevelsLoaded + UiPaletteReady edges, with the Loading-scene teardown appended. The load itself is untouched —
+            // TestWaitDone + LevelsLoaded + LevelsSynced + UiPaletteReady edges, with the Loading-scene teardown appended. The load itself is untouched —
             // it still runs the FirstSceneConfig delegate registered above.
             //
             // Deliberately ONLY SKU caps — never the framework's AdsReady / AnalyticsReady caps. The
@@ -140,6 +143,7 @@ namespace Game.Composition
                         resolver.Resolve<LoadingSceneHost>(),
                         GameBootCaps.TestWaitDone,
                         GameBootCaps.LevelsLoaded,
+                        GameBootCaps.LevelsSynced,
                         GameBootCaps.UiPaletteReady)),
                 Lifetime.Singleton);
         }

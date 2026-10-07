@@ -73,6 +73,9 @@ namespace CapsChaos.SkuHeadlessTests.Gate
                 "UniTask",
                 "Unity.Addressables",
                 "Unity.ResourceManager",
+                // 2026-10-07, SKU owner: the level config resync (SheetLevelConfigSync) reads the level config
+                // sheet through the com.cardfactory.sheetsync package (Assets/com.cardfactory.sheetsync).
+                "SheetSync.Runtime",
             }),
             new Row("Assets/CapsChaos/Composition/Game.Composition.asmdef", new string[]
             {

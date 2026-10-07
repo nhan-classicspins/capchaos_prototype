@@ -15,8 +15,12 @@ namespace Game.Application
         /// <summary>The artificial test delay has elapsed (see <c>TestWaitNode</c>).</summary>
         public static readonly BootCap TestWaitDone = new("TestWaitDone");
 
-        /// <summary>Every level in <c>Content/LevelConfig/</c> is loaded, validated and in the <c>LevelCatalog</c>.</summary>
+        /// <summary>Every level in <c>Content/Configs/LevelConfig/</c> is loaded, validated and in the <c>LevelCatalog</c>.</summary>
         public static readonly BootCap LevelsLoaded = new("LevelsLoaded");
+
+        /// <summary>The level config sheet was resynced into the <c>LevelCatalog</c> — or could not be, and the bundled
+        /// levels stand (the node is optional and always emits this cap).</summary>
+        public static readonly BootCap LevelsSynced = new("LevelsSynced");
 
         /// <summary>The UI palette is loaded and cached in the Root <c>UiPaletteProvider</c> (or boot fell back to the
         /// DesignTokens defaults — the node is optional and always emits this cap).</summary>

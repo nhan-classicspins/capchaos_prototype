@@ -13,17 +13,18 @@ namespace Game.Infrastructure
 {
     /// <summary>
     /// Loads EVERY level during the Loading stage: <c>levels.index.json</c> first, then each level it lists, then
-    /// every shared conveyor file those levels name (<c>Conveyors/&lt;id&gt;.json</c>), all through Addressables, and
+    /// every shared conveyor file those levels name (<c>ConveyorConfig/&lt;id&gt;.json</c>), all through Addressables, and
     /// hands the text to <see cref="LevelCatalog.Populate"/> (parse + V1–V9).
     /// Emits <see cref="GameBootCaps.LevelsLoaded"/>, which the first-scene node is gated on — so Gameplay
     /// never waits on, or fails at, a level load.
     /// </summary>
     /// <remarks>
-    /// <para><b>Addressing.</b> <c>Assets/CapsChaos/Content/LevelConfig/</c> is ONE Addressables folder
-    /// entry with the address <see cref="Folder"/>, so each file inside is addressable as
-    /// <c>LevelConfig/&lt;file&gt;.json</c> (a conveyor <c>LevelConfig/Conveyors/&lt;id&gt;.json</c> — the folder
-    /// entry takes its subfolders too) — a level the LevelTool writes tomorrow is covered without touching the group. The level ids come from data (the index), so the keys are built here rather than
-    /// generated.</para>
+    /// <para><b>Addressing.</b> <c>Assets/CapsChaos/Content/Configs/LevelConfig/</c> is ONE Addressables folder entry
+    /// with the address <see cref="Folder"/>, so each level is addressable as <c>LevelConfig/&lt;file&gt;.json</c>; the
+    /// conveyors beside it (<c>Content/Configs/ConveyorConfig/</c>) are a second folder entry, address
+    /// <see cref="ConveyorJson.Folder"/> (<c>ConveyorConfig/&lt;id&gt;.json</c>). A file the LevelTool writes tomorrow is
+    /// covered without touching the groups. The level ids come from data (the index), so the keys are built here rather
+    /// than generated.</para>
     /// <para><b>Three-tier law.</b> A boot node because it is awaited (I/O), can fail meaningfully (a
     /// broken level), and needs external ordering (before the first scene). App-wide, not a feature scope:
     /// the catalog is a Root singleton every screen reads.</para>
@@ -68,13 +69,13 @@ namespace Game.Infrastructure
         {
             try
             {
-                string index = await ReadAsync(LevelCatalog.IndexFile, ct);
+                string index = await ReadAsync(Folder + "/" + LevelCatalog.IndexFile, ct);
                 if (index == null)
-                    throw new LevelLoadException($"{Folder}/{LevelCatalog.IndexFile} has no Addressables location — is Content/LevelConfig an addressable folder with address '{Folder}'?");
+                    throw new LevelLoadException($"{Folder}/{LevelCatalog.IndexFile} has no Addressables location — is Content/Configs/LevelConfig an addressable folder with address '{Folder}'?");
                 var order = LevelCatalog.ParseOrder(index);
 
                 var reads = new UniTask<string>[order.Count];
-                for (int i = 0; i < order.Count; i++) reads[i] = ReadAsync(order[i] + ".json", ct);
+                for (int i = 0; i < order.Count; i++) reads[i] = ReadAsync(Folder + "/" + order[i] + ".json", ct);
                 var texts = await UniTask.WhenAll(reads);
 
                 var byId = new Dictionary<string, string>(order.Count, StringComparer.Ordinal);
@@ -109,11 +110,12 @@ namespace Game.Infrastructure
             }
         }
 
-        /// <summary>The text of <c>LevelConfig/&lt;file&gt;</c>, or null when no such address exists. The
-        /// TextAsset is released straight away — the catalog keeps the parsed levels, not the asset.</summary>
-        private async UniTask<string> ReadAsync(string file, CancellationToken ct)
+        /// <summary>The text at <paramref name="address"/> (<c>LevelConfig/&lt;file&gt;</c>, <c>ConveyorConfig/&lt;id&gt;.json</c>),
+        /// or null when no such address exists. The TextAsset is released straight away — the catalog keeps the parsed
+        /// levels, not the asset.</summary>
+        private async UniTask<string> ReadAsync(string address, CancellationToken ct)
         {
-            var asset = await _assets.TryLoadAsync(new AssetKey<TextAsset>(Folder + "/" + file), ct);
+            var asset = await _assets.TryLoadAsync(new AssetKey<TextAsset>(address), ct);
             if (asset == null) return null;
             string text = asset.text;
             _assets.Release(asset);

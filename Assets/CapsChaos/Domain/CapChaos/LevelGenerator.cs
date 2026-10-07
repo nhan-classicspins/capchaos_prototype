@@ -16,7 +16,7 @@ namespace Game.Domain
         public int TrayCapacity { get; set; } = LevelDefinition.DefaultTrayCapacity;
         public int Lanes { get; set; } = 3;
         public IReadOnlyList<CapColor> Colors { get; set; } = CapColorCodes.ParseList("ROBG");
-        /// <summary>The top conveyor the level runs on (a shared <c>Conveyors/</c> file): rows, width, pick zone, shape
+        /// <summary>The top conveyor the level runs on (a shared <c>ConveyorConfig/</c> file): rows, width, pick zone, shape
         /// and merge points. The generator fills its feeders; it never changes the layout.</summary>
         public ConveyorDefinition Conveyor { get; set; }
         /// <summary>How many bottles each feeder carries — the level uses the conveyor's first N feeders (right, left,

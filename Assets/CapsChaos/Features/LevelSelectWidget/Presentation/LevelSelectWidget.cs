@@ -52,6 +52,9 @@ namespace Game.Presentation
         /// <summary>A tile was tapped: the index of its level in the catalog's play order.</summary>
         public event Action<int> LevelChosen;
 
+        /// <summary>The Sync Config pill was tapped; the screen runs the sync.</summary>
+        public event Action SyncRequested;
+
         public LevelSelectWidget(LevelSelectView sceneView, IAssetService assets, IRenderLayerRegistry layers,
             ILocalizationService loc, LevelCatalog catalog, UiPaletteProvider palette, ILog log = null)
         {
@@ -78,6 +81,8 @@ namespace Game.Presentation
                 if (_disposed) { ReleasePrefab(); return; }                // Dispose already ran — give the hold back
 
                 for (int i = 0; i < _catalog.Count; i++) AddTile(i);
+                _view.SyncClicked += OnSyncClicked;
+                SetSyncStatus(null, busy: false);
                 _view.ScrollToTop();
                 _log.Info($"[LevelSelectWidget] {_catalog.Count} levels listed.");
             }
@@ -85,6 +90,24 @@ namespace Game.Presentation
         }
 
         public void SetVisible(bool visible) => _view?.SetVisible(visible);
+
+        /// <summary>The Sync Config pill: <paramref name="status"/> under its title (null = the idle "Config"); busy =
+        /// a sync is running, so it takes no taps.</summary>
+        public void SetSyncStatus(string status, bool busy)
+        {
+            if (_view == null) return;
+            _view.SetSync(_loc.Get(LocKeys.LevelSelectSync), status ?? _loc.Get(LocKeys.LevelSelectSyncIdle), !busy);
+        }
+
+        /// <summary>Re-read every tile's labels from the catalog (a sync may have changed a level's difficulty).</summary>
+        public void Refresh()
+        {
+            if (_view == null || _tilePrefab == null) return;
+            for (int i = 0; i < _tiles.Count && i < _catalog.Count; i++)
+                _tiles[i].View.SetLabels(_loc.Get(LocKeys.LevelSelectNumber, i + 1), _loc.Get(DifficultyKey(_catalog.Get(i).Difficulty)));
+        }
+
+        private void OnSyncClicked() => SyncRequested?.Invoke();
 
         /// <summary>Paused (app lost focus, or covered): stay on screen, just stop taking taps.</summary>
         public void SetInteractable(bool interactable) => _view?.SetInteractable(interactable);
@@ -129,6 +152,8 @@ namespace Game.Presentation
             if (_disposed) return;
             _disposed = true;
             LevelChosen = null;
+            SyncRequested = null;
+            if (_view != null) _view.SyncClicked -= OnSyncClicked;
             foreach (var (tile, handler) in _tiles)
                 if (tile != null) tile.Clicked -= handler;
             _tiles.Clear();

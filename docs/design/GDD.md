@@ -301,7 +301,7 @@ review được, test headless được.
 **Hai file cho mỗi level (2026-10-05).** Mỗi level gồm:
 - **file level** (`level_NNNN.json`, phần *items*): chai trong từng hàng chờ, `initial`, các làn khay và khay đặc biệt,
   số slot, meta;
-- **file conveyor** (`Conveyors/<id>.json`, phần *layout* của băng chuyền trên): 1 loop + 3 feeder (phải, trái, giữa),
+- **file conveyor** (`ConveyorConfig/<id>.json`, phần *layout* của băng chuyền trên): 1 loop + 3 feeder (phải, trái, giữa),
   mỗi cái là một spline node theo cách của ConveyorKit; số hàng, số chai mỗi hàng, vùng lấy,
   hình vòng băng, vị trí nhập của từng hàng chờ. **Không chứa chai.**
 
@@ -314,9 +314,9 @@ xem level nào đang dùng nó (`LevelTool conveyors`).
 
 | File | Vai trò |
 |---|---|
-| `Assets/CapsChaos/Content/LevelConfig/level_0001.json` … | Một file cho mỗi level (TextAsset). Cả folder là **một** entry Addressables, address `LevelConfig`, nên mỗi file có address `LevelConfig/<id>.json` và level mới không cần đăng ký thêm |
-| `Assets/CapsChaos/Content/LevelConfig/Conveyors/<id>.json` | Một file cho mỗi layout băng chuyền trên, dùng chung. Nằm trong cùng entry folder, address `LevelConfig/Conveyors/<id>.json`. Lúc Loading, `LevelConfigNode` chỉ tải các conveyor mà ít nhất một level có tên |
-| `Assets/CapsChaos/Content/LevelConfig/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
+| `Assets/CapsChaos/Content/Configs/LevelConfig/level_0001.json` … | Một file cho mỗi level (TextAsset). Cả folder là **một** entry Addressables, address `LevelConfig`, nên mỗi file có address `LevelConfig/<id>.json` và level mới không cần đăng ký thêm |
+| `Assets/CapsChaos/Content/Configs/ConveyorConfig/<id>.json` | Một file cho mỗi layout băng chuyền trên, dùng chung. Folder này là một entry Addressables riêng (group Levels), address `ConveyorConfig/<id>.json`. Lúc Loading, `LevelConfigNode` chỉ tải các conveyor mà ít nhất một level có tên |
+| `Assets/CapsChaos/Content/Configs/LevelConfig/levels.index.json` | Thứ tự chơi: `{ "order": ["level_0001", "level_0002", …] }` |
 | `Game.Domain.CapColor` | Enum màu, dùng chung cho chai, tray, nắp và hộp. Trong JSON (v2) màu là **số** của enum (bảng §4) |
 | [`docs/design/level.schema.json`](level.schema.json) | JSON Schema (draft 2020-12) của file level, là nguồn chân lý của định dạng |
 | [`docs/design/conveyor.schema.json`](conveyor.schema.json) | JSON Schema của file conveyor |
@@ -363,7 +363,7 @@ Mảng `lanes` phải có số khay đúng theo R16. Validator sẽ kiểm.
 | Trường | Ý nghĩa |
 |---|---|
 | `formatVersion` | `4`. v3 (conveyor nằm trong level) bị từ chối, chỉ về cách tách; v1/v2 (khối chai) bị từ chối, chỉ về `LevelTool generate` |
-| `conveyor` | Id của file conveyor dùng chung (`Conveyors/<id>.json`, §6.2b). Không có file đó ⇒ lỗi V1 `$.conveyor` |
+| `conveyor` | Id của file conveyor dùng chung (`ConveyorConfig/<id>.json`, §6.2b). Không có file đó ⇒ lỗi V1 `$.conveyor` |
 | `slots` | Số slot mở sẵn, 1–6 (mặc định 4) |
 | `extraSlots` | (tuỳ chọn, mặc định 2) số slot khoá mở được bằng coin / quảng cáo (R20); `slots + extraSlots ≤ 6` |
 | `slotLocks` | (tuỳ chọn) slot mở sẵn bị **khoá theo lượt** (R22): `[{ "slot": 3, "lockTurns": 5 }]`, `lockTurns` 1–99 |
@@ -501,10 +501,10 @@ dotnet run --project Tools/LevelTool -- stats             # độ khó: tỉ l�
 dotnet run --project Tools/LevelTool -- migrate           # ghi lại mọi conveyor và level theo layout hiện tại, nội dung giữ nguyên; --check: exit 1 nếu còn file khác
 ```
 
-- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: `conveyor` (id trong `Conveyors/`), `feeders` (số chai cho
+- Spec nằm ở `Tools/LevelTool/seed-levels.json`, gồm: `conveyor` (id trong `ConveyorConfig/`), `feeders` (số chai cho
   từng feeder của conveyor đó, theo thứ tự), bộ màu, `greed` (1 = dễ), `clustering` (1 = khối dài một màu), và `seed`. Tool là nơi giữ
   seed (luật #14). Người chơi giả định của `generate`, `validate` và `stats` tap khi bàn đứng yên.
-- `generate` **không bao giờ** ghi file conveyor; muốn layout mới thì tạo file trong `Conveyors/` trước.
+- `generate` **không bao giờ** ghi file conveyor; muốn layout mới thì tạo file trong `ConveyorConfig/` trước.
 - **⚠ `generate` ghi đè** các level có trong spec. Level nào designer đã sửa tay thì **xoá khỏi spec**
   (hoặc đổi id) trước khi chạy lại. Level viết tay không cần `meta.solution`; V6 sẽ dùng solver.
 
@@ -668,7 +668,7 @@ Không có Error/Exception nào.
 | `LevelGenerator.cs` | Sinh level giải được theo cách dựng, nhận `IRandom` (luật #14) |
 
 Test ở `SkuHeadlessTests/CapChaos/`: mỗi luật R1–R16 và V1–V6 có ít nhất một test; `ContentLevelsTests`
-chạy với mọi level trong `Content/LevelConfig/`; `Gate/LevelConfigAddressablesGateTests` giữ entry Addressables của folder.
+chạy với mọi level trong `Content/Configs/LevelConfig/`; `Gate/LevelConfigAddressablesGateTests` giữ entry Addressables của folder.
 
 > **Lệch so với kế hoạch ban đầu:** không tái dựng được *chính xác* chuỗi tap trong video, vì video không
 > cho biết đủ trạng thái. Thay vào đó, R15 được test bằng một tình huống kẹt dựng theo frame 76,5 s

@@ -15,7 +15,7 @@ namespace Game.Domain
     }
 
     /// <summary>
-    /// Conveyor JSON ⇄ <see cref="ConveyorDefinition"/> — the shared layout files in <c>Content/LevelConfig/Conveyors/</c>
+    /// Conveyor JSON ⇄ <see cref="ConveyorDefinition"/> — the shared layout files in <c>Content/Configs/ConveyorConfig/</c>
     /// (GDD §6.2b, <c>docs/design/conveyor.schema.json</c>). <see cref="Parse"/> is validator leg V1 for a conveyor:
     /// every structural rule, reported all at once with a JSON path; V8/V9 are <see cref="ConveyorValidator"/>.
     /// <para>Format v2 (2026-10-05): the loop and the three feeders (right, left, middle) are splines of nodes, the way
@@ -24,8 +24,9 @@ namespace Game.Domain
     /// </summary>
     public static class ConveyorJson
     {
-        /// <summary>The conveyor files' folder, relative to the level folder (and under the LevelConfig address).</summary>
-        public const string Folder = "Conveyors";
+        /// <summary>The conveyor files' folder — beside the level folder (<c>Content/Configs/ConveyorConfig/</c>), and its
+        /// own Addressables folder entry at this address.</summary>
+        public const string Folder = "ConveyorConfig";
 
         public const int MinRows = 8, MaxRows = 64, MaxWidth = 6;
         public const double MinScale = 0.1, MaxScale = 4.0;
@@ -39,7 +40,8 @@ namespace Game.Domain
         /// <summary>How a file spells each <see cref="FeederSide"/>, in the required order.</summary>
         public static readonly string[] SideNames = { "right", "left", "middle" };
 
-        /// <summary>The path of conveyor <paramref name="id"/>'s file, relative to the level folder.</summary>
+        /// <summary>Conveyor <paramref name="id"/>'s file: its Addressables address, and its path relative to the folder the
+        /// level and conveyor folders share (<c>Content/Configs/</c>).</summary>
         public static string FileOf(string id) => Folder + "/" + id + ".json";
 
         public static ConveyorParseResult Parse(string json)
@@ -160,7 +162,7 @@ namespace Game.Domain
                 throw new InvalidOperationException($"conveyor '{c.Id}' has {c.Feeders.Count} feeders; a file has exactly {ConveyorDefinition.FeederSlots}");
             var sb = new StringBuilder();
             sb.Append("{\n");
-            // conveyors live in Assets/CapsChaos/Content/LevelConfig/Conveyors/ — five levels below the repo root
+            // conveyors live in Assets/CapsChaos/Content/Configs/ConveyorConfig/ — five levels below the repo root
             sb.Append("  \"$schema\": \"../../../../../docs/design/conveyor.schema.json\",\n");
             sb.Append($"  \"formatVersion\": {ConveyorDefinition.CurrentFormatVersion},\n");
             sb.Append($"  \"id\": {LevelJson.Q(c.Id)},\n");

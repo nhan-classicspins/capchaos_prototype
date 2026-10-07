@@ -9,7 +9,7 @@ namespace Game.Views
 {
     /// <summary>
     /// Edit a conveyor layout file in a scene — the ConveyorKit authoring loop (its <c>ConveyorEditorSpawner</c> +
-    /// <c>ConveyorJsonExporter</c>) for Cap Chaos's format: point it at a <c>Conveyors/&lt;id&gt;.json</c>, <b>Spawn</b>
+    /// <c>ConveyorJsonExporter</c>) for Cap Chaos's format: point it at a <c>ConveyorConfig/&lt;id&gt;.json</c>, <b>Spawn</b>
     /// builds the loop and the three feeders (right, left, middle) from the same ConveyorBelt prefab the game uses, edit
     /// the knots with the Splines tool (and the rule numbers below), then <b>Export</b> writes the file back. Both are on
     /// the component's context menu (⋮).
@@ -42,7 +42,7 @@ namespace Game.Views
 
         private static readonly string[] Sides = { "right", "left", "middle" };
 
-        [Tooltip("The conveyor file to edit (Content/LevelConfig/Conveyors/<id>.json).")]
+        [Tooltip("The conveyor file to edit (Content/Configs/ConveyorConfig/<id>.json).")]
         [SerializeField] private TextAsset _conveyorJson;
         [Tooltip("The ConveyorBelt prefab (Content/Art/Prefabs/ConveyorBelt).")]
         [SerializeField] private GameObject _beltPrefab;

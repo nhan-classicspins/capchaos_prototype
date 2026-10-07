@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 467c2503b3b34b8c93206b0c308d85df, type: 3}
+  m_Name: SheetSyncSettings
+  m_EditorClassIdentifier: SheetSync.Runtime::SheetSync.SheetSyncSettings
+  Enabled: 1
+  SheetUrl: https://docs.google.com/spreadsheets/d/16sump0mSAFjCjdjAP0oiXMaLyAK8Z9qH9Fm_Qt7J9_c/edit?usp=sharing
+  TimeoutSeconds: 5
+  IdColumn: Id
+  Columns:
+  - ColumnName: Level
+    AssetFolder: Assets/CapsChaos/Content/Configs/LevelConfig
+    FileNameFormat: level_{0:0000}.json
+    JsonIdField: 
+    ValidateAsType: 
+    AddressablesGroup: 
+    AddressablesLabel: 

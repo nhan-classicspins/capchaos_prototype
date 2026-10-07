@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../../../docs/design/level.schema.json",
+  "formatVersion": 4,
+  "id": "level_0018",
+  "conveyor": "oval_32",
+  "slots": 4,
+  "extraSlots": 2,
+  "slotLocks": [{ "slot": 3, "lockTurns": 3 }],
+  "trayCapacity": 4,
+  "colors": [1, 2, 3],
+  "feeders": [
+    { "bottles": [
+      1, 1, 1, 1,
+      2, 2, 2, 2,
+      3, 3, 3, 3,
+      1, 1, 1, 1,
+      2, 2, 2, 2,
+      1, 1, 1, 1,
+      3, 3, 3, 3,
+      2, 2, 2, 2
+    ] }
+  ],
+  "lanes": [
+    [{ "color": 3 }, { "color": 2 }, { "color": 1 }],
+    [{ "color": 2 }, { "color": 1 }, { "color": 2 }],
+    [{ "color": 1 }, { "color": 3 }]
+  ],
+  "links": [
+    { "a": { "lane": 0, "tray": 1 }, "b": { "lane": 1, "tray": 1 } },
+    { "a": { "lane": 0, "tray": 2 }, "b": { "lane": 2, "tray": 1 } }
+  ],
+  "view": { "cameraPreset": "default" },
+  "meta": { "name": "Tied Together", "difficulty": "easy", "notes": "Teaches: linked boxes wait for each other at the front, then the link breaks (R19). Hand-authored." }
+}

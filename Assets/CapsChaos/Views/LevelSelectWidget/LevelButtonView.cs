@@ -7,7 +7,8 @@ using ClassicSpins.PrototypeFramework.Views;
 namespace Game.Views
 {
     /// <summary>
-    /// One level tile: a rounded <c>HudPill</c> face on a darker lip, a big number and a small label under it.
+    /// One level tile — and the panel's Sync Config pill, the same look: a rounded <c>HudPill</c> face on a darker
+    /// lip, a big number (or word) and a small label under it.
     /// Pressing sinks the face onto its lip (art §5 "khi nhấn thì lún xuống"); a click raises
     /// <see cref="Clicked"/>. It never knows which level it shows — the controller decides that. Pooled: the
     /// controller subscribes on rent and unsubscribes on return.
@@ -29,6 +30,12 @@ namespace Game.Views
         {
             if (_number != null) _number.SetText(number);
             if (_label != null) _label.SetText(label);
+        }
+
+        /// <summary>Takes taps or not; a button that does not is drawn dimmed (the Button's own disabled tint).</summary>
+        public void SetInteractable(bool interactable)
+        {
+            if (_button != null) _button.interactable = interactable;
         }
 
         private void Awake()

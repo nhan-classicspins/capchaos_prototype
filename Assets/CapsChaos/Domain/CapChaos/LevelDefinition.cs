@@ -178,7 +178,7 @@ namespace Game.Domain
         /// <summary><c>Lanes[j][0]</c> is the tappable front tray of conveyor j.</summary>
         public IReadOnlyList<IReadOnlyList<CapColor>> Lanes { get; }
         public string CameraPreset { get; }
-        /// <summary>The shared top-conveyor layout this level runs on (<c>Conveyors/&lt;id&gt;.json</c>).</summary>
+        /// <summary>The shared top-conveyor layout this level runs on (<c>ConveyorConfig/&lt;id&gt;.json</c>).</summary>
         public ConveyorDefinition Conveyor => Loop.Conveyor;
         public string Name { get; }
         public string Difficulty { get; }

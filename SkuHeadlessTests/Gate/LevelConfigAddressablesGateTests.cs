@@ -8,7 +8,7 @@ using NUnit.Framework;
 namespace CapsChaos.SkuHeadlessTests.Gate
 {
     /// <summary>
-    /// The level content is loadable at boot: <c>Content/LevelConfig/</c> is ONE Addressables folder entry
+    /// The level content is loadable at boot: <c>Content/Configs/LevelConfig/</c> is ONE Addressables folder entry
     /// at the address <c>LevelConfigNode.Folder</c> reads (<c>"LevelConfig"</c>, so a level is
     /// <c>LevelConfig/level_0001.json</c>). Without the entry every engine-free test still passes — they read
     /// levels by path — and only the running game notices, with the Required LevelConfig node aborting boot.
@@ -21,7 +21,7 @@ namespace CapsChaos.SkuHeadlessTests.Gate
     [TestFixture]
     public sealed class LevelConfigAddressablesGateTests
     {
-        private const string FolderRelative = "Assets/CapsChaos/Content/LevelConfig";
+        private const string FolderRelative = "Assets/CapsChaos/Content/Configs/LevelConfig";
         private const string ExpectedAddress = "LevelConfig";   // == Game.Infrastructure.LevelConfigNode.Folder
         private const string ExpectedGroup = "Levels";
         private static readonly string[] RegistrarPrunedGroups = { "Local", "Remote" };
@@ -57,6 +57,22 @@ namespace CapsChaos.SkuHeadlessTests.Gate
             Assert.That(RegistrarPrunedGroups, Does.Not.Contain(mine[0].Group),
                 "the LevelConfig entry is in '" + mine[0].Group + "', which PrefabAddressableRegistrar prunes of every " +
                 "non-prefab, non-scene entry on each codegen tick — keep it in the '" + ExpectedGroup + "' group.");
+        }
+
+        /// <summary>The conveyor files beside the levels are their own folder entry, address <c>ConveyorConfig</c>
+        /// (== <c>ConveyorJson.Folder</c>; LevelConfigNode reads <c>ConveyorConfig/&lt;id&gt;.json</c>).</summary>
+        [Test]
+        public void The_ConveyorConfig_folder_is_one_addressables_entry_at_its_runtime_address()
+        {
+            const string folder = "Assets/CapsChaos/Content/Configs/ConveyorConfig";
+            var guid = PrefabAddressablesGateTests.GuidOf(folder);
+            var mine = AllEntries().Where(e => string.Equals(e.Guid, guid, StringComparison.Ordinal)).ToArray();
+            Assert.That(mine, Is.Not.Empty,
+                folder + " is not in an Addressables group, so LevelConfigNode finds no conveyor and every level fails to " +
+                "load. Mark the folder Addressable in the Editor (address '" + Game.Domain.ConveyorJson.Folder + "').");
+            Assert.That(mine[0].Address, Is.EqualTo(Game.Domain.ConveyorJson.Folder));
+            Assert.That(RegistrarPrunedGroups, Does.Not.Contain(mine[0].Group),
+                "the ConveyorConfig entry is in '" + mine[0].Group + "', which PrefabAddressableRegistrar prunes — keep it in '" + ExpectedGroup + "'.");
         }
 
         /// <summary>The Root UiPaletteProvider loads the palette by this address; mirrored from UiPalette.Address.</summary>

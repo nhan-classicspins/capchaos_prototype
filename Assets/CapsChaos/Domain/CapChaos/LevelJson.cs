@@ -31,7 +31,7 @@ namespace Game.Domain
     /// structural rule of <c>docs/design/level.schema.json</c>, reported all at once with a JSON path.
     /// The schema file is the contract; this class mirrors it and a headless test pins the two together.
     /// <para>Format v4 (2026-10-05) splits a level in two: the top conveyor's LAYOUT (rows, width, pick zone, shape,
-    /// merge points) is a shared file in <c>Conveyors/</c> that the level names by id (<c>conveyor</c>, see
+    /// merge points) is a shared file in <c>ConveyorConfig/</c> that the level names by id (<c>conveyor</c>, see
     /// <see cref="ConveyorJson"/>); the level file keeps the ITEMS — the bottles in each feeder (<c>feeders</c>, one
     /// per conveyor feeder, in its order), optional <c>initial</c> rows, the lanes and their trays. Every colour is the
     /// NUMBER of its <see cref="CapColor"/> (0 = empty spot), and every flag is a named field — <c>hidden</c> /
@@ -406,8 +406,8 @@ namespace Game.Domain
                 throw new InvalidOperationException($"{level.Id}: its conveyor was built in code (no id), so the level file could not name it");
             var sb = new StringBuilder();
             sb.Append("{\n");
-            // levels live in Assets/CapsChaos/Content/LevelConfig/ — four levels below the repo root
-            sb.Append("  \"$schema\": \"../../../../docs/design/level.schema.json\",\n");
+            // levels live in Assets/CapsChaos/Content/Configs/LevelConfig/ — five levels below the repo root
+            sb.Append("  \"$schema\": \"../../../../../docs/design/level.schema.json\",\n");
             sb.Append($"  \"formatVersion\": {LevelDefinition.CurrentFormatVersion},\n");
             sb.Append($"  \"id\": {Q(level.Id)},\n");
             sb.Append($"  \"conveyor\": {Q(level.Conveyor.Id)},\n");
