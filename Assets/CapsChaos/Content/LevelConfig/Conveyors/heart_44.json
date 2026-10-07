@@ -18,19 +18,19 @@
     { "x": 1.415, "z": 3.3, "yRotation": 212.9 }
   ] },
   "feeders": [
-    { "side": "right", "mergeAt": 34, "nodes": [
+    { "side": "right", "mergeAt": 31, "nodes": [
       { "x": 2.65, "z": 11.7, "yRotation": 180 },
       { "x": 2.65, "z": 8.9, "yRotation": 180 },
       { "x": 2.65, "z": 6.3, "yRotation": 180 },
       { "x": 1.922, "z": 5.155, "yRotation": 243.9 }
     ] },
-    { "side": "left", "mergeAt": 13, "nodes": [
+    { "side": "left", "mergeAt": 14, "nodes": [
       { "x": -2.65, "z": 11.7, "yRotation": 180 },
       { "x": -2.65, "z": 8.9, "yRotation": 180 },
       { "x": -2.65, "z": 6.3, "yRotation": 180 },
       { "x": -1.922, "z": 5.155, "yRotation": 116.1 }
     ] },
-    { "side": "middle", "mergeAt": 24, "nodes": [
+    { "side": "middle", "mergeAt": 25, "nodes": [
       { "x": -0.21, "z": 11.7, "yRotation": 180 },
       { "x": -0.21, "z": 8.4, "yRotation": 180 },
       { "x": 0.453, "z": 5.585, "yRotation": 148.2 }

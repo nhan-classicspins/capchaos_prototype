@@ -30,7 +30,7 @@
       { "x": -2.686, "z": 6.35, "yRotation": 180 },
       { "x": -2.105, "z": 4.475, "yRotation": 102.2 }
     ] },
-    { "side": "middle", "mergeAt": 23, "nodes": [
+    { "side": "middle", "mergeAt": 22, "nodes": [
       { "x": -0.057, "z": 11.7, "yRotation": 180 },
       { "x": -0.057, "z": 8.4, "yRotation": 180 },
       { "x": -0.057, "z": 5.877, "yRotation": 180 }

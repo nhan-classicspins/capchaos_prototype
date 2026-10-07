@@ -17,7 +17,7 @@
     { "x": 1.45, "z": 3.75, "yRotation": 180 }
   ] },
   "feeders": [
-    { "side": "right", "mergeAt": 33, "nodes": [
+    { "side": "right", "mergeAt": 34, "nodes": [
       { "x": 2.7, "z": 11.7, "yRotation": 180 },
       { "x": 2.7, "z": 8.4, "yRotation": 180 },
       { "x": 2.7, "z": 6.5, "yRotation": 180 },
