@@ -188,7 +188,7 @@ chat 2026-10-02; mô hình dưới đây là bản chuyển sang chai.
   - và không hàng chờ nào nhập được nữa (oval không còn ô trống, hoặc hàng chờ của các track còn trống đã hết).
 
   Còn chai khớp màu trên oval thì **chưa thua**: chai sẽ chạy tới vùng lấy. Khi chưa đầy slot mà bàn đứng yên và không
-  tap nào được chấp nhận (khoá, cặp nối thiếu slot…) thì cũng thua (`NoMovesLeft`).
+  tap nào được chấp nhận (khoá, box nối chờ bạn…) thì cũng thua (`NoMovesLeft`).
 
   Khi đó hiện popup **"YOU CAN DO IT" + RESTART** ([`refs/10_lose_popup.png`](refs/10_lose_popup.png)).
   Bấm RESTART chơi lại đúng level đó.
@@ -200,29 +200,24 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 
 - **R17 — Khay ẩn** [GĐ] Khay và nắp **không lộ màu**: tô màu slate `Mystery` và in dấu **"?"** lên trên nắp. Khi khay
   lên **đầu làn** thì lộ màu thật (fact `TrayRevealed`, khay nảy nhẹ). Khay ẩn nằm sẵn ở đầu làn lúc vào level thì
-  lộ màu ngay. Khay sau của một cặp nối cùng làn lộ màu cùng lúc với khay trước của cặp.
+  lộ màu ngay.
 - **R18 — Khay khoá** [GĐ] Có `n` lượt khoá, hiện bằng icon ổ khoá có số. **Chỉ đếm khi khay đang ở đầu làn**: mỗi
-  khay bay lên slot (từ làn khác) trừ 1, một cặp nối trừ 2. Lượt đưa khay khoá lên đầu làn thì không tính. Về 0 thì
+  khay bay lên slot (từ làn khác) trừ 1. Lượt đưa khay khoá lên đầu làn thì không tính. Về 0 thì
   ổ khoá bật mở và biến mất (fact `TrayLockTicked`, `Remaining = 0`). Tap khay đang khoá thì khay rung, luật không đổi.
   Prefab ổ khoá là `Content/Art/Prefabs/TrayLock.prefab`, nội dung tạm do ArtGenerator vẽ, chủ SKU sẽ thay. Giữ
   `TrayLockView` ở root khi thay nội dung.
-- **R19 — Khay nối** [GĐ] Hai khay nối bằng dây. Chỉ nối được **2 khay liền nhau trong cùng làn**, hoặc **2 khay
-  cùng vị trí ở 2 làn bất kỳ** (kề nhau, hoặc cách nhau một hay nhiều làn — mở rộng 2026-10-05; làn ở giữa không bị
-  giữ, dây vắt qua nó). Hai khay khác vị trí ở 2 làn thì không nối được: mỗi băng chỉ chạy khi băng kia chạy, nên khay
-  phía sau không bao giờ lên được đầu làn. Hai khay chỉ di chuyển **cùng nhau**:
-  - chưa sẵn sàng (một khay chưa ở đầu làn) mà tap vào khay nào của cặp thì **cả 2 khay cùng rung**;
-  - sẵn sàng thì tap vào khay nào của cặp cũng được: cả 2 bay lên slot, thứ tự theo file level (cùng làn: khay
-    trước trước; 2 làn: làn trái trước). Dây được tháo khi khay bay. **Cần 2 slot trống**, thiếu thì cả cặp rung.
-  - Cặp nối khác làn **luôn đứng ngang nhau** (sửa 2026-10-01 theo feedback chủ SKU). Băng chuyền chở một khay nối
-    sang làn khác chỉ chạy khi **băng chuyền kia cũng chạy được**. Khay nối bị giữ **chỉ chặn chính nó và các khay phía
-    sau nó** (sửa 2026-10-05 theo feedback chủ SKU): các khay **phía trước** nó vẫn tiến lên đầu làn bình thường và tap
-    được, nên trước khay nối mở ra một khoảng trống (`LaneGap`). Chỉ khi khay nối là khay kế tiếp của làn thì ô đầu mới
-    trống và tap vào làn bị từ chối (`RejectedBeltHeld`, khay rung). Vị trí từng khay trên băng: `TrayPosition(lane, tray)`.
-    Khi khay đầu làn B bay đi thì **cả 2 băng cùng chạy** (`CapChaosGame.AdvanceBelts`). Ví dụ level 18: tap khay đầu
-    làn 0 ⇒ băng 0 đứng yên; tap tiếp khay đầu làn 1 ⇒ 2 băng cùng chạy, cặp nối cùng lên đầu hàng.
+- **R19 — Box nối** [GĐ] (viết lại 2026-10-07 theo feedback chủ SKU) Hai box nối bằng dây, **luôn ở 2 làn khác
+  nhau**, vị trí bất kỳ. **Không có box nối trong cùng một làn** (V7).
+  - Các làn **di chuyển độc lập**: link không giữ băng nào lại; box trước và sau box nối vẫn tiến lên bình thường.
+  - Box nối đã lên đầu làn nhưng bạn nối chưa lên đầu làn của nó thì **không tap được**: tap thì cả 2 box rung
+    (`RejectedLinkNotReady`).
+  - Khi **cả 2 box đều ở đầu làn** thì link **bị phá** (fact `TrayLinkBroken`, dây thả ra): từ đó mỗi box là box
+    thường, tap để gửi lên slot từng cái một (cần 1 slot trống như box thường).
+  - V7: 2 box của link không được cùng ở đầu làn từ đầu level (link sẽ phá trước lần tap đầu). Các link chờ nhau
+    thành vòng (deadlock) do V6 (solver) bắt.
   - Khay nối không được khoá (V7).
-- **Thua khi hết nước** Nếu còn slot trống mà không lần tap nào được chấp nhận (mọi khay đầu làn đang khoá, đang chờ
-  bạn nối, hoặc cặp nối thiếu slot) thì thua với lý do `NoMovesLeft`, vì chỉ có tap mới thay đổi được trạng thái.
+- **Thua khi hết nước** Nếu còn slot trống mà không lần tap nào được chấp nhận (mọi khay đầu làn đang khoá hoặc đang chờ
+  bạn nối) thì thua với lý do `NoMovesLeft`, vì chỉ có tap mới thay đổi được trạng thái.
 
 ### 5.6 Slot mở thêm (R20, thêm 2026-10-02)
 - **R20** Mỗi level có `slots` slot mở sẵn (mặc định **4**) và `extraSlots` slot **khoá** (mặc định **2**) nằm bên phải,
@@ -243,11 +238,8 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
   `{ "slot": 3, "lockTurns": 5 }` (`slot` là chỉ số slot, 0 = trái nhất). Slot khoá **không nhận khay**: khay bay lên
   slot trống trái nhất **không** bị khoá. Ô slot tối, có ổ khoá kèm số lượt (dùng lại prefab `TrayLock`). Bấm vào thì
   không có gì xảy ra; slot này **không mua được** bằng coin / quảng cáo (R20 chỉ mở `extraSlots`).
-  - **Mỗi khay bay lên slot trừ 1**, một **cặp nối trừ 2** (R19), dù khay đi từ làn nào. Lượt được trừ **sau khi cả
-    nhóm khay của lần tap đó đã chọn slot**, nên cặp nối làm slot mở ra thì không hạ vào chính slot đó; slot nhận khay
-    từ lần tap sau. Fact `SlotLockTicked` (`Remaining = 0` ⇒ ổ khoá bật mở, ô sáng lên).
-  - Cặp nối cần **2 slot trống không bị khoá**. Hết slot dùng được thì xử lý như R20 / R15: còn `extraSlots` thì
-    `SlotsRanOut`, không còn thì thua.
+  - **Mỗi khay bay lên slot trừ 1**, dù khay đi từ làn nào. Lượt được trừ **sau khi khay
+    của lần tap đó đã chọn slot**; slot nhận khay từ lần tap sau. Fact `SlotLockTicked` (`Remaining = 0` ⇒ ổ khoá bật mở, ô sáng lên).
   - V10: `slot` phải là slot mở sẵn (`0 … slots − 1`), mỗi slot khoá tối đa 1 lần, và phải còn ít nhất 1 slot mở sẵn
     không bị khoá. Domain: `CapChaosGame.TickSlotLocks`; test: `SkuHeadlessTests/CapChaos/SlotLockRulesTests.cs`.
 
@@ -263,7 +255,7 @@ Ba loại khay đặc biệt, khai trong level JSON (§6.2). Domain: `CapChaosGa
 - **R24** Một hàng trong hàng chờ của feeder có thể bị **khoá**: field `lockedRows` của feeder, ví dụ
   `{ "bottles": [...], "lockedRows": [{ "row": 3, "lockTurns": 5 }] }`. Hàng khoá **không nhập vào loop**: nó dừng ở
   điểm merge và **chặn mọi hàng phía sau**. Trên hàng có ổ khoá kèm số lượt (dùng lại prefab `TrayLock`).
-  - **Mỗi container được đưa lên slot thành công thì trừ 1 lượt**, cặp nối trừ 2.
+  - **Mỗi container được đưa lên slot thành công thì trừ 1 lượt**.
   - **Chỉ bắt đầu đếm khi hàng đã tới điểm merge**, tức là thành hàng đầu của hàng chờ. Hàng khoá nằm phía sau thì
     chưa đếm.
   - Về 0 thì ổ khoá bật mở (fact `FeederRowLockTicked`, `Remaining = 0`) và hàng nhập loop ngay khi belt có chỗ.
@@ -460,7 +452,7 @@ Validator là C# thuần trong `Game.Domain`. Nó chạy ở ba nơi: khi load l
 | V1 | JSON khớp schema | `$.stack.layers[1][2]: 6 cells ≠ cols 7` |
 | V4 | R16 cân bằng từng màu | `color O: 18 bottles vs 4 trays×4=16` |
 | V5 | Ký tự nằm trong `colors` | `unknown color 'X' in lanes[1][3]` |
-| V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; cặp nối phải kề nhau (cùng làn liền nhau, hoặc 2 làn kề cùng vị trí); mỗi khay nằm trong tối đa 1 cặp; khay nối không được khoá | `V7 links[0]: lanes[0][0] and lanes[1][1] are not neighbours` |
+| V7 | `locks`/`links` trỏ tới khay có thật; mỗi khay khoá tối đa 1 lần; link nối 2 khay ở 2 làn khác nhau, không cùng ở đầu làn từ đầu level; mỗi khay nằm trong tối đa 1 link; khay nối không được khoá | `V7 links[0]: lanes[0][1] and lanes[0][2] are on the same lane …` |
 | V10 | `slotLocks` (R22): `slot` là slot mở sẵn, không trùng; còn ít nhất 1 slot mở sẵn không khoá | `V10 slotLocks[0]: slot 4 is not an open slot 0..3` |
 | V8 | Conveyor: `rows ≥ 2 × pickRows + 6`; mỗi `mergeAt` nằm trên đường chạy, ngoài vùng lấy, không trùng nhau. Level: hàng chờ có ít nhất 1 chai | `V8 conveyor oval_20.feeders[0].mergeAt: 2 is inside the pick zone 0..4` |
 | V9 | Spline của conveyor: loop ≥ 3 node, mỗi feeder ≥ 2 node, mọi số hữu hạn, hai node kề nhau không trùng chỗ | `V9 conveyor oval_16.feeders[2].nodes[0]: it and node 1 stand on the same spot` |

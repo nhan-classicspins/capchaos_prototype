@@ -376,6 +376,20 @@ namespace Game.Views
             _links.Add(view);
         }
 
+        /// <summary>The rope between belt trays (laneA, indexA) and (laneB, indexB) lets go — the link broke (R19: both
+        /// reached the front); each tray goes on alone.</summary>
+        public void UnlinkTrays(int laneA, int indexA, int laneB, int indexB)
+        {
+            if (!TryBeltTray(laneA, indexA, out var a) || !TryBeltTray(laneB, indexB, out var b)) return;
+            for (int i = _links.Count - 1; i >= 0; i--)
+            {
+                var l = _links[i];
+                if (l != null && !(l.Joins(a.transform) && l.Joins(b.transform))) continue;
+                _links.RemoveAt(i);
+                if (l != null) l.ReleaseAsync(destroyCancellationToken).Forget();
+            }
+        }
+
         private Renderer LidOf(GameObject tray) => _containers.TryGetValue(tray, out var c) && c != null ? c.Lid : null;
 
         /// <summary>A hidden tray on the belt turns out to be <paramref name="color"/> (R17): the "?" goes, the colour pops in.</summary>
@@ -459,8 +473,7 @@ namespace Game.Views
         /// <summary>
         /// Move every tray of <paramref name="lane"/> to its belt position — <paramref name="positions"/> holds one per
         /// tray, front first, the trays already on the belt followed by <paramref name="newTails"/>, which slide in from
-        /// behind. Trays may stand apart: a held linked tray (R19) keeps a hole in front of it while the trays ahead of
-        /// it move up. The belt surface scrolls as far as the furthest-moving tray.
+        /// behind. The belt surface scrolls as far as the furthest-moving tray.
         /// </summary>
         public async UniTask LayoutLane(int lane, IReadOnlyList<int> positions, IReadOnlyList<TrayLook> newTails)
         {
@@ -689,7 +702,7 @@ namespace Game.Views
             }
         }
 
-        /// <summary>How many slots are clear ON SCREEN (see <see cref="HasClearSlot"/>) — a linked pair needs two.</summary>
+        /// <summary>How many slots are clear ON SCREEN (see <see cref="HasClearSlot"/>).</summary>
         public int ClearSlotCount
         {
             get

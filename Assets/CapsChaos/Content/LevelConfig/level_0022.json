@@ -59,9 +59,9 @@
     [{ "color": 3 }, { "color": 5, "size": 4 }, { "color": 2, "size": 2 }, { "color": 6 }, { "color": 2 }, { "color": 1, "hidden": true }, { "color": 6, "lockTurns": 3 }, { "color": 3, "hidden": true }, { "color": 4 }, { "color": 2, "lockTurns": 3 }, { "color": 3 }, { "color": 3 }]
   ],
   "links": [
-    { "a": { "lane": 0, "tray": 2 }, "b": { "lane": 0, "tray": 3 } },
+    { "a": { "lane": 0, "tray": 3 }, "b": { "lane": 2, "tray": 2 } },
     { "a": { "lane": 1, "tray": 4 }, "b": { "lane": 2, "tray": 4 } }
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "Full House", "difficulty": "hard", "notes": "Hand-built on level_0020 (same items, same triangle loop) with every tray modifier: 8 hidden, 3 locked, a same-lane and a side-by-side link. Containers: one XL, one L, two M (merged from S trays of their colour).", "solution": [0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2] }
+  "meta": { "name": "Full House", "difficulty": "hard", "notes": "Hand-built on level_0020 (same items, same triangle loop) with every tray modifier: 8 hidden, 3 locked, two cross-lane links. Containers: one XL, one L, two M (merged from S trays of their colour)." }
 }

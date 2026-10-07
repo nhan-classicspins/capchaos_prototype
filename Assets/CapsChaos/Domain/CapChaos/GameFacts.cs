@@ -23,6 +23,14 @@ namespace Game.Domain
         public LaneAdvanced(int lane, int remaining) { Lane = lane; Remaining = remaining; }
     }
 
+    /// <summary>Linked trays <see cref="A"/> and <see cref="B"/> both reached the front of their lanes: the link broke
+    /// and each is a free tray now (R19).</summary>
+    public sealed class TrayLinkBroken : GameFact
+    {
+        public TrayRef A { get; } public TrayRef B { get; }
+        public TrayLinkBroken(TrayRef a, TrayRef b) { A = a; B = b; }
+    }
+
     /// <summary>Hidden tray <see cref="Tray"/> (authored index) of <see cref="Lane"/> reached the front and turned out
     /// to be <see cref="Color"/> (R17).</summary>
     public sealed class TrayRevealed : GameFact

@@ -43,34 +43,12 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
-        public void R22_a_linked_pair_counts_two()
+        public void R22_linked_trays_count_one_each_as_they_leave()
         {
-            var g = new CapChaosGame(Level(NoMatch, new[] { "R", "O", "GB" }, slots: 4, capacity: 1,
-                slotLocks: new[] { new[] { 0, 3 } }, links: new[] { new[] { 0, 0, 1, 0 } }));
-            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L0->S1:R) place(L1->S2:O) slotLock(S0:1)"),
-                "both trays land in open slots first, then the lock counts them both");
-            Assert.That(Trace(g.Tap(2).Facts), Does.StartWith("place(L2->S3:G) slotLock(S0:0)"));
-            Assert.That(Trace(g.Tap(2).Facts), Does.StartWith("place(L2->S0:B)"));
-        }
-
-        [Test]
-        public void R22_a_pair_that_unlocks_a_slot_does_not_land_in_it()
-        {
-            var g = new CapChaosGame(Level(NoMatch, new[] { "R", "O", "G" }, slots: 3, capacity: 1,
-                slotLocks: new[] { new[] { 0, 1 } }, links: new[] { new[] { 0, 0, 1, 0 } }));
-            Assert.That(Trace(g.Tap(0).Facts), Does.StartWith("place(L0->S1:R) place(L1->S2:O) slotLock(S0:0)"),
-                "the lock opens after the pair has landed");
-            Assert.That(Trace(g.Tap(2).Facts), Does.StartWith("place(L2->S0:G)"));
-        }
-
-        [Test]
-        public void R22_a_linked_pair_needs_two_slots_that_are_not_locked()
-        {
-            var g = new CapChaosGame(Level(NoMatch, new[] { "R", "O", "G" }, slots: 3, extraSlots: 1, capacity: 1,
-                slotLocks: new[] { new[] { 2, 5 } }, links: new[] { new[] { 1, 0, 2, 0 } }));
-            Assert.That(Trace(g.Tap(0).Facts), Does.EndWith("RANOUT"), "one open slot left, the pair needs two");
-            Assert.That(g.Tap(1).Outcome, Is.EqualTo(TapOutcome.RejectedNoFreeSlot));
-            Assert.That(g.SlotLockLeft(2), Is.EqualTo(4), "a refused tap counts nothing");
+            var g = new CapChaosGame(Level(NoMatch, new[] { "BR", "O" }, slots: 4, capacity: 1,
+                slotLocks: new[] { new[] { 0, 3 } }, links: new[] { new[] { 0, 1, 1, 0 } }));
+            Assert.That(Trace(g.Tap(0).Facts), Does.StartWith("place(L0->S1:B) slotLock(S0:2) advance(L0:1) unlink(L0#1,L1#0)"));
+            Assert.That(Trace(g.Tap(1).Facts), Does.StartWith("place(L1->S2:O) slotLock(S0:1)"), "the broken link's trays leave one by one");
         }
 
         [Test]

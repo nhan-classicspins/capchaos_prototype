@@ -80,10 +80,10 @@ namespace Game.Domain
                 errors.Add($"V10 slotLocks: all {level.Slots} open slots are locked — at least one must take a tray from the start");
         }
 
-        /// <summary>V7: every lock / link names a real tray; a link joins two neighbours in one lane (consecutive) or the
-        /// trays at the SAME position of two lanes — any two lanes, side by side or with lanes between them; a tray is in at
-        /// most one link and is never both linked and locked. (Two lanes at different positions would wait on each other
-        /// for ever: each lane's held tray only moves with the other's — R19.)</summary>
+        /// <summary>V7: every lock / link names a real tray; a link joins trays of two DIFFERENT lanes (any positions —
+        /// never two of one lane) that do not both start at the front (that link would break before the first tap); a tray
+        /// is in at most one link and is never both linked and locked. Links waiting on each other in a cycle are V6's
+        /// (the solver finds no way through).</summary>
         private static void ValidateTrayModifiers(LevelDefinition level, List<string> errors)
         {
             bool Exists(TrayRef t) => t.Lane >= 0 && t.Lane < level.Lanes.Count && t.Index >= 0 && t.Index < level.Lanes[t.Lane].Count;
@@ -102,10 +102,10 @@ namespace Game.Domain
                 var a = level.Links[i].A; var b = level.Links[i].B;
                 string where = $"V7 links[{i}]";
                 if (!Exists(a) || !Exists(b)) { errors.Add($"{where}: {(Exists(a) ? b : a)} does not exist"); continue; }
-                bool sameLane = a.Lane == b.Lane && System.Math.Abs(a.Index - b.Index) == 1;
-                bool acrossLanes = a.Lane != b.Lane && a.Index == b.Index;
-                if (!sameLane && !acrossLanes)
-                    errors.Add($"{where}: {a} and {b} can not be linked (same lane one apart, or two lanes at the same position)");
+                if (a.Lane == b.Lane)
+                    errors.Add($"{where}: {a} and {b} are on the same lane — a link joins trays of two different lanes");
+                else if (a.Index == 0 && b.Index == 0)
+                    errors.Add($"{where}: {a} and {b} both start at the front — the link would break before the first tap");
                 foreach (var t in new[] { a, b })
                 {
                     if (!linked.Add(t)) errors.Add($"{where}: {t} is already in another link");

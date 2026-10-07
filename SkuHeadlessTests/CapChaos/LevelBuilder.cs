@@ -70,6 +70,7 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
             TrayPacked k => $"pack(S{k.Slot}:{C(k.Color)})",
             TrayRevealed r => $"trayReveal(L{r.Lane}#{r.Tray}:{C(r.Color)})",
             TrayLockTicked k => $"lock(L{k.Lane}#{k.Tray}:{k.Remaining})",
+            TrayLinkBroken b => $"unlink(L{b.A.Lane}#{b.A.Index},L{b.B.Lane}#{b.B.Index})",
             SlotLockTicked k => $"slotLock(S{k.Slot}:{k.Remaining})",
             FeederRowLockTicked k => $"rowLock(F{k.Feeder}#{k.Row}:{k.Remaining})",
             LevelCompleted _ => "WIN",

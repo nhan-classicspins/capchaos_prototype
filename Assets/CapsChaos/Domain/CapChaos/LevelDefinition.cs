@@ -146,8 +146,9 @@ namespace Game.Domain
         public SlotLock(int slot, int turns) { Slot = slot; Turns = turns; }
     }
 
-    /// <summary>Two linked trays (GDD R19): they leave the belt together or not at all. Either two neighbours in one
-    /// lane, or the trays at the same position of two lanes (any two: side by side, or with lanes between them).</summary>
+    /// <summary>Two linked trays (GDD R19) on two DIFFERENT lanes, at any positions. Each lane moves on its own; a linked
+    /// tray at the front can not be released until its partner reaches the front of its lane too — then the link breaks
+    /// and both are ordinary trays.</summary>
     public sealed class TrayLink
     {
         public TrayRef A { get; }

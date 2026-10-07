@@ -342,10 +342,10 @@ namespace Game.Presentation
         // ── input → rules → replay ───────────────────────────────────────────────────────────
         /// <summary>
         /// R5: only the FRONT tray of a lane is released to a slot. A tray behind it answers "not this one" by
-        /// shaking; so does the front tray when no slot is free (R8), when it is locked (R18), or when it is linked and
-        /// its partner is not at the front yet (R19 — the pair shakes together). A belt carrying a tray linked to another
-        /// lane is HELD with an empty front until the linked belt can step too (R19); its trays shake. A linked pair is released by a tap on
-        /// either of its trays once both are ready. The belt itself is not tappable.
+        /// shaking; so does the front tray when no slot is free (R8), when it is locked (R18), or when it is still linked
+        /// (R19 — its partner has not reached the front of its lane yet; the pair shakes together). Lanes move on their
+        /// own; once both linked trays stand at the front the rope lets go and each is released by its own tap. The belt
+        /// itself is not tappable.
         /// <para>"Free" is what the player SEES: the rules empty a slot the instant its tray is full, but on screen
         /// that tray is still collecting (bottles in flight, the box packing) until the box lifts off. A tap in that
         /// window is refused BEFORE it reaches the rules — nothing is placed and no bottle moves — so the board
@@ -358,25 +358,20 @@ namespace Game.Presentation
             int tray = _laneTaken[lane] + index;
             bool linked = _game.TryPartner(lane, tray, out var partner);
 
-            // the tray must stand at the front of its belt — or be the back tray of a same-lane pair whose front tray
-            // does. A held belt (R19) has an empty front: nothing on it is at the front.
-            bool atFront = _game.IsAtFront(lane, tray)
-                || (linked && partner.Lane == lane && partner.Index == tray - 1 && _game.IsAtFront(lane, tray - 1));
-            if (!atFront) { Shake(lane, tray, linked, partner); return; }
-            if (_board.ClearSlotCount < (linked ? 2 : 1)) { Shake(lane, tray, linked, partner); return; }
+            if (!_game.IsAtFront(lane, tray)) { Shake(lane, tray, linked, partner); return; }
+            if (_board.ClearSlotCount < 1) { Shake(lane, tray, linked, partner); return; }
 
             var result = _game.Tap(lane);
             if (!result.Accepted)
             {
-                if (result.Outcome is TapOutcome.RejectedNoFreeSlot or TapOutcome.RejectedLocked or TapOutcome.RejectedLinkNotReady
-                    or TapOutcome.RejectedBeltHeld)
+                if (result.Outcome is TapOutcome.RejectedNoFreeSlot or TapOutcome.RejectedLocked or TapOutcome.RejectedLinkNotReady)
                     Shake(lane, tray, linked, partner);
                 return;
             }
 
             // Immediate feedback: the released trays leave the belt NOW, and the belt / reveal / lock beats play at once
             // too; the bottles the trays take from the pick zone fly as they are listed.
-            var moved = new HashSet<int>();                       // lanes a tray left or a held part stepped on
+            var moved = new HashSet<int>();                       // lanes a tray left
             foreach (var f in result.Facts)
             {
                 switch (f)
@@ -396,6 +391,7 @@ namespace Game.Presentation
                         break;
                     case TrayRevealed _:
                     case TrayLockTicked _:
+                    case TrayLinkBroken _:
                         break;                                     // below, once the belt has moved
                     case SlotLockTicked _:
                     case FeederRowLockTicked _:
@@ -407,6 +403,9 @@ namespace Game.Presentation
             {
                 switch (f)
                 {
+                    case TrayLinkBroken b:                                              // R19: both at the front
+                        _board.UnlinkTrays(b.A.Lane, b.A.Index - _laneTaken[b.A.Lane], b.B.Lane, b.B.Index - _laneTaken[b.B.Lane]);
+                        break;
                     case TrayRevealed r:
                         _board.RevealLaneTray(r.Lane, r.Tray - _laneTaken[r.Lane], r.Color.ToTint()).Forget();
                         break;
@@ -542,9 +541,7 @@ namespace Game.Presentation
         }
 
         /// <summary>
-        /// Lay <paramref name="lane"/> out the way the rules have it now (R7, R19): every tray at its belt position — the
-        /// trays in front of a held linked tray move up, the held tray and the trays behind it stay beside their partner —
-        /// and the trays that have come into view slide in at the back (ropes drawn for any pair now fully shown).
+        /// Lay <paramref name="lane"/> out the way the rules have it now (R7): every tray at its belt position, and the trays that have come into view slide in at the back (ropes drawn for any pair now fully shown).
         /// </summary>
         private void SyncLane(int lane)
         {

@@ -29,7 +29,7 @@
     },
     "slotLocks": {
       "type": "array",
-      "description": "Open slots locked for turns (R22): a locked slot takes no tray until lockTurns trays have flown to the slots (a linked pair counts 2); it opens once the trays of that tap have landed. V10: slot is one of the open slots 0..slots-1, each at most once, and at least one open slot starts unlocked.",
+      "description": "Open slots locked for turns (R22): a locked slot takes no tray until lockTurns trays have flown to the slots; it opens once the trays of that tap have landed. V10: slot is one of the open slots 0..slots-1, each at most once, and at least one open slot starts unlocked.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -72,7 +72,7 @@
           },
           "lockedRows": {
             "type": "array",
-            "description": "Locked items (R24): a locked queue row stops at the merge point instead of joining the loop, and holds every row behind it, until lockTurns trays have flown to the slots (a linked pair counts 2). It only starts counting once it has reached the merge point. V8: every row exists in the queue.",
+            "description": "Locked items (R24): a locked queue row stops at the merge point instead of joining the loop, and holds every row behind it, until lockTurns trays have flown to the slots. It only starts counting once it has reached the merge point. V8: every row exists in the queue.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -100,7 +100,7 @@
     },
     "links": {
       "type": "array",
-      "description": "Linked tray pairs (R19): they fly to the slots together (2 free slots needed); belts carrying a pair across two lanes only move together. V7: two neighbours in one lane, or the same position of any two lanes (side by side or with lanes between them); a tray is in at most one link and is never locked.",
+      "description": "Linked box pairs (R19): two trays on two DIFFERENT lanes, any positions. Lanes move on their own; a linked tray at the front can not be released until its partner is at the front of its lane too — then the link breaks and both are ordinary trays. V7: never two trays of one lane, never both at the front from the start; a tray is in at most one link and is never locked.",
       "items": {
         "type": "object",
         "additionalProperties": false,

@@ -57,14 +57,6 @@ namespace CapsChaos.SkuHeadlessTests.CapChaos
         }
 
         [Test]
-        public void R24_a_linked_pair_counts_two()
-        {
-            var g = new CapChaosGame(Level(new[] { ".." }, new[] { "Y", "Y" }, slots: 3, capacity: 2,
-                feeders: new[] { "RR" }, feederLocks: new[] { new[] { 0, 0, 3 } }, links: new[] { new[] { 0, 0, 1, 0 } }));
-            Assert.That(Trace(g.Tap(0).Facts), Does.Contain("rowLock(F0#0:1)"));
-        }
-
-        [Test]
         public void R24_a_row_locked_for_good_is_a_loss_not_a_hang()
         {
             var g = new CapChaosGame(Level(new[] { ".." }, new[] { "R" }, slots: 3, capacity: 2,

@@ -27,8 +27,8 @@
   ],
   "links": [
     { "a": { "lane": 0, "tray": 1 }, "b": { "lane": 1, "tray": 1 } },
-    { "a": { "lane": 2, "tray": 0 }, "b": { "lane": 2, "tray": 1 } }
+    { "a": { "lane": 0, "tray": 2 }, "b": { "lane": 2, "tray": 1 } }
   ],
   "view": { "cameraPreset": "default" },
-  "meta": { "name": "Tied Together", "difficulty": "easy", "notes": "Teaches: linked trays fly together and need two free slots (R19). Hand-authored." }
+  "meta": { "name": "Tied Together", "difficulty": "easy", "notes": "Teaches: linked boxes wait for each other at the front, then the link breaks (R19). Hand-authored." }
 }
